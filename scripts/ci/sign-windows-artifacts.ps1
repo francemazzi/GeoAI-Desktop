@@ -7,12 +7,12 @@ param(
   [switch]$Recurse,
   [switch]$VerifyOnly,
   [string]$SignToolPath = $env:STRATA_SIGNTOOL_PATH,
-  [string]$DlibPath = $env:STRATA_AZURE_CODESIGN_DLIB_PATH,
-  [string]$MetadataPath = $env:STRATA_AZURE_CODESIGN_METADATA_PATH
+  [string]$CertificatePath = $env:STRATA_WINDOWS_CERT_PATH,
+  [string]$CertificatePassword = $env:STRATA_WINDOWS_CERT_PASSWORD,
+  [string]$TimestampUrl = "http://timestamp.digicert.com"
 )
 
 $ErrorActionPreference = "Stop"
-$TimestampUrl = "http://timestamp.acs.microsoft.com"
 $SignableExtensions = @(".exe", ".dll", ".pyd")
 
 $script:Seen = 0
@@ -93,7 +93,7 @@ function Invoke-SignableFile {
   }
 
   Write-Host "Signing: $FilePath"
-  & $script:SignTool sign /v /debug /fd SHA256 /tr $TimestampUrl /td SHA256 /dlib $script:Dlib /dmdf $script:Metadata /d "Strata" /du "https://github.com/francemazzi/strata" $FilePath
+  & $script:SignTool sign /v /fd SHA256 /f $script:Certificate /p $script:CertificatePassword /tr $TimestampUrl /td SHA256 /d "Strata" /du "https://github.com/francemazzi/strata" $FilePath
   if ($LASTEXITCODE -ne 0) {
     throw "SignTool failed for: $FilePath"
   }
@@ -180,8 +180,17 @@ function Get-PackageFileList {
 }
 
 $script:SignTool = Resolve-RequiredFile -FilePath $SignToolPath -Label "SignTool"
-$script:Dlib = Resolve-RequiredFile -FilePath $DlibPath -Label "Azure Artifact Signing dlib"
-$script:Metadata = Resolve-RequiredFile -FilePath $MetadataPath -Label "Azure Artifact Signing metadata"
+
+# The certificate is only needed when we actually sign. Verification (verify mode
+# or -VerifyOnly) relies on signtool's own trust check and needs no private key.
+$script:WillSign = (-not $VerifyOnly) -and ($Mode -ne "verify")
+if ($script:WillSign) {
+  $script:Certificate = Resolve-RequiredFile -FilePath $CertificatePath -Label "Code-signing certificate (PFX)"
+  if ([string]::IsNullOrEmpty($CertificatePassword)) {
+    throw "Code-signing certificate password is not configured (STRATA_WINDOWS_CERT_PASSWORD)."
+  }
+  $script:CertificatePassword = $CertificatePassword
+}
 
 if ($Mode -eq "staging" -or $Mode -eq "verify") {
   if ([string]::IsNullOrWhiteSpace($Path)) {

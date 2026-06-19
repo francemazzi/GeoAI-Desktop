@@ -12,7 +12,7 @@ if(NOT DEFINED CPACK_PACKAGE_FILES OR "${CPACK_PACKAGE_FILES}" STREQUAL "")
   message(FATAL_ERROR "CPACK_PACKAGE_FILES is not available for Windows package signing")
 endif()
 
-foreach(_strata_sign_env STRATA_SIGNTOOL_PATH STRATA_AZURE_CODESIGN_DLIB_PATH STRATA_AZURE_CODESIGN_METADATA_PATH)
+foreach(_strata_sign_env STRATA_SIGNTOOL_PATH STRATA_WINDOWS_CERT_PATH STRATA_WINDOWS_CERT_PASSWORD)
   if("$ENV{${_strata_sign_env}}" STREQUAL "")
     message(FATAL_ERROR "Environment variable ${_strata_sign_env} is required for Windows code signing")
   endif()

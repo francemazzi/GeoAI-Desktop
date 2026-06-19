@@ -10,7 +10,7 @@ if(WIN32 AND NOT UNIX)
   set (CREATE_NSIS FALSE CACHE BOOL "Create an installer using NSIS")
 endif()
 set (CREATE_ZIP FALSE CACHE BOOL "Create a ZIP package")
-set (STRATA_WINDOWS_CODE_SIGN FALSE CACHE BOOL "Sign Windows packages using Azure Artifact Signing")
+set (STRATA_WINDOWS_CODE_SIGN FALSE CACHE BOOL "Sign Windows packages using an Authenticode PFX certificate")
 
 # Do not warn about runtime libs when building using VS Express
 if(NOT DEFINED CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_NO_WARNINGS)

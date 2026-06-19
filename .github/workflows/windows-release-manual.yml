@@ -35,7 +35,7 @@ jobs:
     timeout-minutes: 360
     env:
       IS_STRATA_RELEASE: ${{ startsWith(inputs.release_tag, 'strata-v') }}
-      WINDOWS_CODESIGN_CONFIGURED: ${{ secrets.AZURE_CLIENT_ID != '' && secrets.AZURE_TENANT_ID != '' && secrets.AZURE_SUBSCRIPTION_ID != '' && vars.AZURE_ARTIFACT_SIGNING_ENDPOINT != '' && vars.AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME != '' && vars.AZURE_ARTIFACT_SIGNING_CERT_PROFILE_NAME != '' }}
+      WINDOWS_CODESIGN_CONFIGURED: ${{ secrets.WINDOWS_CERT_PFX_BASE64 != '' && secrets.WINDOWS_CERT_PASSWORD != '' }}
 
     steps:
       - name: 🐣 Checkout
@@ -116,28 +116,19 @@ jobs:
         run: choco install nsis -y --no-progress
         shell: bash
 
-      - name: 🔐 Azure login for Windows code signing
-        if: ${{ env.IS_STRATA_RELEASE == 'true' && env.WINDOWS_CODESIGN_CONFIGURED == 'true' }}
-        uses: azure/login@2dd0bbf4064d5a1812889dc200bb8eed2597f82a # v3
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
       - name: 🔏 Prepare Windows code signing tools
         if: ${{ env.IS_STRATA_RELEASE == 'true' && env.WINDOWS_CODESIGN_CONFIGURED == 'true' }}
         shell: powershell
         env:
-          AZURE_ARTIFACT_SIGNING_ENDPOINT: ${{ vars.AZURE_ARTIFACT_SIGNING_ENDPOINT }}
-          AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME: ${{ vars.AZURE_ARTIFACT_SIGNING_ACCOUNT_NAME }}
-          AZURE_ARTIFACT_SIGNING_CERT_PROFILE_NAME: ${{ vars.AZURE_ARTIFACT_SIGNING_CERT_PROFILE_NAME }}
+          WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
         run: .\scripts\ci\prepare-windows-signing.ps1
 
-      - name: ⚠️ Windows code signing not configured
+      - name: 🛑 Windows code signing not configured
         if: ${{ env.IS_STRATA_RELEASE == 'true' && env.WINDOWS_CODESIGN_CONFIGURED != 'true' }}
         shell: bash
         run: |
-          echo "::warning::Windows code signing is disabled because Azure signing secrets/variables are not configured. Release assets will be uploaded unsigned."
+          echo "::error::Windows code signing is required for Strata releases but WINDOWS_CERT_PFX_BASE64 / WINDOWS_CERT_PASSWORD secrets are not configured. Refusing to ship an unsigned release."
+          exit 1
 
       - name: 🌱 Install dependencies and generate project files
         shell: bash
@@ -210,6 +201,8 @@ jobs:
 
       - name: 📦 Package
         shell: bash
+        env:
+          STRATA_WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
         run: cmake --build "${{ github.workspace }}/build" --target bundle --config Release
 
       - name: 🔎 Verify signed Windows release artifacts
