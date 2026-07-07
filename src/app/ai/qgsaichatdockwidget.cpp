@@ -56,9 +56,9 @@
 #include "qgswkbtypes.h"
 
 #include <QAbstractButton>
+#include <QAbstractItemView>
 #include <QAbstractScrollArea>
 #include <QAction>
-#include <QActionGroup>
 #include <QApplication>
 #include <QButtonGroup>
 #include <QCheckBox>
@@ -94,7 +94,6 @@
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QMap>
-#include <QMenu>
 #include <QMessageBox>
 #include <QNetworkReply>
 #include <QNetworkRequest>
@@ -140,6 +139,9 @@ namespace
       QString tooltip = QString();
   };
 
+  constexpr int PopupActionRole = Qt::UserRole + 1;
+  constexpr int PopupHeaderRole = Qt::UserRole + 2;
+
   QVector<ModelEntry> predefinedModels()
   {
     return {
@@ -156,8 +158,15 @@ namespace
       { u"Claude Opus 4.8"_s, u"claude-opus-4-8"_s, QgsAiModelRouter::Provider::Claude },
       { u"Claude Sonnet 5"_s, u"claude-sonnet-5"_s, QgsAiModelRouter::Provider::Claude },
       { u"Claude Haiku 4.5"_s, u"claude-haiku-4-5"_s, QgsAiModelRouter::Provider::Claude },
-      { u"Plan backend"_s, u"managed-plan"_s, QgsAiModelRouter::Provider::Plan },
+      { u"Strata Managed"_s, u"managed-plan"_s, QgsAiModelRouter::Provider::Plan },
     };
+  }
+
+  bool isChatPlanModel( const QgsAiPlanClient::ModelInfo &model )
+  {
+    if ( model.capabilities.isEmpty() )
+      return true;
+    return model.capabilities.contains( u"chat"_s ) || model.capabilities.contains( u"tools"_s ) || model.capabilities.contains( u"streaming"_s );
   }
 
   QVector<ModelEntry> cachedPlanModelEntries()
@@ -169,6 +178,8 @@ namespace
     for ( const QgsAiPlanClient::ModelInfo &model : models )
     {
       if ( model.id.isEmpty() )
+        continue;
+      if ( !isChatPlanModel( model ) )
         continue;
       if ( !policy.allowedModels.isEmpty() && !policy.allowedModels.contains( model.id ) )
         continue;
@@ -545,8 +556,6 @@ QgsAiChatDockWidget::QgsAiChatDockWidget( QgsAiAgentSessionManager *sessionManag
   mHistoryButton->setText( tr( "History" ) + u" ▾"_s );
   mHistoryButton->setToolTip( tr( "Past chats in this project" ) );
   mHistoryButton->setAutoRaise( true );
-  mHistoryButton->setPopupMode( QToolButton::InstantPopup );
-  mHistoryButton->setMenu( new QMenu( mHistoryButton ) );
   topBar->addWidget( mHistoryButton );
 
   topBar->addStretch( 1 );
@@ -618,10 +627,18 @@ QgsAiChatDockWidget::QgsAiChatDockWidget( QgsAiAgentSessionManager *sessionManag
   mMentionPopup = new QFrame( this, Qt::Popup );
   mMentionPopup->setObjectName( u"aiMentionPopup"_s );
   mMentionPopup->setFrameShape( QFrame::NoFrame );
+  // Translucent background lets the native popup window shape follow the QSS
+  // border-radius (anti-aliased by Qt's style engine): the 4 corners outside the
+  // rounded rect become fully transparent instead of showing a square patch.
+  // The frame/list backgrounds below stay fully opaque, so this does NOT make
+  // the popup content see-through.
+  mMentionPopup->setAttribute( Qt::WA_TranslucentBackground, true );
+  mMentionPopup->setAttribute( Qt::WA_StyledBackground, true );
   QVBoxLayout *mentionLayout = new QVBoxLayout( mMentionPopup );
   mentionLayout->setContentsMargins( 0, 0, 0, 0 );
   mMentionList = new QListWidget( mMentionPopup );
   mMentionList->setObjectName( u"aiMentionList"_s );
+  mMentionList->setAttribute( Qt::WA_StyledBackground, true );
   mMentionList->setFrameShape( QFrame::NoFrame );
   mMentionList->setHorizontalScrollBarPolicy( Qt::ScrollBarAlwaysOff );
   mMentionList->setUniformItemSizes( true );
@@ -634,14 +651,12 @@ QgsAiChatDockWidget::QgsAiChatDockWidget( QgsAiAgentSessionManager *sessionManag
 
   mModePill = new QToolButton( container );
   mModePill->setObjectName( u"aiModePill"_s );
-  mModePill->setPopupMode( QToolButton::InstantPopup );
   mModePill->setToolButtonStyle( Qt::ToolButtonTextOnly );
   mModePill->setAutoRaise( true );
   bottomBar->addWidget( mModePill );
 
   mModelPill = new QToolButton( container );
   mModelPill->setObjectName( u"aiModelPill"_s );
-  mModelPill->setPopupMode( QToolButton::InstantPopup );
   mModelPill->setToolButtonStyle( Qt::ToolButtonTextOnly );
   mModelPill->setAutoRaise( true );
   bottomBar->addWidget( mModelPill );
@@ -731,6 +746,7 @@ QgsAiChatDockWidget::QgsAiChatDockWidget( QgsAiAgentSessionManager *sessionManag
 
   initModeMenu();
   initModelMenu();
+  ensureAiPopup( mHistoryPopup, mHistoryList );
   refreshPlanModels();
   refreshPlanAgentPolicy();
   applyPillStyling();
@@ -738,13 +754,7 @@ QgsAiChatDockWidget::QgsAiChatDockWidget( QgsAiAgentSessionManager *sessionManag
   if ( mSessionManager )
   {
     const QString initialLabel = agentToModeLabel( mSessionManager->activeAgent() );
-    mModePill->setText( initialLabel + u" ▾"_s );
-    const QList<QAction *> modeActions = mModePill->menu()->actions();
-    for ( QAction *a : modeActions )
-    {
-      if ( a->text() == initialLabel )
-        a->setChecked( true );
-    }
+    setModeLabel( initialLabel );
 
     connect( mSessionManager, &QgsAiAgentSessionManager::messageAdded, this, [this]( const QgsAiChatMessage &message ) {
       if ( mStreamingInProgress && message.role == QgsAiChatRole::Assistant )
@@ -780,8 +790,15 @@ QgsAiChatDockWidget::QgsAiChatDockWidget( QgsAiAgentSessionManager *sessionManag
   }
 
   connect( mNewChatButton, &QToolButton::clicked, this, &QgsAiChatDockWidget::onNewChatClicked );
-  connect( mHistoryButton, &QToolButton::clicked, this, &QgsAiChatDockWidget::rebuildHistoryMenu );
-  connect( mHistoryButton->menu(), &QMenu::triggered, this, &QgsAiChatDockWidget::onHistoryEntryTriggered );
+  connect( mHistoryButton, &QToolButton::clicked, this, &QgsAiChatDockWidget::showHistoryPopup );
+  connect( mModePill, &QToolButton::clicked, this, &QgsAiChatDockWidget::showModePopup );
+  connect( mModelPill, &QToolButton::clicked, this, &QgsAiChatDockWidget::showModelPopup );
+  connect( mHistoryList, &QListWidget::itemClicked, this, &QgsAiChatDockWidget::handleHistoryPopupItem );
+  connect( mHistoryList, &QListWidget::itemActivated, this, &QgsAiChatDockWidget::handleHistoryPopupItem );
+  connect( mModeList, &QListWidget::itemClicked, this, &QgsAiChatDockWidget::handleModePopupItem );
+  connect( mModeList, &QListWidget::itemActivated, this, &QgsAiChatDockWidget::handleModePopupItem );
+  connect( mModelList, &QListWidget::itemClicked, this, &QgsAiChatDockWidget::handleModelPopupItem );
+  connect( mModelList, &QListWidget::itemActivated, this, &QgsAiChatDockWidget::handleModelPopupItem );
   connect( mAttachButton, &QToolButton::clicked, this, &QgsAiChatDockWidget::attachFile );
   connect( mInputTextEdit, &QgsAiChatPromptEdit::filesDropped, this, [this]( const QStringList &paths ) {
     bool added = false;
@@ -828,6 +845,16 @@ QgsAiChatDockWidget::QgsAiChatDockWidget( QgsAiAgentSessionManager *sessionManag
 
 bool QgsAiChatDockWidget::eventFilter( QObject *watched, QEvent *event )
 {
+  if ( ( watched == mModeList || watched == mModelList || watched == mHistoryList ) && event->type() == QEvent::KeyPress )
+  {
+    QKeyEvent *keyEvent = static_cast<QKeyEvent *>( event );
+    if ( keyEvent->key() == Qt::Key_Escape )
+    {
+      hideAiPopups();
+      return true;
+    }
+  }
+
   if ( watched == mInputTextEdit && event->type() == QEvent::KeyPress )
   {
     QKeyEvent *keyEvent = static_cast<QKeyEvent *>( event );
@@ -861,21 +888,139 @@ bool QgsAiChatDockWidget::eventFilter( QObject *watched, QEvent *event )
   return QgsDockWidget::eventFilter( watched, event );
 }
 
+void QgsAiChatDockWidget::ensureAiPopup( QFrame *&popup, QListWidget *&list )
+{
+  if ( popup && list )
+    return;
+
+  popup = new QFrame( this, Qt::Popup );
+  popup->setObjectName( u"aiSelectPopup"_s );
+  popup->setFrameShape( QFrame::NoFrame );
+  // See the comment on mMentionPopup's construction: translucent window +
+  // opaque QSS-painted rounded content avoids both the jagged setMask() edges
+  // and the square corners left behind by a fully opaque top-level window.
+  popup->setAttribute( Qt::WA_TranslucentBackground, true );
+  popup->setAttribute( Qt::WA_StyledBackground, true );
+
+  QVBoxLayout *layout = new QVBoxLayout( popup );
+  layout->setContentsMargins( 0, 0, 0, 0 );
+  layout->setSpacing( 0 );
+
+  list = new QListWidget( popup );
+  list->setObjectName( u"aiSelectPopupList"_s );
+  list->setAttribute( Qt::WA_StyledBackground, true );
+  list->setFrameShape( QFrame::NoFrame );
+  list->setHorizontalScrollBarPolicy( Qt::ScrollBarAlwaysOff );
+  list->setVerticalScrollBarPolicy( Qt::ScrollBarAsNeeded );
+  list->setSelectionMode( QAbstractItemView::SingleSelection );
+  list->setEditTriggers( QAbstractItemView::NoEditTriggers );
+  list->setUniformItemSizes( false );
+  list->installEventFilter( this );
+  layout->addWidget( list );
+}
+
+QListWidgetItem *QgsAiChatDockWidget::addAiPopupItem( QListWidget *list, const QString &text, const QVariant &data, bool checked, bool enabled, const QString &tooltip )
+{
+  if ( !list )
+    return nullptr;
+
+  QListWidgetItem *item = new QListWidgetItem( checked ? u"✓  %1"_s.arg( text ) : u"   %1"_s.arg( text ) );
+  item->setData( Qt::UserRole, data );
+  const Qt::ItemFlags flags = enabled ? Qt::ItemFlags( Qt::ItemIsEnabled | Qt::ItemIsSelectable ) : Qt::NoItemFlags;
+  item->setFlags( flags );
+  if ( !tooltip.isEmpty() )
+    item->setToolTip( tooltip );
+  list->addItem( item );
+  if ( checked )
+    list->setCurrentItem( item );
+  return item;
+}
+
+void QgsAiChatDockWidget::addAiPopupHeader( QListWidget *list, const QString &text )
+{
+  if ( !list )
+    return;
+
+  QListWidgetItem *item = new QListWidgetItem( text.toUpper() );
+  item->setData( PopupHeaderRole, true );
+  item->setFlags( Qt::NoItemFlags );
+  QFont font = item->font();
+  font.setBold( true );
+  item->setFont( font );
+  item->setSizeHint( QSize( 0, 24 ) );
+  list->addItem( item );
+}
+
+void QgsAiChatDockWidget::addAiPopupSeparator( QListWidget *list )
+{
+  if ( !list )
+    return;
+
+  QListWidgetItem *item = new QListWidgetItem( QString() );
+  item->setFlags( Qt::NoItemFlags );
+  item->setSizeHint( QSize( 0, 6 ) );
+  list->addItem( item );
+}
+
+void QgsAiChatDockWidget::showAiPopupBelow( QFrame *popup, QListWidget *list, QToolButton *anchor )
+{
+  if ( !popup || !list || !anchor )
+    return;
+
+  list->clearSelection();
+  const int rowCount = std::max( 1, list->count() );
+  int contentHeight = 0;
+  for ( int row = 0; row < list->count(); ++row )
+    contentHeight += std::max( list->sizeHintForRow( row ), 22 );
+
+  const int maxVisibleRows = std::min( rowCount, 12 );
+  int visibleHeight = 0;
+  for ( int row = 0; row < maxVisibleRows && row < list->count(); ++row )
+    visibleHeight += std::max( list->sizeHintForRow( row ), 22 );
+
+  const int listWidth = std::max( anchor->width(), list->sizeHintForColumn( 0 ) + 36 );
+  const int listHeight = std::min( contentHeight, std::max( visibleHeight, 28 ) );
+  list->setFixedSize( listWidth, listHeight );
+  popup->adjustSize();
+
+  QPoint pos = anchor->mapToGlobal( QPoint( 0, anchor->height() + 4 ) );
+  if ( QScreen *screen = QApplication::screenAt( pos ) )
+  {
+    const QRect available = screen->availableGeometry();
+    const QSize popupSize = popup->sizeHint();
+    if ( pos.x() + popupSize.width() > available.right() )
+      pos.setX( std::max( available.left(), available.right() - popupSize.width() ) );
+    if ( pos.y() + popupSize.height() > available.bottom() )
+      pos.setY( anchor->mapToGlobal( QPoint( 0, -popupSize.height() - 4 ) ).y() );
+  }
+
+  popup->move( pos );
+  popup->show();
+  popup->raise();
+  list->setFocus();
+}
+
+void QgsAiChatDockWidget::hideAiPopups()
+{
+  if ( mModePopup )
+    mModePopup->hide();
+  if ( mModelPopup )
+    mModelPopup->hide();
+  if ( mHistoryPopup )
+    mHistoryPopup->hide();
+}
+
 void QgsAiChatDockWidget::initModeMenu()
 {
-  QMenu *menu = new QMenu( mModePill );
-  QActionGroup *group = new QActionGroup( menu );
-  group->setExclusive( true );
+  ensureAiPopup( mModePopup, mModeList );
+  if ( mCurrentModeLabel.isEmpty() )
+    mCurrentModeLabel = u"Plan"_s;
+  mModeList->clear();
   const QStringList labels = { u"Plan"_s, u"Agent"_s, u"Ask before edits"_s, u"Ask"_s };
   for ( const QString &label : labels )
-  {
-    QAction *action = menu->addAction( label );
-    action->setCheckable( true );
-    group->addAction( action );
-  }
-  mModePill->setMenu( menu );
-  mModePill->setText( u"Plan ▾"_s );
-  connect( group, &QActionGroup::triggered, this, &QgsAiChatDockWidget::onModeSelected );
+    addAiPopupItem( mModeList, label, label, label == mCurrentModeLabel );
+  if ( mModePill )
+    mModePill->setText( mCurrentModeLabel + u" ▾"_s );
 }
 
 void QgsAiChatDockWidget::initModelMenu()
@@ -933,31 +1078,31 @@ void QgsAiChatDockWidget::rebuildModelMenu()
   if ( !mModelPill )
     return;
 
-  // Replace any previous menu (and its action group) wholesale to avoid stale
-  // actions; the old menu is owned by mModelPill and scheduled for deletion.
-  if ( QMenu *oldMenu = mModelPill->menu() )
-  {
-    mModelPill->setMenu( nullptr );
-    oldMenu->deleteLater();
-  }
-
-  QMenu *menu = new QMenu( mModelPill );
+  ensureAiPopup( mModelPopup, mModelList );
+  mModelList->clear();
 
   // Only offer models whose provider is actually synced (credentialed).
   QVector<ModelEntry> models;
+  bool planOnly = false;
   if ( mModelRouter )
   {
-    for ( const ModelEntry &entry : predefinedModels() )
-    {
-      if ( entry.provider != QgsAiModelRouter::Provider::Plan && mModelRouter->isProviderAvailable( entry.provider ) )
-        models.append( entry );
-    }
     if ( mModelRouter->isProviderAvailable( QgsAiModelRouter::Provider::Plan ) )
     {
+      planOnly = true;
+      if ( mModelRouter->activeProvider() != QgsAiModelRouter::Provider::Plan )
+        mModelRouter->setActiveProvider( QgsAiModelRouter::Provider::Plan );
       QVector<ModelEntry> planEntries = cachedPlanModelEntries();
       if ( planEntries.isEmpty() )
-        planEntries.append( ModelEntry { tr( "Plan backend" ), u"managed-plan"_s, QgsAiModelRouter::Provider::Plan, tr( "Managed Strata Cloud default model" ) } );
+        planEntries.append( ModelEntry { tr( "Strata Managed" ), u"managed-plan"_s, QgsAiModelRouter::Provider::Plan, tr( "Managed Strata Cloud default model" ) } );
       models += planEntries;
+    }
+    else
+    {
+      for ( const ModelEntry &entry : predefinedModels() )
+      {
+        if ( entry.provider != QgsAiModelRouter::Provider::Plan && mModelRouter->isProviderAvailable( entry.provider ) )
+          models.append( entry );
+      }
     }
   }
 
@@ -965,12 +1110,11 @@ void QgsAiChatDockWidget::rebuildModelMenu()
   // models that cannot be used.
   if ( models.isEmpty() )
   {
-    QAction *none = menu->addAction( tr( "No AI providers configured" ) );
-    none->setEnabled( false );
-    menu->addSeparator();
-    QAction *openSettings = menu->addAction( tr( "Open provider settings…" ) );
-    connect( openSettings, &QAction::triggered, this, &QgsAiChatDockWidget::openProviderSettings );
-    mModelPill->setMenu( menu );
+    addAiPopupItem( mModelList, tr( "No AI providers configured" ), QVariant(), false, false );
+    addAiPopupSeparator( mModelList );
+    QListWidgetItem *openSettings = addAiPopupItem( mModelList, tr( "Open provider settings…" ), QVariant(), false, true );
+    if ( openSettings )
+      openSettings->setData( PopupActionRole, u"settings"_s );
     mModelPill->setText( tr( "No model ▾" ) );
     return;
   }
@@ -989,7 +1133,7 @@ void QgsAiChatDockWidget::rebuildModelMenu()
       break;
     }
   }
-  if ( !activeRepresented && !currentModel.isEmpty() && mModelRouter->isProviderAvailable( currentProvider ) )
+  if ( !planOnly && !activeRepresented && !currentModel.isEmpty() && mModelRouter->isProviderAvailable( currentProvider ) )
   {
     // Insert after the last row of the same provider so it lands in the right section.
     int insertAt = models.size();
@@ -1001,15 +1145,12 @@ void QgsAiChatDockWidget::rebuildModelMenu()
     models.insert( insertAt, ModelEntry { currentModel, currentModel, currentProvider } );
   }
 
-  QActionGroup *group = new QActionGroup( menu );
-  group->setExclusive( true );
-
   QgsAiModelRouter::Provider currentSection = QgsAiModelRouter::Provider::OpenAi;
   bool first = true;
   const ModelEntry *pillEntry = &models.first();
   for ( const ModelEntry &entry : models )
   {
-    if ( first || entry.provider != currentSection )
+    if ( !planOnly && ( first || entry.provider != currentSection ) )
     {
       QString header;
       switch ( entry.provider )
@@ -1027,30 +1168,24 @@ void QgsAiChatDockWidget::rebuildModelMenu()
           header = tr( "Anthropic" );
           break;
         case QgsAiModelRouter::Provider::Plan:
-          header = tr( "Plan backend" );
+          header = tr( "Strata" );
           break;
       }
-      menu->addSection( header );
+      addAiPopupHeader( mModelList, header );
       currentSection = entry.provider;
       first = false;
     }
-    QAction *action = menu->addAction( entry.displayName );
-    action->setCheckable( true );
-    if ( !entry.tooltip.isEmpty() )
-      action->setToolTip( entry.tooltip );
-    action->setData( QVariant::fromValue( entry ) );
-    group->addAction( action );
-    if ( entry.provider == currentProvider && entry.model == currentModel )
+    if ( planOnly )
+      first = false;
+    const bool checked = entry.provider == currentProvider && entry.model == currentModel;
+    addAiPopupItem( mModelList, entry.displayName, QVariant::fromValue( entry ), checked, true, entry.tooltip );
+    if ( checked )
     {
-      action->setChecked( true );
       pillEntry = &entry;
     }
   }
 
-  mModelPill->setMenu( menu );
   mModelPill->setText( modelPillLabel( pillEntry->provider, pillEntry->displayName ) );
-
-  connect( group, &QActionGroup::triggered, this, &QgsAiChatDockWidget::onModelSelected );
 }
 
 void QgsAiChatDockWidget::applyPillStyling()
@@ -1090,13 +1225,21 @@ void QgsAiChatDockWidget::applyPillStyling()
     "QgsScrollArea#aiTranscriptScrollArea { background: palette(window); border: 0; } "
     "QWidget#aiTranscriptContainer { background: palette(window); }"
   ) );
-  mMentionPopup->setStyleSheet( u"QFrame#aiMentionPopup { background: palette(base); border: 0; border-radius: 8px; }"_s );
-  mMentionList->setStyleSheet( QStringLiteral(
-    "QListWidget#aiMentionList { color: palette(text); background: palette(base); border: 0; } "
-    "QListWidget#aiMentionList::item { padding: 4px 8px; border-radius: 4px; } "
-    "QListWidget#aiMentionList::item:selected { color: palette(highlighted-text); background: palette(highlight); } "
-    "QListWidget#aiMentionList::item:hover { background: palette(alternate-base); }"
-  ) );
+  const QString popupStyle = QStringLiteral(
+    "QFrame#aiSelectPopup, QFrame#aiMentionPopup { background: palette(base); border: 1px solid palette(mid); border-radius: 8px; } "
+    "QListWidget#aiSelectPopupList, QListWidget#aiMentionList { color: palette(text); background: palette(base); border: 0; border-radius: 8px; outline: 0; } "
+    "QListWidget#aiSelectPopupList::item, QListWidget#aiMentionList::item { padding: 4px 8px; border-radius: 4px; } "
+    "QListWidget#aiSelectPopupList::item:selected, QListWidget#aiMentionList::item:selected { color: palette(highlighted-text); background: palette(highlight); } "
+    "QListWidget#aiSelectPopupList::item:hover, QListWidget#aiMentionList::item:hover { background: palette(alternate-base); } "
+    "QListWidget#aiSelectPopupList::item:disabled, QListWidget#aiMentionList::item:disabled { color: palette(mid); background: transparent; }"
+  );
+  if ( mModePopup )
+    mModePopup->setStyleSheet( popupStyle );
+  if ( mModelPopup )
+    mModelPopup->setStyleSheet( popupStyle );
+  if ( mHistoryPopup )
+    mHistoryPopup->setStyleSheet( popupStyle );
+  mMentionPopup->setStyleSheet( popupStyle );
   mRuntimeStatusLabel->setStyleSheet( u"QLabel#aiRuntimeStatusLabel { color: palette(mid); }"_s );
   mCancelButton->setStyleSheet( QStringLiteral(
     "QPushButton#aiCancelRequestButton { color: palette(window-text); background: palette(button); border: 0; border-radius: 6px; padding: 3px 9px; } "
@@ -1520,18 +1663,95 @@ void QgsAiChatDockWidget::scrollTranscriptToBottom()
   } );
 }
 
+void QgsAiChatDockWidget::showModePopup()
+{
+  initModeMenu();
+  hideAiPopups();
+  showAiPopupBelow( mModePopup, mModeList, mModePill );
+}
+
+void QgsAiChatDockWidget::showModelPopup()
+{
+  rebuildModelMenu();
+  hideAiPopups();
+  showAiPopupBelow( mModelPopup, mModelList, mModelPill );
+}
+
+void QgsAiChatDockWidget::showHistoryPopup()
+{
+  rebuildHistoryMenu();
+  hideAiPopups();
+  showAiPopupBelow( mHistoryPopup, mHistoryList, mHistoryButton );
+}
+
+void QgsAiChatDockWidget::handleModePopupItem( QListWidgetItem *item )
+{
+  if ( mModePopup && !mModePopup->isVisible() )
+    return;
+  if ( !item || !( item->flags() & Qt::ItemIsEnabled ) )
+    return;
+
+  const QString label = item->data( Qt::UserRole ).toString();
+  if ( label.isEmpty() )
+    return;
+
+  hideAiPopups();
+  setModeLabel( label );
+}
+
+void QgsAiChatDockWidget::handleModelPopupItem( QListWidgetItem *item )
+{
+  if ( mModelPopup && !mModelPopup->isVisible() )
+    return;
+  if ( !item || !( item->flags() & Qt::ItemIsEnabled ) )
+    return;
+
+  hideAiPopups();
+  if ( item->data( PopupActionRole ).toString() == "settings"_L1 )
+  {
+    openProviderSettings();
+    return;
+  }
+
+  QAction action( this );
+  action.setData( item->data( Qt::UserRole ) );
+  onModelSelected( &action );
+  rebuildModelMenu();
+}
+
+void QgsAiChatDockWidget::handleHistoryPopupItem( QListWidgetItem *item )
+{
+  if ( mHistoryPopup && !mHistoryPopup->isVisible() )
+    return;
+  if ( !item || !( item->flags() & Qt::ItemIsEnabled ) )
+    return;
+
+  hideAiPopups();
+  QAction action( this );
+  action.setData( item->data( Qt::UserRole ) );
+  onHistoryEntryTriggered( &action );
+}
+
 void QgsAiChatDockWidget::setModeLabel( const QString &label )
 {
   if ( !mModePill )
     return;
 
+  mCurrentModeLabel = label;
   mModePill->setText( label + u" ▾"_s );
-  if ( mModePill->menu() )
+  if ( mModeList )
   {
-    for ( QAction *action : mModePill->menu()->actions() )
+    for ( int row = 0; row < mModeList->count(); ++row )
     {
-      if ( action->isCheckable() )
-        action->setChecked( action->text() == label );
+      QListWidgetItem *item = mModeList->item( row );
+      if ( !item || item->data( PopupHeaderRole ).toBool() )
+        continue;
+      const QString itemLabel = item->data( Qt::UserRole ).toString();
+      if ( itemLabel.isEmpty() )
+        continue;
+      item->setText( itemLabel == label ? u"✓  %1"_s.arg( itemLabel ) : u"   %1"_s.arg( itemLabel ) );
+      if ( itemLabel == label )
+        mModeList->setCurrentItem( item );
     }
   }
   if ( mSessionManager )
@@ -1857,31 +2077,28 @@ void QgsAiChatDockWidget::reloadTranscriptFromHistory()
 
 void QgsAiChatDockWidget::rebuildHistoryMenu()
 {
-  if ( !mHistoryButton || !mHistoryButton->menu() )
+  if ( !mHistoryButton )
     return;
 
-  QMenu *menu = mHistoryButton->menu();
-  menu->clear();
+  ensureAiPopup( mHistoryPopup, mHistoryList );
+  mHistoryList->clear();
 
   if ( !mSessionManager )
   {
-    QAction *empty = menu->addAction( tr( "No session manager" ) );
-    empty->setEnabled( false );
+    addAiPopupItem( mHistoryList, tr( "No session manager" ), QVariant(), false, false );
     return;
   }
 
   if ( !mSessionManager->hasPersistentChatHistoryScope() )
   {
-    QAction *empty = menu->addAction( tr( "Save or open a QGIS project to save chat history" ) );
-    empty->setEnabled( false );
+    addAiPopupItem( mHistoryList, tr( "Save or open a QGIS project to save chat history" ), QVariant(), false, false );
     return;
   }
 
   const QList<QgsAiChatHistoryStore::SessionInfo> sessions = mSessionManager->listSessions();
   if ( sessions.isEmpty() )
   {
-    QAction *empty = menu->addAction( tr( "No past chats yet" ) );
-    empty->setEnabled( false );
+    addAiPopupItem( mHistoryList, tr( "No past chats yet" ), QVariant(), false, false );
     return;
   }
 
@@ -1889,24 +2106,16 @@ void QgsAiChatDockWidget::rebuildHistoryMenu()
   for ( const QgsAiChatHistoryStore::SessionInfo &s : sessions )
   {
     const QString stamp = s.updatedAt.toLocalTime().toString( u"yyyy-MM-dd HH:mm"_s );
-    const QString label = u"%1 — %2"_s.arg( s.title, stamp );
-    QAction *act = menu->addAction( label );
-    act->setData( s.id );
-    if ( s.id == activeId )
-    {
-      act->setCheckable( true );
-      act->setChecked( true );
-    }
+    const QString label = u"%1 - %2"_s.arg( s.title, stamp );
+    addAiPopupItem( mHistoryList, label, s.id, s.id == activeId );
   }
 
-  menu->addSeparator();
+  addAiPopupSeparator( mHistoryList );
 
   if ( !activeId.isEmpty() )
   {
-    QAction *rename = menu->addAction( tr( "Rename current chat…" ) );
-    rename->setData( u"__rename__"_s );
-    QAction *del = menu->addAction( tr( "Delete current chat" ) );
-    del->setData( u"__delete__"_s );
+    addAiPopupItem( mHistoryList, tr( "Rename current chat…" ), u"__rename__"_s );
+    addAiPopupItem( mHistoryList, tr( "Delete current chat" ), u"__delete__"_s );
   }
 }
 

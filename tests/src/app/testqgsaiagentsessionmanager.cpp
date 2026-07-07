@@ -102,6 +102,52 @@ namespace
       router.setProviderSettings( provider, settings );
     }
   }
+
+  void configureOpenRouterForLoopback( QgsAiModelRouter &router, quint16 port )
+  {
+    QgsSettings settings;
+    settings.setValue( u"ai/provider/openrouter/apiKey"_s, u"sk-or-loopback-test"_s );
+    settings.setValue( u"ai/network/maxRetries"_s, 0 );
+
+    QgsAiModelRouter::ProviderSettings providerSettings = router.providerSettings( QgsAiModelRouter::Provider::OpenRouter );
+    providerSettings.endpoint = u"http://127.0.0.1:%1/api/v1/chat/completions"_s.arg( port );
+    providerSettings.model = u"test/model"_s;
+    providerSettings.enabled = true;
+    providerSettings.autoRouting = true;
+    router.setProviderSettings( QgsAiModelRouter::Provider::OpenRouter, providerSettings );
+  }
+
+  QgsAiTestLoopbackServer::ScriptedResponse streamEchoToolCall( const QString &callId, const QString &text )
+  {
+    const QByteArray arguments = QJsonDocument( QJsonObject { { u"text"_s, text } } ).toJson( QJsonDocument::Compact );
+    const QString escapedArgs = QString::fromUtf8( arguments ).replace( u"\""_s, u"\\\""_s );
+    const QString payload = u"data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"%1\",\"type\":\"function\",\"function\":{\"name\":\"echo\",\"arguments\":\"%2\"}}]}}]}\n\n"_s.arg( callId, escapedArgs );
+    return QgsAiTestLoopbackServer::sseResponse( {
+      payload.toUtf8(),
+      QByteArrayLiteral( "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"tool_calls\"}]}\n\ndata: [DONE]\n\n" ),
+    } );
+  }
+
+  QgsAiTestLoopbackServer::ScriptedResponse streamAssistantDone()
+  {
+    return QgsAiTestLoopbackServer::sseResponse( {
+      QByteArrayLiteral( "data: {\"choices\":[{\"delta\":{\"content\":\"Done\"}}]}\n\n" ),
+      QByteArrayLiteral( "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n" ),
+    } );
+  }
+
+  void setupToolLoopManager( QgsAiModelRouter &router, QgsAiToolRegistry &registry, QgsAiAgentSessionManager &manager, const QString &workspaceRoot )
+  {
+    registry.registerTool( std::make_unique<QgsAiEchoTool>() );
+    router.setToolRegistry( &registry );
+
+    QgsAiAgentBehaviorSettings behavior = manager.agentBehaviorSettings();
+    behavior.allowCustomActions = true;
+    manager.setAgentBehaviorSettings( behavior );
+    manager.setToolRegistry( &registry );
+    manager.setActiveAgent( u"editor"_s );
+    Q_UNUSED( workspaceRoot )
+  }
 } // namespace
 
 class TestQgsAiAgentSessionManager : public QObject
@@ -144,6 +190,9 @@ class TestQgsAiAgentSessionManager : public QObject
     void sessionUsageSignalAccumulatesAndResets();
     void validatesAgentPlanJson();
     void extractsAgentPlanJson();
+    void toolLoopContinuesPastSoftLimit();
+    void toolLoopStopsAtHardLimit();
+    void toolLoopDetectsRepeatedCalls();
 
     // Prompt-injection mitigations + workspace trust
     void wrapUntrustedEscapesSentinel();
@@ -1464,6 +1513,130 @@ void TestQgsAiAgentSessionManager::untrustedWorkspaceSkipsRulesAndSkills()
   settings.remove( u"strata/agent"_s );
   settings.remove( u"geoai/agent"_s );
   settings.remove( u"qgis_ai/agent"_s );
+}
+
+void TestQgsAiAgentSessionManager::toolLoopContinuesPastSoftLimit()
+{
+  QgsSettings settings;
+  settings.remove( u"ai/provider/openrouter"_s );
+  const auto cleanup = qScopeGuard( [&settings]() {
+    settings.remove( u"ai/provider/openrouter"_s );
+    settings.remove( u"ai/network/maxRetries"_s );
+    clearProviderSettings();
+  } );
+
+  QgsAiTestLoopbackServer server;
+  for ( int round = 1; round <= 10; ++round )
+    server.responses << streamEchoToolCall( u"call_%1"_s.arg( round ), u"round-%1"_s.arg( round ) );
+  server.responses << streamAssistantDone();
+  QVERIFY( server.listen( QHostAddress::LocalHost, 0 ) );
+
+  QTemporaryDir tempDir;
+  QVERIFY( tempDir.isValid() );
+
+  QgsAiModelRouter router;
+  configureOpenRouterForLoopback( router, server.serverPort() );
+  QgsAiToolRegistry registry;
+  QgsAiFileContextProvider contextProvider( tempDir.path() );
+  QgsAiReviewPatchEngine reviewEngine;
+  QgsAiAgentSessionManager manager( &router, &contextProvider, &reviewEngine );
+  setupToolLoopManager( router, registry, manager, tempDir.path() );
+
+  QSignalSpy runningSpy( &manager, &QgsAiAgentSessionManager::requestRunningChanged );
+  manager.sendUserMessage( u"exercise the tool loop"_s );
+  QTRY_VERIFY_WITH_TIMEOUT( !manager.hasActiveRequest(), 30000 );
+
+  bool sawOldStopMessage = false;
+  for ( const QgsAiChatMessage &message : manager.history() )
+  {
+    if ( message.content.contains( u"Stopping: the model exceeded the maximum number of tool calls"_s ) )
+      sawOldStopMessage = true;
+  }
+  QVERIFY( !sawOldStopMessage );
+  QVERIFY( manager.history().last().content.contains( u"Done"_s ) );
+  QVERIFY( runningSpy.count() >= 1 );
+  QCOMPARE( runningSpy.last().at( 0 ).toBool(), false );
+  QVERIFY( server.requestCount >= 11 );
+}
+
+void TestQgsAiAgentSessionManager::toolLoopStopsAtHardLimit()
+{
+  QgsSettings settings;
+  settings.remove( u"ai/provider/openrouter"_s );
+  const auto cleanup = qScopeGuard( [&settings]() {
+    settings.remove( u"ai/provider/openrouter"_s );
+    settings.remove( u"ai/network/maxRetries"_s );
+    clearProviderSettings();
+  } );
+
+  QgsAiTestLoopbackServer server;
+  for ( int round = 1; round <= QgsAiAgentSessionManager::MAX_TOOL_ITERATIONS_PER_TURN + 1; ++round )
+    server.responses << streamEchoToolCall( u"call_%1"_s.arg( round ), u"round-%1"_s.arg( round ) );
+  QVERIFY( server.listen( QHostAddress::LocalHost, 0 ) );
+
+  QTemporaryDir tempDir;
+  QVERIFY( tempDir.isValid() );
+
+  QgsAiModelRouter router;
+  configureOpenRouterForLoopback( router, server.serverPort() );
+  QgsAiToolRegistry registry;
+  QgsAiFileContextProvider contextProvider( tempDir.path() );
+  QgsAiReviewPatchEngine reviewEngine;
+  QgsAiAgentSessionManager manager( &router, &contextProvider, &reviewEngine );
+  setupToolLoopManager( router, registry, manager, tempDir.path() );
+
+  QSignalSpy runningSpy( &manager, &QgsAiAgentSessionManager::requestRunningChanged );
+  manager.sendUserMessage( u"run until the safety limit"_s );
+  QTRY_VERIFY_WITH_TIMEOUT( !manager.hasActiveRequest(), 120000 );
+
+  bool sawSafetyStop = false;
+  for ( const QgsAiChatMessage &message : manager.history() )
+  {
+    if ( message.content.contains( u"safety limit of 50 tool rounds"_s ) )
+      sawSafetyStop = true;
+  }
+  QVERIFY( sawSafetyStop );
+  QVERIFY( runningSpy.count() >= 1 );
+  QCOMPARE( runningSpy.last().at( 0 ).toBool(), false );
+}
+
+void TestQgsAiAgentSessionManager::toolLoopDetectsRepeatedCalls()
+{
+  QgsSettings settings;
+  settings.remove( u"ai/provider/openrouter"_s );
+  const auto cleanup = qScopeGuard( [&settings]() {
+    settings.remove( u"ai/provider/openrouter"_s );
+    settings.remove( u"ai/network/maxRetries"_s );
+    clearProviderSettings();
+  } );
+
+  QgsAiTestLoopbackServer server;
+  for ( int round = 1; round <= QgsAiAgentSessionManager::REPEATED_TOOL_LOOP_THRESHOLD; ++round )
+    server.responses << streamEchoToolCall( u"call_%1"_s.arg( round ), u"stuck"_s );
+  QVERIFY( server.listen( QHostAddress::LocalHost, 0 ) );
+
+  QTemporaryDir tempDir;
+  QVERIFY( tempDir.isValid() );
+
+  QgsAiModelRouter router;
+  configureOpenRouterForLoopback( router, server.serverPort() );
+  QgsAiToolRegistry registry;
+  QgsAiFileContextProvider contextProvider( tempDir.path() );
+  QgsAiReviewPatchEngine reviewEngine;
+  QgsAiAgentSessionManager manager( &router, &contextProvider, &reviewEngine );
+  setupToolLoopManager( router, registry, manager, tempDir.path() );
+
+  manager.sendUserMessage( u"repeat the same tool call"_s );
+  QTRY_VERIFY_WITH_TIMEOUT( !manager.hasActiveRequest(), 30000 );
+
+  bool sawLoopDetected = false;
+  for ( const QgsAiChatMessage &message : manager.history() )
+  {
+    if ( message.content.contains( u"Tool loop detected:"_s ) )
+      sawLoopDetected = true;
+  }
+  QVERIFY( sawLoopDetected );
+  QCOMPARE( server.requestCount, QgsAiAgentSessionManager::REPEATED_TOOL_LOOP_THRESHOLD );
 }
 
 void TestQgsAiAgentSessionManager::systemPromptContainsSecuritySection()

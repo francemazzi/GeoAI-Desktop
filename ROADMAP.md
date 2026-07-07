@@ -692,7 +692,7 @@ score =
 
 Rendere l’agente abbastanza affidabile da svolgere workflow GIS multi-step reali.
 
-**Già fatto:** loop multi-step (max 8 iterazioni/turn), Plan→Agent handoff, review/diff/rollback su file workspace (`qgsaireviewpatchengine`), human approval per tool rischiosi, session history SQLite, provider fallback, streaming+cancel, token/cost tracking.
+**Già fatto:** loop multi-step (soft warn @ 8, hard limit @ 50, loop detection), Plan→Agent handoff, review/diff/rollback su file workspace (`qgsaireviewpatchengine`), human approval per tool rischiosi, session history SQLite, provider fallback, streaming+cancel, token/cost tracking.
 
 **Da completare:** JSON planner validabile, step verifier, GIS diff/rollback (layer/stile/layout), agent memory, riesecuzione workflow salvati.
 

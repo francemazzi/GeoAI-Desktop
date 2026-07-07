@@ -211,8 +211,12 @@ class APP_EXPORT QgsAiAgentSessionManager : public QObject
      */
     QgsAiUsage sessionUsage() const { return mSessionUsage; }
 
-    //! Maximum tool-use rounds the agent will run before bailing out for a single user turn.
-    static constexpr int MAX_TOOL_ITERATIONS_PER_TURN = 8;
+    //! Soft threshold: log and surface status, but keep the tool loop running.
+    static constexpr int TOOL_ITERATIONS_SOFT_WARN = 8;
+    //! Hard safety ceiling: abort the tool loop for a single user turn beyond this count.
+    static constexpr int MAX_TOOL_ITERATIONS_PER_TURN = 50;
+    //! Consecutive identical tool calls that trigger a runaway-loop abort.
+    static constexpr int REPEATED_TOOL_LOOP_THRESHOLD = 5;
     //! Rough token budget for the conversation history sent to the provider (excludes system prompt).
     static constexpr int HISTORY_TOKEN_BUDGET = 32768;
 
@@ -269,6 +273,10 @@ class APP_EXPORT QgsAiAgentSessionManager : public QObject
     QList<QgsAiChatMessage> buildOutgoingMessages() const;
     void onToolCallsRequested( const QString &requestId, const QString &providerName, const QString &assistantText, const QList<QgsAiToolCall> &calls );
     void rememberAgentEvent( const QString &event, const QVariantMap &metadata );
+    static QString toolCallFingerprint( const QgsAiToolCall &call );
+    void resetToolLoopTracking();
+    bool detectRepeatedToolLoop( const QList<QgsAiToolCall> &calls, QString *reason );
+    void abortToolLoop( const QString &message );
 
     void loadPersistedBehaviorSettings();
     void persistBehaviorSettings() const;
@@ -307,6 +315,7 @@ class APP_EXPORT QgsAiAgentSessionManager : public QObject
     QList<QgsAiChatContextFile> mCurrentContextFiles;
     QString mStreamedText;
     int mToolIterations = 0;
+    QStringList mRecentToolFingerprints;
     QgsAiAgentBehaviorSettings mBehaviorSettings;
     QgsAiManagedAgentPolicy mManagedAgentPolicy;
     QgsAiWorkspaceIndex *mWorkspaceIndex = nullptr;

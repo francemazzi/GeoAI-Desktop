@@ -487,7 +487,7 @@ void QgsAiAgentSessionManager::resetCurrentSessionState( bool emitHistorySignal 
   mNextMessageOrdering = 0;
   mCurrentContextFiles.clear();
   mStreamedText.clear();
-  mToolIterations = 0;
+  resetToolLoopTracking();
   mSessionUsage = QgsAiUsage();
   mAgentMemory.clear();
   // Runtime accumulation only (not persisted): the UI resets its usage display.
@@ -662,6 +662,7 @@ void QgsAiAgentSessionManager::cancelActiveRequest()
   mRouter->cancelRequest( mActiveRequestId );
   mActiveRequestId.clear();
   mPendingProviders.clear();
+  resetToolLoopTracking();
   emit requestStateChanged( u"cancelled"_s, u"Request cancelled by user."_s ); //#spellok
   emit requestRunningChanged( false );                                         //#spellok
 }
@@ -966,7 +967,7 @@ void QgsAiAgentSessionManager::sendUserMessage( const QString &text, const QList
 
   recordHistoryMessage( message );
   mCurrentContextFiles = contextFiles;
-  mToolIterations = 0;
+  resetToolLoopTracking();
 
   mPendingProviders = providerFallbackOrder();
   if ( mPendingProviders.isEmpty() || !mRouter )
@@ -1500,6 +1501,8 @@ QString QgsAiAgentSessionManager::buildSystemPrompt( const QString &extraContext
   prompt += "      2) Call install_python_package with exact pinned specs (the user approves).\n"_L1;
   prompt += "      3) Then call run_python to use them.\n"_L1;
   prompt += u"  - Concrete example — 'boundary of Pomponesco, Italy': prefer download_file with an Overpass API query (admin_level=8 boundary as GeoJSON), save in workspace, then add it as a layer via add_layer_from_file or run_python. Use osmnx only when a true graph/network API is needed.\n"_s;
+  prompt += u"  - Overpass/Nominatim query strings MUST be percent-encoded before calling download_file: encode '[' as %5B, ']' as %5D, '\"' as %22, and any other RFC 3986 reserved character that appears inside the 'data=' value. A raw, unencoded Overpass QL string will be rejected as an invalid URL.\n"_s;
+  prompt += u"  - If download_file still fails after correcting the encoding (network error, no matching feature, rate limit, etc.), do NOT fall back to fabricating approximate coordinates or an invented geometry with run_python. Instead: retry with a corrected/narrower query, try an alternative source via catalog_search, or tell the user plainly that real data could not be retrieved and ask how they want to proceed. Never present invented coordinates as if they were real survey/OSM data.\n"_s;
   prompt += QStringLiteral(
               "- Reusable automation: when the user wants a workflow they can repeat or share with the team, do NOT just run it via run_python — also save it as a Processing script. "
               "The Processing scripts folder for this profile is: %1 . "
@@ -1866,6 +1869,60 @@ QgsAiChatMessage QgsAiAgentSessionManager::buildToolResultMessage( const QgsAiTo
   return toolMessage;
 }
 
+QString QgsAiAgentSessionManager::toolCallFingerprint( const QgsAiToolCall &call )
+{
+  return call.name + u"|"_s + QString::fromUtf8( QJsonDocument( call.args ).toJson( QJsonDocument::Compact ) );
+}
+
+void QgsAiAgentSessionManager::resetToolLoopTracking()
+{
+  mToolIterations = 0;
+  mRecentToolFingerprints.clear();
+}
+
+bool QgsAiAgentSessionManager::detectRepeatedToolLoop( const QList<QgsAiToolCall> &calls, QString *reason )
+{
+  static constexpr int MAX_FINGERPRINT_HISTORY = 10;
+
+  for ( const QgsAiToolCall &call : calls )
+  {
+    mRecentToolFingerprints.append( toolCallFingerprint( call ) );
+    while ( mRecentToolFingerprints.size() > MAX_FINGERPRINT_HISTORY )
+      mRecentToolFingerprints.removeFirst();
+  }
+
+  if ( mRecentToolFingerprints.size() < REPEATED_TOOL_LOOP_THRESHOLD )
+    return false;
+
+  const QString &latest = mRecentToolFingerprints.last();
+  int consecutive = 0;
+  for ( int index = mRecentToolFingerprints.size() - 1; index >= 0; --index )
+  {
+    if ( mRecentToolFingerprints.at( index ) != latest )
+      break;
+    ++consecutive;
+  }
+
+  if ( consecutive < REPEATED_TOOL_LOOP_THRESHOLD )
+    return false;
+
+  if ( reason )
+  {
+    const int separator = latest.indexOf( u"|"_s );
+    const QString toolName = separator >= 0 ? latest.left( separator ) : latest;
+    *reason = u"The agent repeated the same tool call (%1) %2 times in a row."_s.arg( toolName ).arg( consecutive );
+  }
+  return true;
+}
+
+void QgsAiAgentSessionManager::abortToolLoop( const QString &message )
+{
+  const QgsAiChatMessage error = buildAssistantMessage( message );
+  recordHistoryMessage( error );
+  mActiveRequestId.clear();
+  emit requestRunningChanged( false );
+}
+
 void QgsAiAgentSessionManager::onToolCallsRequested( const QString &requestId, const QString &providerName, const QString &assistantText, const QList<QgsAiToolCall> &calls )
 {
   if ( requestId != mActiveRequestId )
@@ -1918,10 +1975,25 @@ void QgsAiAgentSessionManager::onToolCallsRequested( const QString &requestId, c
   ++mToolIterations;
   if ( mToolIterations > MAX_TOOL_ITERATIONS_PER_TURN )
   {
-    const QgsAiChatMessage error = buildAssistantMessage( u"Stopping: the model exceeded the maximum number of tool calls (%1) for a single turn."_s.arg( MAX_TOOL_ITERATIONS_PER_TURN ) );
-    recordHistoryMessage( error );
-    mActiveRequestId.clear();
-    emit requestRunningChanged( false );
+    abortToolLoop( u"Stopping: the agent reached the safety limit of %1 tool rounds for a single turn. Simplify the task or use Cancel, then send a follow-up message."_s.arg( MAX_TOOL_ITERATIONS_PER_TURN ) );
+    return;
+  }
+
+  if ( mToolIterations > TOOL_ITERATIONS_SOFT_WARN )
+  {
+    QgsMessageLog::logMessage(
+      u"Tool loop soft limit passed: agent=%1 provider=%2 round=%3"_s.arg( mActiveAgent, providerName ).arg( mToolIterations ),
+      u"AI"_s,
+      Qgis::MessageLevel::Warning,
+      false
+    );
+    emit requestStateChanged( u"tool_use"_s, u"Still working… tool round %1 (soft limit passed)."_s.arg( mToolIterations ) );
+  }
+
+  QString loopReason;
+  if ( detectRepeatedToolLoop( calls, &loopReason ) )
+  {
+    abortToolLoop( u"Tool loop detected: %1 Use Cancel if the agent appears stuck, then send a follow-up message."_s.arg( loopReason ) );
     return;
   }
 

@@ -14,8 +14,11 @@
 #include "ai/qgsaichatpromptedit.h"
 #include "ai/qgsaifilecontextprovider.h"
 #include "ai/qgsaimodelrouter.h"
+#include "ai/qgsaiplanclient.h"
 #include "ai/qgsaireviewpatchengine.h"
+#include "ai/qgsaisecretstore.h"
 #include "ai/qgsaiworkspacetrust.h"
+#include "qgsaitestloopbackserver.h"
 #include "qgscoordinatereferencesystem.h"
 #include "qgsproject.h"
 #include "qgssettings.h"
@@ -30,6 +33,8 @@
 #include <QCryptographicHash>
 #include <QDialog>
 #include <QDir>
+#include <QFile>
+#include <QHostAddress>
 #include <QImage>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -42,6 +47,7 @@
 #include <QPushButton>
 #include <QRadioButton>
 #include <QRegularExpression>
+#include <QScopeGuard>
 #include <QSettings>
 #include <QString>
 #include <QTemporaryDir>
@@ -83,6 +89,47 @@ namespace
       parts << label->text();
     return parts.join( '\n' );
   }
+
+  QStringList popupItemTexts( QListWidget *list )
+  {
+    QStringList texts;
+    if ( !list )
+      return texts;
+    for ( int row = 0; row < list->count(); ++row )
+    {
+      if ( QListWidgetItem *item = list->item( row ) )
+        texts << item->text().trimmed();
+    }
+    return texts;
+  }
+
+  QListWidget *modelPopupList( const QgsAiChatDockWidget &dock )
+  {
+    const QList<QListWidget *> lists = dock.findChildren<QListWidget *>( u"aiSelectPopupList"_s );
+    for ( QListWidget *list : lists )
+    {
+      const QString joined = popupItemTexts( list ).join( '\n' );
+      if ( joined.contains( u"Strata Managed"_s ) )
+        return list;
+    }
+    return nullptr;
+  }
+
+  void clearPlanModelTestState()
+  {
+    QFile::remove( QgsAiPlanClient::cacheFilePath() );
+    QFile::remove( QgsAiPlanClient::agentPolicyCacheFilePath() );
+    QFile::remove( QgsAiPlanClient::modelPreferencesCacheFilePath() );
+    QgsAiSecretStore::removeSecret( u"ai/provider/plan/token"_s );
+    QgsAiSecretStore::removeSecret( u"ai/provider/openrouter/apiKey"_s );
+    QgsAiSecretStore::removeSecret( u"ai/provider/claude/apiKey"_s );
+
+    QgsSettings settings;
+    settings.remove( u"ai/provider/plan"_s );
+    settings.remove( u"ai/provider/openrouter"_s );
+    settings.remove( u"ai/provider/claude"_s );
+    settings.remove( u"ai/activeProvider"_s );
+  }
 } // namespace
 
 class TestQgsAiChatDockWidget : public QObject
@@ -91,6 +138,7 @@ class TestQgsAiChatDockWidget : public QObject
 
   private slots:
     void hasRuntimeWidgets();
+    void planLoginModelPickerShowsOnlyManagedModels();
     void gisCardShowsSuggestionAndSendsReview();
     void gisMentionAttachesHealthBlock();
     void usesPaletteBasedCursorStyling();
@@ -127,6 +175,116 @@ void TestQgsAiChatDockWidget::hasRuntimeWidgets()
   QVERIFY( cancelButton );
   QVERIFY( !cancelButton->isEnabled() );
   QVERIFY( runtimeLabel->text().contains( u"idle"_s, Qt::CaseInsensitive ) );
+}
+
+void TestQgsAiChatDockWidget::planLoginModelPickerShowsOnlyManagedModels()
+{
+  clearPlanModelTestState();
+  const auto cleanup = qScopeGuard( [] { clearPlanModelTestState(); } );
+
+  QTemporaryDir tempDir;
+  QVERIFY( tempDir.isValid() );
+
+  QList<QgsAiPlanClient::ModelInfo> models;
+  QgsAiPlanClient::ModelInfo managed;
+  managed.id = u"managed-plan"_s;
+  managed.label = u"Strata Managed"_s;
+  managed.provider = u"strata"_s;
+  managed.capabilities = QStringList { u"chat"_s, u"streaming"_s, u"tools"_s };
+  models << managed;
+
+  QgsAiPlanClient::ModelInfo fast;
+  fast.id = u"openai/gpt-4o-mini"_s;
+  fast.label = u"GPT-4o mini"_s;
+  fast.provider = u"strata"_s;
+  fast.capabilities = QStringList { u"chat"_s, u"streaming"_s, u"tools"_s };
+  models << fast;
+
+  QgsAiPlanClient::ModelInfo disabled;
+  disabled.id = u"deepseek/deepseek-v4-flash"_s;
+  disabled.label = u"DeepSeek V4 Flash"_s;
+  disabled.provider = u"strata"_s;
+  disabled.capabilities = QStringList { u"chat"_s, u"streaming"_s, u"tools"_s };
+  models << disabled;
+
+  QgsAiPlanClient::ModelInfo embedding;
+  embedding.id = u"strata-embedding-384"_s;
+  embedding.label = u"Strata Embeddings 384"_s;
+  embedding.provider = u"strata"_s;
+  embedding.capabilities = QStringList { u"embeddings"_s };
+  models << embedding;
+  QgsAiPlanClient::writeCachedModels( models );
+
+  QgsAiManagedAgentPolicy policy;
+  policy.tier = u"PRO"_s;
+  policy.allowedModels = QStringList { u"managed-plan"_s, u"openai/gpt-4o-mini"_s, u"deepseek/deepseek-v4-flash"_s, u"strata-embedding-384"_s };
+  QgsAiPlanClient::writeCachedAgentPolicy( policy );
+  QgsAiPlanClient::ModelPreferenceInfo disabledPreference;
+  disabledPreference.modelId = u"deepseek/deepseek-v4-flash"_s;
+  disabledPreference.enabled = false;
+  QgsAiPlanClient::writeCachedModelPreferences( QList<QgsAiPlanClient::ModelPreferenceInfo> { disabledPreference } );
+
+  QgsAiTestLoopbackServer server;
+  server.responses
+    << QgsAiTestLoopbackServer::jsonResponse(
+         200,
+         "OK",
+         QByteArrayLiteral(
+           R"({"items":[{"id":"managed-plan","label":"Strata Managed","provider":"strata","contextWindow":200000,"priceInCredits":{"input":4,"output":20},"capabilities":["chat","streaming","tools"],"tierAvailability":["FREE","PRO"]},{"id":"openai/gpt-4o-mini","label":"GPT-4o mini","provider":"strata","contextWindow":128000,"priceInCredits":{"input":1,"output":2},"capabilities":["chat","streaming","tools"],"tierAvailability":["FREE","PRO"]},{"id":"deepseek/deepseek-v4-flash","label":"DeepSeek V4 Flash","provider":"strata","contextWindow":1000000,"priceInCredits":{"input":1,"output":2},"capabilities":["chat","streaming","tools"],"tierAvailability":["PRO"]},{"id":"strata-embedding-384","label":"Strata Embeddings 384","provider":"strata","contextWindow":0,"priceInCredits":{"input":1,"output":0},"capabilities":["embeddings"],"tierAvailability":["ULTRA"]}]})"
+         )
+       )
+    << QgsAiTestLoopbackServer::jsonResponse( 200, "OK", QByteArrayLiteral( R"({"items":[]})" ) )
+    << QgsAiTestLoopbackServer::jsonResponse(
+         200,
+         "OK",
+         QByteArrayLiteral(
+           R"({"toolCatalogVersion":2,"tier":"PRO","modes":["ask","plan","ask_before_edits","auto_edit"],"allowedTools":[],"allowedModels":["managed-plan","openai/gpt-4o-mini","deepseek/deepseek-v4-flash","strata-embedding-384"],"presets":[]})"
+         )
+       );
+  QVERIFY( server.listen( QHostAddress::LocalHost, 0 ) );
+
+  QgsAiModelRouter router;
+  QVERIFY( router.storeApiKey( QgsAiModelRouter::Provider::OpenRouter, u"sk-or-chatdock-test"_s ) );
+  QVERIFY( router.storeApiKey( QgsAiModelRouter::Provider::Claude, u"sk-ant-chatdock-test"_s ) );
+  QString planError;
+  QVERIFY2( router.setPlanSessionToken( u"strata-plan-chatdock-test"_s, &planError ), qPrintable( planError ) );
+  QgsAiModelRouter::ProviderSettings planSettings = router.providerSettings( QgsAiModelRouter::Provider::Plan );
+  planSettings.endpoint = u"http://127.0.0.1:%1/ai/messages"_s.arg( server.serverPort() );
+  planSettings.model = u"managed-plan"_s;
+  planSettings.enabled = true;
+  router.setProviderSettings( QgsAiModelRouter::Provider::Plan, planSettings );
+  router.setActiveProvider( QgsAiModelRouter::Provider::OpenRouter );
+
+  QgsAiFileContextProvider contextProvider( tempDir.path() );
+  QgsAiReviewPatchEngine reviewEngine;
+  QgsAiAgentSessionManager manager( nullptr, &contextProvider, &reviewEngine );
+  QgsAiChatDockWidget dock( &manager, &router, &reviewEngine );
+  dock.resize( 420, 520 );
+  dock.show();
+  QApplication::processEvents();
+
+  QToolButton *modelPill = dock.findChild<QToolButton *>( u"aiModelPill"_s );
+  QVERIFY( modelPill );
+  modelPill->click();
+  QApplication::processEvents();
+
+  QListWidget *list = modelPopupList( dock );
+  QVERIFY( list );
+  const QStringList items = popupItemTexts( list );
+  const QString joined = items.join( '\n' );
+
+  QVERIFY2( !items.isEmpty(), qPrintable( joined ) );
+  QVERIFY2( items.first().contains( u"Strata Managed"_s ), qPrintable( joined ) );
+  QVERIFY2( joined.contains( u"GPT-4o mini"_s ), qPrintable( joined ) );
+  QVERIFY2( !joined.contains( u"Plan backend"_s, Qt::CaseInsensitive ), qPrintable( joined ) );
+  QVERIFY2( !joined.contains( u"OpenRouter"_s ), qPrintable( joined ) );
+  QVERIFY2( !joined.contains( u"Codex / ChatGPT"_s ), qPrintable( joined ) );
+  QVERIFY2( !joined.contains( u"Anthropic"_s ), qPrintable( joined ) );
+  QVERIFY2( !joined.contains( u"OpenAI"_s ), qPrintable( joined ) );
+  QVERIFY2( !joined.contains( u"DeepSeek V4 Flash"_s ), qPrintable( joined ) );
+  QVERIFY2( !joined.contains( u"Strata Embeddings 384"_s ), qPrintable( joined ) );
+  QCOMPARE( router.activeProvider(), QgsAiModelRouter::Provider::Plan );
+  QCOMPARE( router.resolveProvider(), QgsAiModelRouter::Provider::Plan );
 }
 
 void TestQgsAiChatDockWidget::gisCardShowsSuggestionAndSendsReview()

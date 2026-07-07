@@ -85,6 +85,41 @@ namespace
     const QString normalized = host.trimmed().toLower();
     return normalized == "localhost"_L1 || normalized == "127.0.0.1"_L1 || normalized == "::1"_L1 || normalized.startsWith( "127."_L1 );
   }
+
+  // Best-effort recovery for URLs whose query string contains characters that are
+  // reserved or unsafe per RFC 3986 but not percent-encoded (e.g. raw Overpass API
+  // queries containing '[', ']' or '"'). Only the query/fragment portion is touched;
+  // the scheme/host/path are left untouched. Returns an invalid QUrl if the input
+  // has no query string to fix, or if the result is still not strictly valid.
+  QUrl normalizeUrlForDownload( const QString &urlString )
+  {
+    const int queryIndex = urlString.indexOf( QLatin1Char( '?' ) );
+    if ( queryIndex < 0 )
+      return QUrl();
+
+    const QString base = urlString.left( queryIndex );
+    const QString queryAndFragment = urlString.mid( queryIndex + 1 );
+
+    // Characters allowed unescaped in a URL query per RFC 3986
+    // (pchar / "/" / "?"): unreserved, sub-delims, ':', '@', '/', '?', plus '%'
+    // itself so already-encoded sequences are left alone.
+    static const QByteArray safe( "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~!$&'()*+,;=:@/?%" );
+
+    const QByteArray raw = queryAndFragment.toUtf8();
+    QByteArray encoded;
+    encoded.reserve( raw.size() * 3 );
+    for ( const char ch : raw )
+    {
+      if ( safe.contains( ch ) )
+        encoded.append( ch );
+      else
+        encoded.append( QByteArray( 1, ch ).toPercentEncoding() );
+    }
+
+    const QString candidate = base + QLatin1Char( '?' ) + QString::fromUtf8( encoded );
+    const QUrl normalized( candidate, QUrl::StrictMode );
+    return normalized.isValid() ? normalized : QUrl();
+  }
 } //namespace
 
 QgsAiDownloadFileTool::QgsAiDownloadFileTool( QgsAiFileContextProvider *contextProvider, QWidget *dialogParent )
@@ -113,14 +148,17 @@ QString QgsAiDownloadFileTool::description() const
     "Shapefile, Overpass/Nominatim/GADM responses, etc.) without installing extra Python "
     "packages. dest_path is relative to the workspace; writes outside the workspace are "
     "refused. By default the tool refuses to overwrite an existing file (set overwrite=true "
-    "to override). Default size limit is 100 MiB. Returns sha256 and provenance metadata."
+    "to override). Default size limit is 100 MiB. Returns sha256 and provenance metadata. "
+    "If the query string contains unescaped reserved characters (e.g. Overpass API queries "
+    "with '[', ']' or '\"'), the tool attempts to percent-encode and re-validate them "
+    "automatically; prefer passing an already percent-encoded URL when possible."
   );
 }
 
 QJsonObject QgsAiDownloadFileTool::schema() const
 {
   QJsonObject properties;
-  properties.insert( u"url"_s, prop( u"string"_s, u"The HTTPS URL to fetch. Public HTTP URLs are refused; localhost HTTP is allowed for development."_s ) );
+  properties.insert( u"url"_s, prop( u"string"_s, u"The HTTPS URL to fetch. Public HTTP URLs are refused; localhost HTTP is allowed for development. Reserved characters in the query string (e.g. '[', ']', '\"') should be percent-encoded; the tool will attempt to auto-encode them if not."_s ) );
   properties.insert( u"dest_path"_s, prop( u"string"_s, u"Destination path, relative to the workspace root (e.g. 'data/pomponesco.geojson'). Writes outside the workspace are refused."_s ) );
   properties.insert( u"expected_sha256"_s, prop( u"string"_s, u"Optional expected SHA-256 hex digest. If supplied, the file is deleted and the tool fails on mismatch."_s ) );
   QJsonObject maxBytesProp;
@@ -145,9 +183,22 @@ QgsAiToolResult QgsAiDownloadFileTool::execute( const QJsonObject &args )
   if ( urlString.isEmpty() )
     return QgsAiToolResult::error( u"Argument 'url' is required."_s );
 
-  const QUrl url( urlString, QUrl::StrictMode );
+  QUrl url( urlString, QUrl::StrictMode );
   if ( !url.isValid() )
-    return QgsAiToolResult::error( u"URL is not valid: '%1'."_s.arg( urlString ) );
+  {
+    // Tolerate unescaped reserved characters in the query string (common with
+    // hand-built Overpass/Nominatim queries) by percent-encoding them and
+    // re-validating strictly, rather than rejecting outright.
+    const QUrl normalized = normalizeUrlForDownload( urlString );
+    if ( !normalized.isValid() )
+    {
+      return QgsAiToolResult::error(
+        u"URL is not valid: '"_s + urlString + u"'. If the query string contains special "
+        "characters such as '[', ']' or '\"' (common in Overpass API queries), percent-encode "
+        "them (e.g. '[' -> '%5B', ']' -> '%5D', '\"' -> '%22') before calling download_file."_s );
+    }
+    url = normalized;
+  }
   const QString scheme = url.scheme().toLower();
   if ( scheme != "http"_L1 && scheme != "https"_L1 )
     return QgsAiToolResult::error( u"Only http and https URLs are allowed (got '%1')."_s.arg( scheme ) );

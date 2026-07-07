@@ -22,6 +22,7 @@
 
 #include <QList>
 #include <QPointer>
+#include <QVariant>
 
 class QAction;
 class QCheckBox;
@@ -31,6 +32,7 @@ class QHBoxLayout;
 class QJsonObject;
 class QLabel;
 class QListWidget;
+class QListWidgetItem;
 class QPushButton;
 class QShowEvent;
 class QTextEdit;
@@ -135,6 +137,18 @@ class APP_EXPORT QgsAiChatDockWidget : public QgsDockWidget
     void refreshPlanAgentPolicy();
     //! Pill caption for the active model, e.g. "Codex · GPT-5.4 ▾".
     QString modelPillLabel( QgsAiModelRouter::Provider provider, const QString &displayName ) const;
+    void ensureAiPopup( QFrame *&popup, QListWidget *&list );
+    void showAiPopupBelow( QFrame *popup, QListWidget *list, QToolButton *anchor );
+    QListWidgetItem *addAiPopupItem( QListWidget *list, const QString &text, const QVariant &data = QVariant(), bool checked = false, bool enabled = true, const QString &tooltip = QString() );
+    void addAiPopupHeader( QListWidget *list, const QString &text );
+    void addAiPopupSeparator( QListWidget *list );
+    void hideAiPopups();
+    void showModePopup();
+    void showModelPopup();
+    void showHistoryPopup();
+    void handleModePopupItem( QListWidgetItem *item );
+    void handleModelPopupItem( QListWidgetItem *item );
+    void handleHistoryPopupItem( QListWidgetItem *item );
     void updateFileContextChip();
     void updateMentionPopup();
     void hideMentionPopup();
@@ -173,6 +187,14 @@ class APP_EXPORT QgsAiChatDockWidget : public QgsDockWidget
     QToolButton *mSettingsButton = nullptr;
     QToolButton *mSendButton = nullptr;
     QPushButton *mCancelButton = nullptr;
+    QString mCurrentModeLabel;
+
+    QFrame *mModePopup = nullptr;
+    QListWidget *mModeList = nullptr;
+    QFrame *mModelPopup = nullptr;
+    QListWidget *mModelList = nullptr;
+    QFrame *mHistoryPopup = nullptr;
+    QListWidget *mHistoryList = nullptr;
 
     QWidget *mFileContextChipRow = nullptr;
     QHBoxLayout *mFileContextChipLayout = nullptr;
