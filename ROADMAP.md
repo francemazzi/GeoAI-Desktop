@@ -81,6 +81,7 @@ flowchart LR
 ## Prossimo focus
 
 - [ ] **B8 Data Hub (backend)** — ricerca federata fonti territoriali + estrazione AOI (`strata-be/ROADMAP.md`); bisogno n.1 dalle interviste (need: 15)
+- [ ] **Provider modello locale Ollama** (API nativa `/api/chat`) — blocker PA/enterprise, tema AI locale (need: 12); dettaglio in Fase 1
 - [ ] GIS diff/rollback strutturato (layer/stile/layout) + execution log JSON per run — chiude i gap di Fase 4
 - [ ] Report generator v1 anticipato (PDF + DOCX: capitolati, perizie) (need: 12)
 - [ ] AI-MAP: Map Context Provider + layer descriptor + `capture_view` — Sezione 14
@@ -95,6 +96,8 @@ Cosa evitare:
 - niente fork troppo pesante prima della validazione: tenere il valore in moduli riusabili
 - niente agenti troppo autonomi su modifiche persistenti: review-first
 - niente mercato generico: validare su 1–2 verticali (PA, agricoltura, ambiente, utilities)
+- niente framework agente di terzi (LangGraph/Mastra — valutati e scartati, analisi lug 2026): il loop custom in `qgsaiagentsessionmanager` è confermato, come tutti i client desktop di riferimento (Cursor, Zed, Claude Code)
+- niente multi-agente o checkpoint mid-turn: costano 3–10× in token e nessun bisogno utente li giustifica; lo stato sessione è già posseduto in SQLite
 
 ---
 
@@ -119,6 +122,7 @@ Cosa evitare:
   - [ ] Campi agent/AI (errori PyQGIS, errori agent, versione)
 - [ ] Demo project bundled (`municipality_boundary.gpkg`, `parcels.gpkg`, `land_use.gpkg`, `roads.gpkg` + `.qgz`) — oggi solo dataset di test in `tests_ai/Dati/`, non shipped
 - [ ] Telemetria locale opt-in (feature usate, task completati, failure rate)
+  - [ ] Tracing agente OTel GenAI (span `invoke_agent`/`chat`/`execute_tool`) via route relay `/otel` del gateway — mai chiavi backend nel binario, auth con session token; cattura contenuto prompt **OFF di default** (opt-in utente); exporter OTLP/HTTP-JSON hand-rolled su `QNetworkAccessManager` o `opentelemetry-cpp` via vcpkg (analisi lug 2026)
 - [ ] First-run onboarding
   - [x] Import completo ambiente QGIS al primo avvio e manuale (`qgsqgisprofileimporter`, `qgsqgisprofileimportdialog`: preferenze, profili, plugin Python, auth DB, marker Strata)
   - [x] Banner one-shot + settings dialog provider
@@ -141,7 +145,13 @@ Cosa evitare:
 
 - [x] Dock assistant production-grade (`qgsaichatdockwidget`)
 - [x] Router 5 provider LLM + Strata Cloud Plan (`qgsaimodelrouter`, `qgsaiplanclient`)
-- [ ] Provider modello locale (Ollama/endpoint compatibile) — anticipato dalla Fase 7: blocker esplicito per PA ed enterprise (need: 12)
+- [ ] Provider modello locale — anticipato dalla Fase 7: blocker esplicito per PA ed enterprise (need: 12). Analisi lug 2026: 6° provider nel router custom (`qgsaimodelrouter`), nessun framework richiesto; effort ~2–3 settimane inclusa qualificazione
+  - [ ] Adapter **Ollama API nativa `/api/chat`** (streaming NDJSON, parsing banale via `QNetworkAccessManager`) — NON il layer OpenAI-compat: bug documentati di tool call perse in streaming e `num_ctx` ignorato
+  - [ ] `num_ctx` esplicito 32–64k per richiesta + detection `done_reason=length` con errore chiaro (il default 4k sotto 24 GiB è il killer silenzioso dell'agente)
+  - [ ] Tool call serializzate (le parallele sono inaffidabili su tutti i modelli open) + set tool ridotto per turno (~10–15 max, i modelli piccoli degradano oltre)
+  - [ ] Allowlist modelli per RAM rilevata: 8 GB → Qwen3.5 4B / Gemma 4 E4B (≥95% su suite tool-calling); 16 GB → 8–9B Q4; 32 GB → Qwen3.6 35B-A3B / gpt-oss-20b; blocco DeepSeek R1 distill e Llama 4 con messaggio esplicativo
+  - [ ] Endpoint generico OpenAI-compat secondario (llama.cpp `--jinja`, LM Studio) senza affidarsi a `tool_choice`/`parallel_tool_calls`
+  - [ ] Suite di qualificazione tool-calling 30–50 casi per modello+runtime prima dell'abilitazione (riusabile in CI)
 - [x] Tool registry GIS — **41 tool** registrati (`qgsaitoolregistry`, `qgisapp.cpp` L1442–1484) (AGT-001)
   - [x] Read/inspect (13): `read_file`, `search_files`, `list_files`, `list_project_layers`, `describe_layer`, `get_active_canvas_extent`, `set_canvas_extent`, `capture_map_canvas`, `read_message_log`, `query_features`, `identify_features_at`, `index_status`, `search_workspace`
   - [x] Layer/GIS (8): `add_layer_from_file`, `add_layer_from_service`, `run_processing_algorithm`, `style_layer`, `style_layer_advanced`, `create_print_layout`, `edit_print_layout`, `export_map`
@@ -271,6 +281,7 @@ Cosa evitare:
 - [ ] Fonti citate negli output: dataset/documento riferito per ogni affermazione su dati normativi o tecnici — condizione d'acquisto per i professionisti (need: 12)
 - [ ] Aggiornamento layer da fonte cambiata con storico versioni e diff — si aggancia a `DataSubscription` di B8 (need: cliente diretto)
 - [ ] Agent memory per progetto (AGT-010)
+- [ ] Eval harness agente in CI (analisi lug 2026): golden-set 30–50 casi (selezione tool, accuratezza argomenti, multi-turn, edge case) via **promptfoo** sull'harness ctest esistente + scoring model-graded — prerequisito per misurare il success rate > 70% e la qualificazione dei modelli locali (Fase 1)
 - [ ] 20 workflow multi-step demo affidabili
 
 ---
@@ -383,6 +394,11 @@ Cosa evitare:
 - [ ] Workflow packs distribuibili
 - [ ] Report template marketplace
 - [ ] Data connectors (OpenStreetMap, Copernicus, catasto locale)
+- [ ] Client MCP (Model Context Protocol) — tool di terzi senza C++ (analisi lug 2026; dipende da **B9 MCP Gateway** in `strata-be/ROADMAP.md`)
+  - [ ] Host MCP nel gateway TS o sidecar Node — nessun SDK C++ ufficiale esiste né è pianificato; l'ecosistema GIS è già attivo (server MCP QGIS su plugins.qgis.org, ArcGIS MCP beta Esri giu 2026)
+  - [ ] UI approvazione/permessi lato Qt per tool MCP — riusa workspace trust + approval dialogs esistenti
+  - [ ] Metadata server trattati come untrusted (`wrapUntrusted`) — tool poisoning è il rischio n.1 (MCPTox: fino a 72,8% attack success)
+  - [ ] Spawn opzionale di server stdio locali via `QProcess`
 - [ ] Tool plugin e agent personas
 - [ ] Governance: package signing, review manuale, semver, compatibilità versionata, licenza, data policy dichiarata
 - [ ] Installazione one-click + rating/feedback
@@ -450,14 +466,14 @@ Note: workaround stopgap possibile via skill `.strata/skills/3d.md` + `run_pytho
 - [ ] Sprint 1 `[IN CORSO]` — GIS diff v1 (layer metadata), execution log JSON per run, step verifier base, tool `inspect_crs`, JSON planner
 - [ ] Sprint 2 — **B8 Data Hub v1 backend** (registry sorgenti + ricerca federata), AI-MAP-1 (provider) + AI-MAP-2 (layer descriptor), project graph strutturato, context packs espliciti
 - [ ] Sprint 3 — Demo project bundled, onboarding AI wizard, pricing UX (token→euro, alert crediti), checksum SHA256 release, guida "5 task in 5 minuti"
-- [ ] Sprint 4 — **B8 estrazione AOI + scenes search** (backend), AI-MAP-3 (`capture_view`), context preview UI, layer cards YAML
+- [ ] Sprint 4 — **B8 estrazione AOI + scenes search** (backend), **provider modello locale Ollama v1** (adapter nativo + allowlist RAM + suite qualificazione), AI-MAP-3 (`capture_view`), context preview UI, layer cards YAML
 
 ## Q4 2026 — GIS Tab UI + Agent v2 maturo + azioni 3D + inizio Fase 5
 
 - [ ] Sprint 5 — GIS Tab v1: tab/panel dedicato, shortcut Tab/Esc, ranking base
 - [ ] Sprint 6 — Tool 3D (`configure_layer_3d`, `configure_terrain`, `export_3d_scene`), tool raster dedicati, diff stile/layout, rollback GIS strutturato, run history, 20 workflow demo
 - [ ] Sprint 7 — **Report generator v1 (PDF+DOCX, anticipato da Q1 2027)**, schema `.strataflow` v1 (sopra la v0 JSON del dock), save run as workflow da sessione, runner base
-- [ ] Sprint 8 — Auto-update in-app, telemetria opt-in, crash reporting Strata-branded, benchmark baseline, beta 100–300 utenti tecnici
+- [ ] Sprint 8 — Auto-update in-app, telemetria opt-in (+ tracing OTel via relay gateway), eval harness agente promptfoo in CI, crash reporting Strata-branded, benchmark baseline, beta 100–300 utenti tecnici
 
 ## Q1 2027 — Fase 5 completa + inizio Fase 6
 
