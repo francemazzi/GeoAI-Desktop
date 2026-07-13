@@ -28,16 +28,7 @@
       "hero.linkEnterprise": "Enterprise",
       "hero.linkDemo": "Vedi demo",
       "hero.linkCloud": "Strata Cloud",
-
-      "demo.chapter.intro": "Cos'è Strata",
-      "demo.chapter.case": "Il caso: terremoto in Venezuela",
-      "demo.chapter.fetch": "Strata scarica i dati dal web",
-      "demo.chapter.load": "Caricare dati locali",
-      "demo.chapter.analysis": "Analisi scuotimento per comune",
-      "demo.chapter.priority": "Mappa di priorità e export PDF",
-      "demo.chapter.result": "Risultato e confronto",
-      "demo.carousel.prev": "Capitolo precedente",
-      "demo.carousel.next": "Capitolo successivo",
+      "hero.demo.alt": "Demo Strata: agente AI per analisi GIS",
 
       "download.title": "Scarica Strata",
       "download.subtitle": "macOS, Windows e Linux. Binari da GitHub Releases.",
@@ -129,16 +120,7 @@
       "hero.linkEnterprise": "Enterprise",
       "hero.linkDemo": "See demo",
       "hero.linkCloud": "Strata Cloud",
-
-      "demo.chapter.intro": "What is Strata",
-      "demo.chapter.case": "The case: Venezuela earthquake",
-      "demo.chapter.fetch": "Strata fetches data from the web",
-      "demo.chapter.load": "Load local data with one command",
-      "demo.chapter.analysis": "Shaking analysis per municipality",
-      "demo.chapter.priority": "Priority map and PDF export",
-      "demo.chapter.result": "Result and case study comparison",
-      "demo.carousel.prev": "Previous chapter",
-      "demo.carousel.next": "Next chapter",
+      "hero.demo.alt": "Strata demo: AI agent for GIS analysis",
 
       "download.title": "Download Strata",
       "download.subtitle": "macOS, Windows, and Linux. Binaries from GitHub Releases.",
@@ -386,6 +368,13 @@
       const key = el.getAttribute("data-i18n-alt");
       if (dict[key] !== undefined) {
         el.setAttribute("alt", dict[key]);
+      }
+    });
+
+    document.querySelectorAll("[data-i18n-aria-label]").forEach((el) => {
+      const key = el.getAttribute("data-i18n-aria-label");
+      if (dict[key] !== undefined) {
+        el.setAttribute("aria-label", dict[key]);
       }
     });
 
