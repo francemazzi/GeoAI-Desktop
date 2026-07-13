@@ -8,9 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./css/style.css?v=20260713a">
+  <link rel="stylesheet" href="./css/style.css?v=20260713b">
   <link rel="icon" href="./assets/app-icon.png" type="image/png">
-  <link rel="preload" href="./assets/demo-chapters/demo-chapter-intro-poster.webp" as="image" type="image/webp">
+  <link rel="preload" href="./assets/demo-hero-poster.webp" as="image" type="image/webp">
 </head>
 <body>
 
@@ -57,7 +57,22 @@
         </div>
       </div>
 
-      <figure class="hero-visual" id="hero-demo-carousel" aria-label="Demo video chapters"></figure>
+      <figure class="hero-visual">
+        <video
+          id="hero-demo-video"
+          class="hero-visual-media"
+          data-webm-src="./assets/demo-hero.webm"
+          poster="./assets/demo-hero-poster.webp"
+          width="1280"
+          height="720"
+          muted
+          loop
+          playsinline
+          preload="none"
+          data-i18n-aria-label="hero.demo.alt"
+          aria-label="Demo Strata: agente AI per analisi GIS"
+        ></video>
+      </figure>
     </div>
   </section>
 
@@ -266,7 +281,6 @@
   </footer>
 
   <script src="./js/i18n.js"></script>
-  <script src="./js/demo-chapters.js"></script>
-  <script src="./js/demo-carousel.js?v=20260713a"></script>
+  <script src="./js/hero-video.js?v=20260713b"></script>
 </body>
 </html>
