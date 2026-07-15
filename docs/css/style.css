@@ -45,7 +45,8 @@ a {
   text-decoration: none;
 }
 
-img {
+img,
+video {
   max-width: 100%;
   height: auto;
   display: block;
@@ -293,6 +294,7 @@ img {
 .hero-visual {
   width: 100%;
   max-width: 920px;
+  aspect-ratio: 16 / 9;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   overflow: hidden;
@@ -302,7 +304,7 @@ img {
 .hero-visual img,
 .hero-visual-media {
   width: 100%;
-  aspect-ratio: 16 / 9;
+  height: 100%;
   object-fit: cover;
   display: block;
 }
@@ -598,6 +600,12 @@ img {
 
   .hero {
     padding-top: 40px;
+  }
+
+  .hero-visual img,
+  .hero-visual-media {
+    object-fit: contain;
+    background: var(--bg-elevated);
   }
 
   .section {
