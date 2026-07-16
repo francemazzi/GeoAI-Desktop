@@ -2148,6 +2148,8 @@ void QgsAiChatDockWidget::rebuildHistoryMenu()
 
   if ( !activeId.isEmpty() )
   {
+    QAction *exportChat = menu->addAction( tr( "Export encrypted current chat…" ) );
+    exportChat->setData( u"__export__"_s );
     QAction *rename = menu->addAction( tr( "Rename current chat…" ) );
     rename->setData( u"__rename__"_s );
     QAction *del = menu->addAction( tr( "Delete current chat" ) );
@@ -2181,6 +2183,43 @@ void QgsAiChatDockWidget::onHistoryEntryTriggered( QAction *action )
     const QString newTitle = QInputDialog::getText( this, tr( "Rename chat" ), tr( "Title:" ), QLineEdit::Normal, current, &ok );
     if ( ok && !newTitle.trimmed().isEmpty() )
       mSessionManager->renameActiveSession( newTitle.trimmed() );
+    return;
+  }
+  if ( data == "__export__"_L1 )
+  {
+    QString path = QFileDialog::getSaveFileName( this, tr( "Export encrypted current chat" ), u"strata-chat.json"_s, tr( "JSON files (*.json)" ) );
+    if ( path.isEmpty() )
+      return;
+    if ( !path.endsWith( u".json"_s, Qt::CaseInsensitive ) )
+      path += u".json"_s;
+
+    QJsonArray messages;
+    for ( const QgsAiChatMessage &message : mSessionManager->history() )
+      messages.append( message.toJson() );
+    QJsonObject chat;
+    chat.insert( u"format"_s, u"strata-chat-export-v1"_s );
+    chat.insert( u"exported_at"_s, QDateTime::currentDateTimeUtc().toString( Qt::ISODateWithMs ) );
+    chat.insert( u"session_id"_s, mSessionManager->activeSessionId() );
+    chat.insert( u"messages"_s, messages );
+
+    const QgsAiSecretStore::BlobEncryptionResult encrypted = QgsAiSecretStore::tryEncryptBlob( QJsonDocument( chat ).toJson( QJsonDocument::Compact ) );
+    if ( !encrypted.ok || !encrypted.encrypted )
+    {
+      QMessageBox::warning( this, tr( "Export chat" ), tr( "The encrypted chat export requires an unlocked QGIS authentication vault. No unencrypted file was created." ) );
+      return;
+    }
+    QJsonObject document;
+    document.insert( u"format"_s, u"strata-encrypted-chat-export-v1"_s );
+    document.insert( u"encryption"_s, u"qgis-auth-vault-aes-256"_s );
+    document.insert( u"payload"_s, QString::fromLatin1( encrypted.value ) );
+
+    QSaveFile file( path );
+    if ( !file.open( QIODevice::WriteOnly ) || file.write( QJsonDocument( document ).toJson( QJsonDocument::Indented ) ) < 0 || !file.commit() )
+    {
+      QMessageBox::warning( this, tr( "Export chat" ), tr( "Could not write the chat export." ) );
+      return;
+    }
+    QMessageBox::information( this, tr( "Export chat" ), tr( "Encrypted chat exported to %1." ).arg( path ) );
     return;
   }
   if ( data == "__delete__"_L1 )

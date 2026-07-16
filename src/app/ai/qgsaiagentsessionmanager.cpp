@@ -57,7 +57,68 @@ using namespace Qt::StringLiterals;
 
 namespace
 {
-  constexpr int MIN_MANAGED_TOOL_CATALOG_VERSION = 4;
+  constexpr int MIN_MANAGED_TOOL_CATALOG_VERSION = 5;
+  constexpr int MAX_TOOL_RESULT_CHARS = 50000;
+
+  int managedToolRoundLimit( const QString &model )
+  {
+    if ( model == "anthropic/claude-opus-4.7"_L1 )
+      return 10;
+    if ( model == "anthropic/claude-sonnet-4.6"_L1 )
+      return 8;
+    return 6;
+  }
+
+  QList<QgsAiChatMessage> sanitizeToolHistory( const QList<QgsAiChatMessage> &history )
+  {
+    QList<QgsAiChatMessage> sanitized;
+    for ( int i = 0; i < history.size(); ++i )
+    {
+      QgsAiChatMessage message = history.at( i );
+      if ( message.role != QgsAiChatRole::Assistant || !message.metadata.contains( u"tool_calls"_s ) )
+      {
+        if ( message.role != QgsAiChatRole::Tool )
+          sanitized << message;
+        continue;
+      }
+
+      const QVariantList calls = message.metadata.value( u"tool_calls"_s ).toList();
+      QSet<QString> resultIds;
+      int end = i;
+      while ( end + 1 < history.size() && history.at( end + 1 ).role == QgsAiChatRole::Tool )
+      {
+        ++end;
+        const QString id = history.at( end ).metadata.value( u"tool_call_id"_s ).toString();
+        if ( !id.isEmpty() )
+          resultIds.insert( id );
+      }
+
+      QVariantList validCalls;
+      QSet<QString> validIds;
+      for ( const QVariant &call : calls )
+      {
+        const QString id = call.toMap().value( u"id"_s ).toString();
+        if ( !id.isEmpty() && resultIds.contains( id ) )
+        {
+          validCalls << call;
+          validIds.insert( id );
+        }
+      }
+      if ( validCalls.isEmpty() )
+        message.metadata.remove( u"tool_calls"_s );
+      else
+        message.metadata.insert( u"tool_calls"_s, validCalls );
+      sanitized << message;
+      for ( int toolIndex = i + 1; toolIndex <= end; ++toolIndex )
+      {
+        const QgsAiChatMessage &tool = history.at( toolIndex );
+        if ( validIds.contains( tool.metadata.value( u"tool_call_id"_s ).toString() ) )
+          sanitized << tool;
+      }
+      i = end;
+    }
+    return sanitized;
+  }
 
   QString defaultRulesPath()
   {
@@ -757,6 +818,7 @@ void QgsAiAgentSessionManager::startProviderAttempt( QgsAiModelRouter::Provider 
     return;
 
   refreshRouterToolPolicy();
+  mRouter->setPlanConversationId( mActiveSessionId );
 
   mActiveProvider = provider;
   const QList<QgsAiChatMessage> messages = buildOutgoingMessages();
@@ -1434,6 +1496,7 @@ QString QgsAiAgentSessionManager::buildSystemPrompt( const QString &extraContext
   const bool canAddLayerFromFile = allowedTools.contains( u"add_layer_from_file"_s );
   const bool canRunPython = allowedTools.contains( u"run_python"_s );
   const bool canInstallPythonPackage = allowedTools.contains( u"install_python_package"_s );
+  const bool canReorderLayers = allowedTools.contains( u"reorder_layers"_s );
   if ( !allowedTools.isEmpty() )
   {
     prompt += "\n== Available tools ==\n"_L1;
@@ -1508,6 +1571,7 @@ QString QgsAiAgentSessionManager::buildSystemPrompt( const QString &extraContext
     QgsAiRuntimeModeForAgent( mActiveAgent )
   );
   prompt += "- After every tool result, read the embedded verification object before the next action. If success=false, if expected diff is missing, or if rollback is unavailable for a mutation, stop and explain.\n"_L1;
+  prompt += "- If a download, WCS/WFS request, Processing job, or other tool fails, stop and report the failure. Never substitute synthetic, guessed, or placeholder data.\n"_L1;
   if ( mActiveAgent == "planner"_L1 )
   {
     prompt += "- You are in Plan mode. Do not call tools, do not download data, do not run Python, and do not modify project or workspace state.\n"_L1;
@@ -1586,6 +1650,8 @@ QString QgsAiAgentSessionManager::buildSystemPrompt( const QString &extraContext
   prompt += "- Use tools instead of writing code in chat for the user to copy.\n"_L1;
   prompt += "- For multi-step work, maintain an internal step plan and verify each step against the tool result before moving on. If the plan changes because a tool result contradicts an assumption, say so briefly and adapt.\n"_L1;
   prompt += "- To inspect files: read_file, search_files, list_files. To inspect project state: list_project_layers, get_active_canvas_extent.\n"_L1;
+  if ( canReorderLayers )
+    prompt += "- To change root-level layer draw order, use reorder_layers only. Never remove/reinsert layer-tree nodes and never use run_python for layer-tree reordering.\n"_L1;
   prompt += "- To inspect what is visually rendered on the 2D map canvas, use capture_map_canvas only when the user asks you to look at the map, check what is visible, or debug a visual result. The screenshot is shared with OpenAI, OpenRouter, Codex, and Claude only after user consent.\n"_L1;
   prompt += "- To diagnose QGIS runtime errors/warnings (layer load, Processing, plugins): call read_message_log with levels [\"warning\",\"critical\"] and an optional tag filter.\n"_L1;
   prompt += "- To modify files: ALWAYS go through propose_edit / propose_create_file / propose_delete_file (when available). The user will review and accept your diff.\n"_L1;
@@ -1903,7 +1969,7 @@ QList<QgsAiChatMessage> QgsAiAgentSessionManager::trimHistoryByTokenBudget( int 
     for ( int j = range.start; j <= range.end; ++j )
       result.append( providerHistory.at( j ) );
   }
-  return result;
+  return sanitizeToolHistory( result );
 }
 
 QList<QgsAiChatMessage> QgsAiAgentSessionManager::buildOutgoingMessages() const
@@ -1988,6 +2054,16 @@ QgsAiChatMessage QgsAiAgentSessionManager::buildToolResultMessage( const QgsAiTo
     errObj.insert( u"error"_s, result.errorMessage );
     errObj.insert( u"verification"_s, verification );
     serialized = QString::fromUtf8( QJsonDocument( errObj ).toJson( QJsonDocument::Compact ) );
+  }
+  if ( serialized.size() > MAX_TOOL_RESULT_CHARS )
+  {
+    QJsonObject capped;
+    capped.insert( u"truncated"_s, true );
+    capped.insert( u"original_characters"_s, serialized.size() );
+    capped.insert( u"content"_s, serialized.left( MAX_TOOL_RESULT_CHARS - 220 ) );
+    capped.insert( u"note"_s, u"Tool result was truncated. Request a narrower query, page, or summary before continuing."_s );
+    serialized = QString::fromUtf8( QJsonDocument( capped ).toJson( QJsonDocument::Compact ) );
+    toolMessage.metadata.insert( u"tool_result_truncated"_s, true );
   }
   toolMessage.content = serialized;
   toolMessage.metadata.insert( u"tool_call_id"_s, call.id );
@@ -2115,7 +2191,9 @@ void QgsAiAgentSessionManager::onToolCallsRequested( const QString &requestId, c
   }
 
   ++mToolIterations;
-  const int maxToolIterations = normalizedToolCallPauseLimit( mBehaviorSettings.maxToolIterationsPerTurn );
+  const int maxToolIterations = mActiveProvider == QgsAiModelRouter::Provider::Plan && mRouter
+                                  ? managedToolRoundLimit( mRouter->providerSettings( QgsAiModelRouter::Provider::Plan ).model )
+                                  : normalizedToolCallPauseLimit( mBehaviorSettings.maxToolIterationsPerTurn );
   if ( mToolIterations > maxToolIterations )
   {
     QgsAiChatMessage limitMessage = buildAssistantMessage(

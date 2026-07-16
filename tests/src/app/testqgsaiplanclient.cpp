@@ -36,7 +36,7 @@ namespace
   QByteArray modelsBody()
   {
     return QByteArrayLiteral(
-      R"({"items":[{"id":"managed-plan","label":"Managed Plan","provider":"openrouter","contextWindow":200000,"priceInCredits":{"input":1,"output":3},"capabilities":["tools","vision"],"tierAvailability":["FREE","PRO"]},{"id":"gpt-4o","label":"GPT-4o","provider":"openai","contextWindow":128000,"priceInCredits":{"input":5,"output":15},"capabilities":["tools","vision"],"tierAvailability":["PRO"]}]})"
+      R"({"items":[{"id":"managed-plan","label":"Managed Plan","provider":"openrouter","contextWindow":200000,"priceInCredits":{"input":1,"output":3},"agentMaxTokens":16384,"agentToolRounds":6,"capabilities":["tools","vision"],"tierAvailability":["FREE","PRO"]},{"id":"gpt-4o","label":"GPT-4o","provider":"openai","contextWindow":128000,"priceInCredits":{"input":5,"output":15},"capabilities":["tools","vision"],"tierAvailability":["PRO"]}]})"
     );
   }
 
@@ -66,6 +66,7 @@ class TestQgsAiPlanClient : public QObject
     void refreshModelsFetchesAndCaches();
     void refreshAgentsAndPolicyUseBearerToken();
     void setModelPreferenceEncodesModelIdPathSegment();
+    void clearNetworkCachesPreservesModelPreferences();
 };
 
 void TestQgsAiPlanClient::parsesManagedModelCatalog()
@@ -77,6 +78,8 @@ void TestQgsAiPlanClient::parsesManagedModelCatalog()
   QCOMPARE( models.at( 0 ).contextWindow, 200000 );
   QCOMPARE( models.at( 0 ).inputCredits, 1 );
   QCOMPARE( models.at( 0 ).outputCredits, 3 );
+  QCOMPARE( models.at( 0 ).agentMaxTokens, 16384 );
+  QCOMPARE( models.at( 0 ).agentToolRounds, 6 );
   QVERIFY( models.at( 0 ).capabilities.contains( u"vision"_s ) );
   QVERIFY( models.at( 0 ).tierAvailability.contains( u"FREE"_s ) );
   QCOMPARE( models.at( 0 ).displayLabel(), u"Managed Plan"_s );
@@ -220,6 +223,23 @@ void TestQgsAiPlanClient::setModelPreferenceEncodesModelIdPathSegment()
 
   const QJsonObject body = QJsonDocument::fromJson( server.requestBodies.first() ).object();
   QCOMPARE( body.value( u"enabled"_s ).toBool(), false );
+}
+
+void TestQgsAiPlanClient::clearNetworkCachesPreservesModelPreferences()
+{
+  QgsAiPlanClient::writeCachedModels( QgsAiPlanClient::parseModelsJson( modelsBody() ) );
+  QgsAiPlanClient::writeCachedAgents( QgsAiPlanClient::parseAgentsJson( agentsBody() ) );
+  QgsAiPlanClient::writeCachedAgentPolicy( QgsAiPlanClient::parseAgentPolicyJson( policyBody() ) );
+  QgsAiPlanClient::writeCachedModelPreferences( { { u"managed-plan"_s, false } } );
+
+  QgsAiPlanClient::clearNetworkCaches();
+
+  QVERIFY( !QFile::exists( QgsAiPlanClient::cacheFilePath() ) );
+  QVERIFY( !QFile::exists( QgsAiPlanClient::agentsCacheFilePath() ) );
+  QVERIFY( !QFile::exists( QgsAiPlanClient::agentPolicyCacheFilePath() ) );
+  QCOMPARE( QgsAiPlanClient::cachedModelPreferences().size(), 1 );
+  QVERIFY( QgsAiPlanClient::isModelDisabled( u"managed-plan"_s ) );
+  QFile::remove( QgsAiPlanClient::modelPreferencesCacheFilePath() );
 }
 
 QGSTEST_MAIN( TestQgsAiPlanClient )

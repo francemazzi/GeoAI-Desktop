@@ -469,6 +469,36 @@ namespace
     return true;
   }
 
+  void refreshLayoutLegends( QgsProject *project, const QString &layerId )
+  {
+    if ( !project || !project->layoutManager() || layerId.isEmpty() )
+      return;
+
+    const QList<QgsPrintLayout *> layouts = project->layoutManager()->printLayouts();
+    for ( QgsPrintLayout *layout : layouts )
+    {
+      if ( !layout )
+        continue;
+
+      QList<QgsLayoutItemLegend *> legends;
+      layout->layoutItems( legends );
+      for ( QgsLayoutItemLegend *legend : legends )
+      {
+        if ( !legend || !legend->model() )
+          continue;
+
+        // Manual legends own a cloned tree, so find the layer node in each
+        // legend model instead of assuming it is the project's node.
+        QgsLayerTree *legendRoot = legend->model()->rootGroup();
+        if ( QgsLayerTreeLayer *legendNode = legendRoot ? legendRoot->findLayer( layerId ) : nullptr )
+          legend->model()->refreshLayerLegend( legendNode );
+        legend->updateLegend();
+        legend->invalidateCache();
+        legend->update();
+      }
+    }
+  }
+
   QgsAiToolResult rollbackLayerAddition( QgsProject *project, const QString &token )
   {
     if ( !rollbackStore().contains( token ) )
@@ -522,6 +552,7 @@ namespace
     layer->triggerRepaint();
     if ( QgsVectorLayer *vector = qobject_cast<QgsVectorLayer *>( layer ) )
       vector->emitStyleChanged();
+    refreshLayoutLegends( project, layer->id() );
 
     const QJsonObject after = layerVisualSummary( layer, treeNode );
     QJsonObject diff;
@@ -865,6 +896,66 @@ QgsAiToolResult QgsAiAddLayerFromServiceTool::execute( const QJsonObject &args )
 }
 
 // ---------------------------------------------------------------------------
+// reorder_layers
+// ---------------------------------------------------------------------------
+
+QgsAiReorderLayersTool::QgsAiReorderLayersTool( QgsProject *project )
+  : mProject( project )
+{}
+
+QString QgsAiReorderLayersTool::description() const
+{
+  return u"Reorders direct root-level layers using QGIS's native reorder API. It never removes or reinserts layer-tree nodes, so registered map layers remain intact."_s;
+}
+
+QJsonObject QgsAiReorderLayersTool::schema() const
+{
+  QJsonObject properties;
+  properties.insert( u"layer_ids"_s, prop( u"array"_s, u"Ordered layer ids to move to the top of the root layer tree. All ids must be direct root-level layers."_s ) );
+  return schemaObject( properties, QJsonArray { u"layer_ids"_s } );
+}
+
+QgsAiToolResult QgsAiReorderLayersTool::execute( const QJsonObject &args )
+{
+  QgsProject *project = mProject ? mProject : QgsProject::instance();
+  QgsLayerTreeGroup *root = project ? project->layerTreeRoot() : nullptr;
+  if ( !root )
+    return QgsAiToolResult::error( u"No active QGIS layer tree is available."_s );
+  if ( !args.value( u"layer_ids"_s ).isArray() )
+    return QgsAiToolResult::error( u"Argument 'layer_ids' must be an array."_s );
+
+  QList<QgsMapLayer *> order;
+  QSet<QString> seen;
+  for ( const QJsonValue &value : args.value( u"layer_ids"_s ).toArray() )
+  {
+    const QString id = value.toString().trimmed();
+    if ( id.isEmpty() || seen.contains( id ) )
+      return QgsAiToolResult::error( u"layer_ids must contain unique non-empty layer ids."_s );
+    QgsMapLayer *layer = project->mapLayer( id );
+    QgsLayerTreeLayer *node = root->findLayer( id );
+    if ( !layer || !node || node->parent() != root )
+      return QgsAiToolResult::error( u"Layer '%1' is not a direct root-level layer."_s.arg( id ) );
+    seen.insert( id );
+    order << layer;
+  }
+  if ( order.isEmpty() )
+    return QgsAiToolResult::error( u"layer_ids must contain at least one layer."_s );
+
+  root->reorderGroupLayers( order );
+  QJsonArray appliedOrder;
+  for ( QgsLayerTreeNode *child : root->children() )
+  {
+    if ( QgsLayerTreeLayer *node = QgsLayerTree::toLayer( child ) )
+      appliedOrder.append( node->layerId() );
+  }
+  QJsonObject output;
+  output.insert( u"status"_s, u"reordered"_s );
+  output.insert( u"layer_order"_s, appliedOrder );
+  output.insert( u"note"_s, u"Used QgsLayerTreeGroup::reorderGroupLayers; no layer-tree node was removed or recreated."_s );
+  return QgsAiToolResult::ok( output );
+}
+
+// ---------------------------------------------------------------------------
 // describe_layer
 // ---------------------------------------------------------------------------
 
@@ -1156,6 +1247,7 @@ QgsAiToolResult QgsAiStyleLayerTool::execute( const QJsonObject &args )
   layer->triggerRepaint();
   if ( QgsVectorLayer *vector = qobject_cast<QgsVectorLayer *>( layer ) )
     vector->emitStyleChanged();
+  refreshLayoutLegends( project, layer->id() );
 
   QJsonObject output;
   const QString token = storeRollback( rollback );
@@ -1362,6 +1454,7 @@ QgsAiToolResult QgsAiAdvancedStyleTool::execute( const QJsonObject &args )
 
   layer->triggerRepaint();
   layer->emitStyleChanged();
+  refreshLayoutLegends( project, layer->id() );
 
   const QString token = storeRollback( rollback );
   QJsonObject diff;

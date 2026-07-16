@@ -1451,6 +1451,7 @@ QgisApp::QgisApp( QSplashScreen *splash, AppOptions options, const QString &root
   mAiToolRegistry->registerTool( std::make_unique<QgsAiAddLayerFromFileTool>( mAiFileContextProvider.get(), QgsProject::instance() ) );
   mAiToolRegistry->registerTool( std::make_unique<QgsAiAddLayerFromServiceTool>( QgsProject::instance() ) );
   mAiToolRegistry->registerTool( std::make_unique<QgsAiDescribeLayerTool>( QgsProject::instance() ) );
+  mAiToolRegistry->registerTool( std::make_unique<QgsAiReorderLayersTool>( QgsProject::instance() ) );
   mAiToolRegistry->registerTool( std::make_unique<QgsAiRunProcessingAlgorithmTool>( QgsProject::instance() ) );
   mAiToolRegistry->registerTool( std::make_unique<QgsAiEditFeatureGeometryTool>( QgsProject::instance() ) );
   mAiToolRegistry->registerTool( std::make_unique<QgsAiUpdateFeatureAttributesTool>( QgsProject::instance() ) );

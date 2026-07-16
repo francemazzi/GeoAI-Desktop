@@ -70,12 +70,16 @@ class APP_EXPORT QgsAiMessageLogBuffer : public QObject
     QueryResult query( const Query &query ) const;
     QStringList distinctTags() const;
     int entryCount() const;
+    //! Local JSONL sink used when QGIS_LOG_FILE is unavailable on newer QGIS builds.
+    static QString diagnosticsFilePath();
+    static void setDiagnosticsFileEnabled( bool enabled );
 
   private slots:
     void onMessageReceived( const QString &message, const QString &tag, Qgis::MessageLevel level, Qgis::StringFormat format );
 
   private:
     mutable QMutex mMutex;
+    void appendDiagnosticsEntry( const Entry &entry ) const;
     QVector<Entry> mEntries;
     int mCapacity;
 };

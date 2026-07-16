@@ -95,6 +95,26 @@ class APP_EXPORT QgsAiDescribeLayerTool : public QgsAiTool
 };
 
 /**
+ * reorder_layers: safely reorders direct root-layer children through the QGIS
+ * layer-tree API. It deliberately never removes/reinserts layer nodes.
+ */
+class APP_EXPORT QgsAiReorderLayersTool : public QgsAiTool
+{
+  public:
+    explicit QgsAiReorderLayersTool( QgsProject *project );
+
+    QString name() const override { return u"reorder_layers"_s; }
+    QString description() const override;
+    QJsonObject schema() const override;
+    QgsAiToolResult execute( const QJsonObject &args ) override;
+    bool requiresApproval() const override { return true; }
+    QgsAiToolRiskLevel riskLevel() const override { return QgsAiToolRiskLevel::Medium; }
+
+  private:
+    QgsProject *mProject = nullptr;
+};
+
+/**
  * run_processing_algorithm: executes a QGIS Processing algorithm with JSON
  * parameters. This gives the agent a typed native path for common GIS
  * transformations without falling back to run_python.
