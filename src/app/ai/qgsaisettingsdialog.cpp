@@ -757,7 +757,10 @@ QWidget *QgsAiSettingsDialog::buildProvidersPage()
   QPushButton *clearAiCacheButton = new QPushButton( tr( "Clear AI cache" ), page );
   clearAiCacheButton->setObjectName( u"aiClearOpenRouterCacheButton"_s );
   connect( clearAiCacheButton, &QPushButton::clicked, this, [this]() {
-    const QString text = tr( "This clears downloaded Strata Cloud model and policy catalogs and starts a new OpenRouter prompt-cache session. Chat history, model choices, credentials, and projects are kept. OpenRouter does not provide a global prompt-cache deletion API.\n\nContinue?" );
+    const QString text = tr(
+      "This clears downloaded Strata Cloud model and policy catalogs and starts a new OpenRouter prompt-cache session. Chat history, model choices, credentials, and projects are kept. OpenRouter "
+      "does not provide a global prompt-cache deletion API.\n\nContinue?"
+    );
     if ( QMessageBox::question( this, tr( "Clear AI cache" ), text, QMessageBox::Yes | QMessageBox::No, QMessageBox::No ) != QMessageBox::Yes )
       return;
     QgsAiPlanClient::clearNetworkCaches();
@@ -766,12 +769,16 @@ QWidget *QgsAiSettingsDialog::buildProvidersPage()
     emit planAuthStateChanged();
     QMessageBox::information( this, tr( "AI cache cleared" ), tr( "The next managed request starts a fresh OpenRouter prompt-cache session." ) );
   } );
-  contentLayout->addWidget( settingRow( tr( "AI cache" ), tr( "Clears local cloud catalog cache and resets the OpenRouter prompt-cache session. It does not delete chat history or model preferences." ), clearAiCacheButton, page ) );
+  contentLayout->addWidget(
+    settingRow( tr( "AI cache" ), tr( "Clears local cloud catalog cache and resets the OpenRouter prompt-cache session. It does not delete chat history or model preferences." ), clearAiCacheButton, page )
+  );
 
   QCheckBox *diagnosticsJsonl = new QCheckBox( page );
   diagnosticsJsonl->setChecked( QgsSettings().value( u"strata/ai/diagnostics_jsonl_enabled"_s, true ).toBool() );
   connect( diagnosticsJsonl, &QCheckBox::toggled, this, []( bool enabled ) { QgsAiMessageLogBuffer::setDiagnosticsFileEnabled( enabled ); } );
-  contentLayout->addWidget( settingRow( tr( "Diagnostic log" ), tr( "Writes local QGIS diagnostics to strata_ai_diagnostics.jsonl. This replaces the unavailable QGIS_LOG_FILE workflow and never uploads logs." ), diagnosticsJsonl, page ) );
+  contentLayout->addWidget(
+    settingRow( tr( "Diagnostic log" ), tr( "Writes local QGIS diagnostics to strata_ai_diagnostics.jsonl. This replaces the unavailable QGIS_LOG_FILE workflow and never uploads logs." ), diagnosticsJsonl, page )
+  );
 
   // ---- Codex ----
   contentLayout->addWidget( sectionHeader( tr( "Codex" ), page ) );

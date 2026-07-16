@@ -963,7 +963,7 @@ void TestQgsAiModelRouter::planPayloadUsesPromptCacheSessionAndProfileLimit()
   QCOMPARE( payloadForModel( u"anthropic/claude-sonnet-4.6"_s ).value( u"max_tokens"_s ).toInt(), 16384 );
   const QJsonObject first = payloadForModel( u"anthropic/claude-opus-4.7"_s );
   QCOMPARE( first.value( u"max_tokens"_s ).toInt(), 32768 );
-  QVERIFY( first.value( u"session_id"_s ).toString().endsWith( u":chat-a"_s ) );
+  QVERIFY( first.value( u"session_id"_s ).toString().endsWith( ":chat-a"_L1 ) );
 
   router.resetPlanPromptCacheSession();
   const QJsonObject second = QJsonDocument::fromJson( router.buildRequestPayload( QgsAiModelRouter::Provider::Plan, { userMessage( u"hello"_s ) }, true ) ).object();

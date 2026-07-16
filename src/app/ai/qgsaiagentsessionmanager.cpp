@@ -2191,9 +2191,8 @@ void QgsAiAgentSessionManager::onToolCallsRequested( const QString &requestId, c
   }
 
   ++mToolIterations;
-  const int maxToolIterations = mActiveProvider == QgsAiModelRouter::Provider::Plan && mRouter
-                                  ? managedToolRoundLimit( mRouter->providerSettings( QgsAiModelRouter::Provider::Plan ).model )
-                                  : normalizedToolCallPauseLimit( mBehaviorSettings.maxToolIterationsPerTurn );
+  const int maxToolIterations = mActiveProvider == QgsAiModelRouter::Provider::Plan && mRouter ? managedToolRoundLimit( mRouter->providerSettings( QgsAiModelRouter::Provider::Plan ).model )
+                                                                                               : normalizedToolCallPauseLimit( mBehaviorSettings.maxToolIterationsPerTurn );
   if ( mToolIterations > maxToolIterations )
   {
     QgsAiChatMessage limitMessage = buildAssistantMessage(

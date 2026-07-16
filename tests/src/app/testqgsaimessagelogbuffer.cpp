@@ -9,10 +9,10 @@
 #include "qgsmessagelog.h"
 #include "qgstest.h"
 
+#include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QFile>
 #include <QString>
 
 using namespace Qt::StringLiterals;

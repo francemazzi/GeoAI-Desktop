@@ -2191,7 +2191,7 @@ void QgsAiChatDockWidget::onHistoryEntryTriggered( QAction *action )
     if ( path.isEmpty() )
       return;
     if ( !path.endsWith( u".json"_s, Qt::CaseInsensitive ) )
-      path += u".json"_s;
+      path += ".json"_L1;
 
     QJsonArray messages;
     for ( const QgsAiChatMessage &message : mSessionManager->history() )
