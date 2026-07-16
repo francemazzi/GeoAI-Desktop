@@ -52,6 +52,8 @@ class APP_EXPORT QgsAiPlanClient : public QObject
         int contextWindow = 0;
         int inputCredits = 0;
         int outputCredits = 0;
+        int agentMaxTokens = 0;
+        int agentToolRounds = 0;
         QStringList capabilities;
         QStringList tierAvailability;
 
@@ -105,6 +107,8 @@ class APP_EXPORT QgsAiPlanClient : public QObject
     static void writeCachedAgents( const QList<QgsAiManagedAgentPreset> &agents );
     static void writeCachedAgentPolicy( const QgsAiManagedAgentPolicy &policy );
     static void writeCachedModelPreferences( const QList<ModelPreferenceInfo> &preferences );
+    //! Invalidates only server-derived catalog/policy files; user preferences and chats remain intact.
+    static void clearNetworkCaches();
     //! Convenience lookup used by the chat dock to filter out models the user disabled.
     static bool isModelDisabled( const QString &modelId );
 

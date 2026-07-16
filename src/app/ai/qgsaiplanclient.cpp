@@ -147,6 +147,8 @@ QString QgsAiPlanClient::ModelInfo::tooltip() const
     parts << QObject::tr( "Capabilities: %1" ).arg( capabilities.join( ", "_L1 ) );
   if ( !tierAvailability.isEmpty() )
     parts << QObject::tr( "Tiers: %1" ).arg( tierAvailability.join( ", "_L1 ) );
+  if ( agentMaxTokens > 0 )
+    parts << QObject::tr( "Agent limit: %1 output tokens, %2 tool rounds." ).arg( tokenCountLabel( agentMaxTokens ) ).arg( agentToolRounds );
   return parts.join( '\n' );
 }
 
@@ -206,6 +208,8 @@ QList<QgsAiPlanClient::ModelInfo> QgsAiPlanClient::parseModelsJson( const QByteA
     const QJsonObject price = item.value( u"priceInCredits"_s ).toObject();
     info.inputCredits = price.value( u"input"_s ).toInt();
     info.outputCredits = price.value( u"output"_s ).toInt();
+    info.agentMaxTokens = item.value( u"agentMaxTokens"_s ).toInt();
+    info.agentToolRounds = item.value( u"agentToolRounds"_s ).toInt();
     info.capabilities = stringArray( item.value( u"capabilities"_s ) );
     info.tierAvailability = stringArray( item.value( u"tierAvailability"_s ) );
     models << info;
@@ -365,6 +369,11 @@ void QgsAiPlanClient::writeCachedModels( const QList<ModelInfo> &models )
     item.insert( u"contextWindow"_s, info.contextWindow );
     item.insert( u"capabilities"_s, QJsonArray::fromStringList( info.capabilities ) );
     item.insert( u"tierAvailability"_s, QJsonArray::fromStringList( info.tierAvailability ) );
+    if ( info.agentMaxTokens > 0 )
+    {
+      item.insert( u"agentMaxTokens"_s, info.agentMaxTokens );
+      item.insert( u"agentToolRounds"_s, info.agentToolRounds );
+    }
     QJsonObject price;
     price.insert( u"input"_s, info.inputCredits );
     price.insert( u"output"_s, info.outputCredits );
@@ -377,6 +386,14 @@ void QgsAiPlanClient::writeCachedModels( const QList<ModelInfo> &models )
   QFile file( cacheFilePath() );
   if ( file.open( QIODevice::WriteOnly | QIODevice::Truncate ) )
     file.write( QJsonDocument( root ).toJson( QJsonDocument::Compact ) );
+}
+
+void QgsAiPlanClient::clearNetworkCaches()
+{
+  // Model preferences are account choices, not a cache, and must survive this action.
+  QFile::remove( cacheFilePath() );
+  QFile::remove( agentsCacheFilePath() );
+  QFile::remove( agentPolicyCacheFilePath() );
 }
 
 void QgsAiPlanClient::writeCachedAgents( const QList<QgsAiManagedAgentPreset> &agents )

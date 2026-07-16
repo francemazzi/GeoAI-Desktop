@@ -19,7 +19,12 @@
 
 #include "qgsapplication.h"
 #include "qgsmessagelog.h"
+#include "qgssettings.h"
 
+#include <QDir>
+#include <QFile>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QMutexLocker>
 #include <QString>
 
@@ -49,6 +54,23 @@ namespace
       return true;
     return levels.contains( level );
   }
+
+  QString levelName( Qgis::MessageLevel level )
+  {
+    switch ( level )
+    {
+      case Qgis::MessageLevel::Info:
+        return u"info"_s;
+      case Qgis::MessageLevel::Warning:
+        return u"warning"_s;
+      case Qgis::MessageLevel::Critical:
+        return u"critical"_s;
+      case Qgis::MessageLevel::Success:
+        return u"success"_s;
+      default:
+        return u"unknown"_s;
+    }
+  }
 } // namespace
 
 QgsAiMessageLogBuffer::QgsAiMessageLogBuffer( QObject *parent, int capacity )
@@ -77,6 +99,37 @@ void QgsAiMessageLogBuffer::onMessageReceived( const QString &message, const QSt
   if ( mEntries.size() >= mCapacity )
     mEntries.removeFirst();
   mEntries.append( entry );
+  locker.unlock();
+  appendDiagnosticsEntry( entry );
+}
+
+QString QgsAiMessageLogBuffer::diagnosticsFilePath()
+{
+  return QDir( QgsApplication::qgisSettingsDirPath() ).filePath( u"strata_ai_diagnostics.jsonl"_s );
+}
+
+void QgsAiMessageLogBuffer::setDiagnosticsFileEnabled( bool enabled )
+{
+  QgsSettings settings;
+  settings.setValue( u"strata/ai/diagnostics_jsonl_enabled"_s, enabled );
+}
+
+void QgsAiMessageLogBuffer::appendDiagnosticsEntry( const Entry &entry ) const
+{
+  QgsSettings settings;
+  if ( !settings.value( u"strata/ai/diagnostics_jsonl_enabled"_s, true ).toBool() )
+    return;
+
+  QFile file( diagnosticsFilePath() );
+  if ( !file.open( QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text ) )
+    return;
+  QJsonObject object;
+  object.insert( u"timestamp"_s, entry.timestamp.toString( Qt::ISODateWithMs ) );
+  object.insert( u"tag"_s, entry.tag.isEmpty() ? u"General"_s : entry.tag );
+  object.insert( u"level"_s, levelName( entry.level ) );
+  object.insert( u"message"_s, entry.message.left( 16384 ) );
+  file.write( QJsonDocument( object ).toJson( QJsonDocument::Compact ) );
+  file.write( "\n" );
 }
 
 QgsAiMessageLogBuffer::QueryResult QgsAiMessageLogBuffer::query( const Query &query ) const

@@ -243,6 +243,7 @@ class TestQgsAiModelRouter : public QObject
     void allowedToolFilterCanAdvertiseNoTools();
     void planPayloadIncludesAgentMode();
     void planPayloadUsesAnthropicBlocksAndTools();
+    void planPayloadUsesPromptCacheSessionAndProfileLimit();
     void unavailableToolsAreOmittedFromPayload();
     void visualContextImageIsAddedToOpenAiPayload();
     void visualContextImageIsAddedToClaudePayload();
@@ -936,6 +937,37 @@ void TestQgsAiModelRouter::planPayloadUsesAnthropicBlocksAndTools()
   QCOMPARE( resultBlock.value( u"type"_s ).toString(), u"tool_result"_s );
   QCOMPARE( resultBlock.value( u"tool_use_id"_s ).toString(), u"toolu_1"_s );
   QCOMPARE( resultBlock.value( u"content"_s ).toString(), u"{\"items\":[]}"_s );
+}
+
+void TestQgsAiModelRouter::planPayloadUsesPromptCacheSessionAndProfileLimit()
+{
+  QgsSettings settings;
+  settings.remove( u"ai/provider/plan/promptCacheEpoch"_s );
+  const auto cleanup = qScopeGuard( [&settings]() { settings.remove( u"ai/provider/plan/promptCacheEpoch"_s ); } );
+
+  QgsAiToolRegistry registry;
+  registry.registerTool( std::make_unique<QgsAiEchoTool>() );
+  QgsAiModelRouter router;
+  QgsAiModelRouter::ProviderSettings plan = router.providerSettings( QgsAiModelRouter::Provider::Plan );
+  router.setToolRegistry( &registry );
+  router.setToolUseEnabled( true );
+  router.setPlanConversationId( u"chat-a"_s );
+
+  const auto payloadForModel = [&router, &plan]( const QString &model ) {
+    plan.model = model;
+    router.setProviderSettings( QgsAiModelRouter::Provider::Plan, plan );
+    return QJsonDocument::fromJson( router.buildRequestPayload( QgsAiModelRouter::Provider::Plan, { userMessage( u"hello"_s ) }, true ) ).object();
+  };
+
+  QCOMPARE( payloadForModel( u"google/gemini-3.5-flash"_s ).value( u"max_tokens"_s ).toInt(), 16384 );
+  QCOMPARE( payloadForModel( u"anthropic/claude-sonnet-4.6"_s ).value( u"max_tokens"_s ).toInt(), 16384 );
+  const QJsonObject first = payloadForModel( u"anthropic/claude-opus-4.7"_s );
+  QCOMPARE( first.value( u"max_tokens"_s ).toInt(), 32768 );
+  QVERIFY( first.value( u"session_id"_s ).toString().endsWith( ":chat-a"_L1 ) );
+
+  router.resetPlanPromptCacheSession();
+  const QJsonObject second = QJsonDocument::fromJson( router.buildRequestPayload( QgsAiModelRouter::Provider::Plan, { userMessage( u"hello"_s ) }, true ) ).object();
+  QVERIFY( second.value( u"session_id"_s ).toString() != first.value( u"session_id"_s ).toString() );
 }
 
 void TestQgsAiModelRouter::unavailableToolsAreOmittedFromPayload()

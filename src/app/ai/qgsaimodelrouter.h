@@ -85,6 +85,10 @@ class APP_EXPORT QgsAiModelRouter : public QObject
     bool clearPlanSessionToken( QString *errorMessage = nullptr );
     QString planSessionToken() const;
     void setPlanAuthConfigId( const QString &authConfigId );
+    //! Binds OpenRouter's managed prompt-cache session to the active local chat.
+    void setPlanConversationId( const QString &conversationId );
+    //! Starts a fresh OpenRouter prompt-cache session without deleting chat history.
+    void resetPlanPromptCacheSession();
 
     bool applyAuthentication( Provider provider, QNetworkRequest &request, QString *errorMessage = nullptr ) const;
     Provider resolveProvider() const;
@@ -260,6 +264,7 @@ class APP_EXPORT QgsAiModelRouter : public QObject
     QString apiKeySettingKey( Provider provider ) const;
     QString planAuthConfigIdSettingKey() const;
     QString planSessionTokenSettingKey() const;
+    QString planPromptCacheSessionId() const;
     QString storedApiKey( Provider provider ) const;
     bool hasConfiguredCredential( Provider provider ) const;
     QString normalizedModelForProvider( Provider provider, const QString &model ) const;
@@ -275,6 +280,7 @@ class APP_EXPORT QgsAiModelRouter : public QObject
     bool mAllowedToolsFilterEnabled = false;
     QStringList mAllowedTools;
     QString mAgentMode;
+    QString mPlanConversationId;
     mutable QString mCodexPromptCacheKey;
     OpenRouterRoutingProfile mOpenRouterRoutingProfile = OpenRouterRoutingProfile::CostOptimized;
 };

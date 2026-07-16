@@ -51,6 +51,14 @@ using namespace Qt::StringLiterals;
 
 namespace
 {
+  constexpr int MANAGED_LITE_STANDARD_MAX_TOKENS = 16384;
+  constexpr int MANAGED_PRO_MAX_TOKENS = 32768;
+
+  int managedAgentMaxTokens( const QString &model )
+  {
+    return model == "anthropic/claude-opus-4.7"_L1 ? MANAGED_PRO_MAX_TOKENS : MANAGED_LITE_STANDARD_MAX_TOKENS;
+  }
+
   // OpenRouter production endpoint (Chat Completions). The Responses endpoint is
   // beta and kept only as an escape hatch for explicitly configured endpoints.
   constexpr const char *OPENROUTER_DEFAULT_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
@@ -699,6 +707,8 @@ QByteArray QgsAiModelRouter::buildRequestPayload( Provider provider, const QList
   payload.insert( u"stream"_s, stream );
   if ( provider == Provider::Plan && !mAgentMode.isEmpty() )
     payload.insert( u"agent_mode"_s, mAgentMode );
+  if ( provider == Provider::Plan )
+    payload.insert( u"session_id"_s, planPromptCacheSessionId() );
 
   const ApiWireFormat wireFormat = wireFormatForProvider( provider );
 
@@ -878,7 +888,20 @@ QByteArray QgsAiModelRouter::buildRequestPayload( Provider provider, const QList
       payload.insert( u"system"_s, systemPrompt );
     }
     payload.insert( u"messages"_s, claudeMessages );
-    if ( provider == Provider::Plan )
+
+    QJsonArray toolSchemas;
+    if ( mToolUseEnabled && mToolRegistry && mToolRegistry->count() > 0 )
+    {
+      if ( !mAllowedToolsFilterEnabled )
+        toolSchemas = mToolRegistry->schemasJsonForFormat( QgsAiToolRegistry::WireFormat::AnthropicTools );
+      else if ( !mAllowedTools.isEmpty() )
+        toolSchemas = mToolRegistry->schemasJsonForFormat( QgsAiToolRegistry::WireFormat::AnthropicTools, mAllowedTools );
+      if ( !toolSchemas.isEmpty() )
+        payload.insert( u"tools"_s, toolSchemas );
+    }
+    if ( provider == Provider::Plan && !toolSchemas.isEmpty() )
+      payload.insert( u"max_tokens"_s, managedAgentMaxTokens( model ) );
+    else if ( provider == Provider::Plan )
     {
       QgsSettings appSettings;
       payload.insert( u"max_tokens"_s, std::max( 256, appSettings.value( u"ai/provider/plan/maxTokens"_s, 4096 ).toInt() ) );
@@ -886,17 +909,6 @@ QByteArray QgsAiModelRouter::buildRequestPayload( Provider provider, const QList
     else
     {
       payload.insert( u"max_tokens"_s, 4096 );
-    }
-
-    if ( mToolUseEnabled && mToolRegistry && mToolRegistry->count() > 0 )
-    {
-      QJsonArray toolSchemas;
-      if ( !mAllowedToolsFilterEnabled )
-        toolSchemas = mToolRegistry->schemasJsonForFormat( QgsAiToolRegistry::WireFormat::AnthropicTools );
-      else if ( !mAllowedTools.isEmpty() )
-        toolSchemas = mToolRegistry->schemasJsonForFormat( QgsAiToolRegistry::WireFormat::AnthropicTools, mAllowedTools );
-      if ( !toolSchemas.isEmpty() )
-        payload.insert( u"tools"_s, toolSchemas );
     }
   }
   else
@@ -1387,6 +1399,30 @@ void QgsAiModelRouter::setPlanAuthConfigId( const QString &authConfigId )
   settings.authConfigId = authConfigId.trimmed();
   settings.enabled = !settings.authConfigId.isEmpty() || settings.enabled;
   setProviderSettings( Provider::Plan, settings );
+}
+
+void QgsAiModelRouter::setPlanConversationId( const QString &conversationId )
+{
+  mPlanConversationId = conversationId.trimmed();
+}
+
+void QgsAiModelRouter::resetPlanPromptCacheSession()
+{
+  QgsSettings settings;
+  settings.setValue( u"ai/provider/plan/promptCacheEpoch"_s, QUuid::createUuid().toString( QUuid::WithoutBraces ) );
+}
+
+QString QgsAiModelRouter::planPromptCacheSessionId() const
+{
+  QgsSettings settings;
+  QString epoch = settings.value( u"ai/provider/plan/promptCacheEpoch"_s ).toString().trimmed();
+  if ( epoch.isEmpty() )
+  {
+    epoch = QUuid::createUuid().toString( QUuid::WithoutBraces );
+    settings.setValue( u"ai/provider/plan/promptCacheEpoch"_s, epoch );
+  }
+  const QString conversation = mPlanConversationId.isEmpty() ? u"default"_s : mPlanConversationId;
+  return u"strata:%1:%2"_s.arg( epoch, conversation ).left( 256 );
 }
 
 bool QgsAiModelRouter::applyAuthentication( Provider provider, QNetworkRequest &request, QString *errorMessage ) const

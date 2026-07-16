@@ -28,6 +28,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QScopeGuard>
+#include <QSet>
 #include <QSignalSpy>
 #include <QString>
 #include <QTemporaryDir>
@@ -403,6 +404,19 @@ void TestQgsAiAgentSessionManager::toolCallLimitPausesAndContinues()
   QCOMPARE( server.requestCount, 3 );
   QVERIFY( server.requestBodies.size() >= 3 );
   QVERIFY( !server.requestBodies.at( 2 ).contains( "Numero massimo raggiunto" ) );
+  const QJsonArray continuedMessages = QJsonDocument::fromJson( server.requestBodies.at( 2 ) ).object().value( u"messages"_s ).toArray();
+  QSet<QString> completedToolCalls;
+  for ( const QJsonValue &value : continuedMessages )
+  {
+    const QJsonObject message = value.toObject();
+    if ( message.value( u"role"_s ).toString() == "assistant"_L1 )
+    {
+      for ( const QJsonValue &call : message.value( u"tool_calls"_s ).toArray() )
+        completedToolCalls.insert( call.toObject().value( u"id"_s ).toString() );
+    }
+    if ( message.value( u"role"_s ).toString() == "tool"_L1 )
+      QVERIFY( completedToolCalls.contains( message.value( u"tool_call_id"_s ).toString() ) );
+  }
   QCOMPARE( manager.history().last().content, u"Done"_s );
 
   bool sawContinuedLimit = false;
@@ -602,7 +616,7 @@ void TestQgsAiAgentSessionManager::managedPolicyRestrictsAgentTools()
   manager.setAgentBehaviorSettings( updated );
 
   QgsAiManagedAgentPolicy policy;
-  policy.toolCatalogVersion = 4;
+  policy.toolCatalogVersion = 5;
   policy.tier = u"FREE"_s;
   policy.allowedTools = QStringList { u"read_file"_s };
   policy.allowedModels = QStringList { u"managed-plan"_s };

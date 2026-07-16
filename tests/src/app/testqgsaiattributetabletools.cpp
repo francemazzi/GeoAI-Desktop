@@ -6,9 +6,12 @@
 ***************************************************************************/
 
 #include "ai/tools/qgsaiattributetabletools.h"
+#include "ai/tools/qgsailayertools.h"
 #include "qgsapplication.h"
 #include "qgsfeature.h"
 #include "qgsgeometry.h"
+#include "qgslayertree.h"
+#include "qgslayertreelayer.h"
 #include "qgsproject.h"
 #include "qgstest.h"
 #include "qgsvectordataprovider.h"
@@ -28,6 +31,8 @@ class TestQgsAiAttributeTableTools : public QObject
     void initTestCase();
     void cleanupTestCase();
     void queryFeaturesFiltersAndPaginates();
+    void queryFeaturesCapsLargeResult();
+    void reorderLayersUsesNativeTreeOrder();
     void batchUpdateAttributesUpdatesAndRollsBack();
     void selectFeaturesUpdatesLayerSelection();
     void identifyFeaturesAtReturnsMatchingFeature();
@@ -87,6 +92,53 @@ void TestQgsAiAttributeTableTools::queryFeaturesFiltersAndPaginates()
   const QJsonArray features = output.value( u"features"_s ).toArray();
   QCOMPARE( features.size(), 1 );
   QCOMPARE( features.at( 0 ).toObject().value( u"attributes"_s ).toObject().value( u"name"_s ).toString(), u"three"_s );
+}
+
+void TestQgsAiAttributeTableTools::queryFeaturesCapsLargeResult()
+{
+  QgsProject project;
+  QgsVectorLayer *layer = new QgsVectorLayer( u"Point?crs=EPSG:4326&field=payload:string"_s, u"Large values"_s, u"memory"_s );
+  QVERIFY( layer->isValid() );
+  QgsFeature feature( layer->fields() );
+  feature.setGeometry( QgsGeometry::fromWkt( u"Point(1 1)"_s ) );
+  feature.setAttribute( u"payload"_s, QString( 60000, u'x' ) );
+  QVERIFY( layer->dataProvider()->addFeatures( QgsFeatureList() << feature ) );
+  project.addMapLayer( layer );
+
+  QgsAiQueryFeaturesTool tool( &project );
+  QJsonObject args;
+  args.insert( u"layer_id"_s, layer->id() );
+  args.insert( u"limit"_s, 10 );
+  const QgsAiToolResult result = tool.execute( args );
+  QVERIFY2( result.success, qPrintable( result.errorMessage ) );
+  const QJsonObject output = result.output.toObject();
+  QVERIFY( output.value( u"truncated"_s ).toBool() );
+  QCOMPARE( output.value( u"features"_s ).toArray().size(), 0 );
+  QCOMPARE( output.value( u"next_offset"_s ).toInt(), 0 );
+}
+
+void TestQgsAiAttributeTableTools::reorderLayersUsesNativeTreeOrder()
+{
+  QgsProject project;
+  QgsVectorLayer *first = makePlacesLayer( project );
+  QgsVectorLayer *second = new QgsVectorLayer( u"Point?crs=EPSG:4326"_s, u"Second"_s, u"memory"_s );
+  QgsVectorLayer *third = new QgsVectorLayer( u"Point?crs=EPSG:4326"_s, u"Third"_s, u"memory"_s );
+  QVERIFY( second->isValid() && third->isValid() );
+  project.addMapLayer( second );
+  project.addMapLayer( third );
+
+  QgsAiReorderLayersTool tool( &project );
+  QJsonObject args;
+  args.insert( u"layer_ids"_s, QJsonArray { second->id(), first->id(), third->id() } );
+  const QgsAiToolResult result = tool.execute( args );
+  QVERIFY2( result.success, qPrintable( result.errorMessage ) );
+  const QJsonArray order = result.output.toObject().value( u"layer_order"_s ).toArray();
+  QCOMPARE( order.at( 0 ).toString(), second->id() );
+  QCOMPARE( order.at( 1 ).toString(), first->id() );
+  QCOMPARE( order.at( 2 ).toString(), third->id() );
+  QVERIFY( project.mapLayer( first->id() ) == first );
+  QVERIFY( project.mapLayer( second->id() ) == second );
+  QVERIFY( project.mapLayer( third->id() ) == third );
 }
 
 void TestQgsAiAttributeTableTools::batchUpdateAttributesUpdatesAndRollsBack()

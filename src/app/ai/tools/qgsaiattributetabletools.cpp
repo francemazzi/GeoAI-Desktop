@@ -34,6 +34,7 @@
 
 #include <QHash>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QString>
 #include <QUuid>
@@ -43,6 +44,8 @@ using namespace Qt::StringLiterals;
 
 namespace
 {
+  constexpr int MAX_QUERY_RESULT_BYTES = 48000;
+
   struct AttributeTableRollbackEntry
   {
       QString layerId;
@@ -284,12 +287,21 @@ QgsAiToolResult QgsAiQueryFeaturesTool::execute( const QJsonObject &args )
 
   QJsonArray rows;
   int matchedCount = 0;
+  bool resultTruncated = false;
   QgsFeatureIterator it = layer->getFeatures( request );
   QgsFeature feature;
   while ( it.nextFeature( feature ) )
   {
-    if ( matchedCount >= offset && rows.size() < limit )
-      rows.push_back( featureJson( feature, layer->fields(), includeGeometry ) );
+    if ( matchedCount >= offset && rows.size() < limit && !resultTruncated )
+    {
+      const QJsonObject row = featureJson( feature, layer->fields(), includeGeometry );
+      QJsonArray candidate = rows;
+      candidate.push_back( row );
+      if ( QJsonDocument( candidate ).toJson( QJsonDocument::Compact ).size() > MAX_QUERY_RESULT_BYTES )
+        resultTruncated = true;
+      else
+        rows.push_back( row );
+    }
     matchedCount++;
   }
 
@@ -299,6 +311,13 @@ QgsAiToolResult QgsAiQueryFeaturesTool::execute( const QJsonObject &args )
   output.insert( u"offset"_s, offset );
   output.insert( u"limit"_s, limit );
   output.insert( u"features"_s, rows );
+  output.insert( u"returned_count"_s, rows.size() );
+  if ( resultTruncated )
+  {
+    output.insert( u"truncated"_s, true );
+    output.insert( u"next_offset"_s, offset + rows.size() );
+    output.insert( u"note"_s, u"Result size was capped. Request a smaller page, fewer fields, or omit geometry."_s );
+  }
   return QgsAiToolResult::ok( output );
 }
 

@@ -9,7 +9,9 @@
 #include "qgsmessagelog.h"
 #include "qgstest.h"
 
+#include <QFile>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QString>
 
@@ -29,6 +31,7 @@ class TestQgsAiMessageLogBuffer : public QObject
     void limitIsRespected();
     void ringBufferEvictsOldestEntries();
     void readMessageLogToolReturnsEntries();
+    void writesLocalJsonlDiagnostics();
 };
 
 void TestQgsAiMessageLogBuffer::initTestCase()
@@ -162,6 +165,23 @@ void TestQgsAiMessageLogBuffer::readMessageLogToolReturnsEntries()
   QCOMPARE( entries.at( 0 ).toObject().value( u"message"_s ).toString(), u"tool visible warning"_s );
   QCOMPARE( output.value( u"returned"_s ).toInt(), entries.size() );
   QVERIFY( output.contains( u"total_buffered"_s ) );
+}
+
+void TestQgsAiMessageLogBuffer::writesLocalJsonlDiagnostics()
+{
+  const QString path = QgsAiMessageLogBuffer::diagnosticsFilePath();
+  QFile::remove( path );
+  QgsAiMessageLogBuffer::setDiagnosticsFileEnabled( true );
+  QgsAiMessageLogBuffer buffer;
+  QgsMessageLog::logMessage( u"jsonl diagnostic"_s, u"AI/Diagnostics"_s, Qgis::MessageLevel::Warning, false );
+
+  QFile file( path );
+  QVERIFY( file.open( QIODevice::ReadOnly ) );
+  const QJsonObject entry = QJsonDocument::fromJson( file.readLine() ).object();
+  QCOMPARE( entry.value( u"tag"_s ).toString(), u"AI/Diagnostics"_s );
+  QCOMPARE( entry.value( u"level"_s ).toString(), u"warning"_s );
+  QCOMPARE( entry.value( u"message"_s ).toString(), u"jsonl diagnostic"_s );
+  QFile::remove( path );
 }
 
 QGSTEST_MAIN( TestQgsAiMessageLogBuffer )
