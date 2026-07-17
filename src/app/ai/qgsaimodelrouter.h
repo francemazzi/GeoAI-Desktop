@@ -87,6 +87,9 @@ class APP_EXPORT QgsAiModelRouter : public QObject
     void setPlanAuthConfigId( const QString &authConfigId );
     //! Binds OpenRouter's managed prompt-cache session to the active local chat.
     void setPlanConversationId( const QString &conversationId );
+    //! Binds an approved backend agent task to managed Plan requests only.
+    void setPlanAgentRunId( const QString &agentRunId ) { mPlanAgentRunId = agentRunId.trimmed(); }
+    void setPlanClientSessionId( const QString &clientSessionId ) { mPlanClientSessionId = clientSessionId.trimmed(); }
     //! Starts a fresh OpenRouter prompt-cache session without deleting chat history.
     void resetPlanPromptCacheSession();
 
@@ -281,6 +284,8 @@ class APP_EXPORT QgsAiModelRouter : public QObject
     QStringList mAllowedTools;
     QString mAgentMode;
     QString mPlanConversationId;
+    QString mPlanAgentRunId;
+    QString mPlanClientSessionId;
     mutable QString mCodexPromptCacheKey;
     OpenRouterRoutingProfile mOpenRouterRoutingProfile = OpenRouterRoutingProfile::CostOptimized;
 };

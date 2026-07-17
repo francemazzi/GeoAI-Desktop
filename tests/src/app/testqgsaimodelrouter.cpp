@@ -865,6 +865,8 @@ void TestQgsAiModelRouter::planPayloadIncludesAgentMode()
 {
   QgsAiModelRouter router;
   router.setAgentMode( u"ask_before_edits"_s );
+  router.setPlanAgentRunId( u"run_123"_s );
+  router.setPlanClientSessionId( u"desktop_456"_s );
 
   QgsAiChatMessage message;
   message.role = QgsAiChatRole::User;
@@ -872,9 +874,12 @@ void TestQgsAiModelRouter::planPayloadIncludesAgentMode()
 
   const QJsonObject planObject = QJsonDocument::fromJson( router.buildRequestPayload( QgsAiModelRouter::Provider::Plan, { message }, true ) ).object();
   QCOMPARE( planObject.value( u"agent_mode"_s ).toString(), u"ask_before_edits"_s );
+  QCOMPARE( planObject.value( u"agentRunId"_s ).toString(), u"run_123"_s );
+  QCOMPARE( planObject.value( u"agentClientSessionId"_s ).toString(), u"desktop_456"_s );
 
   const QJsonObject openAiObject = QJsonDocument::fromJson( router.buildRequestPayload( QgsAiModelRouter::Provider::OpenAi, { message }, true ) ).object();
   QVERIFY( !openAiObject.contains( u"agent_mode"_s ) );
+  QVERIFY( !openAiObject.contains( u"agentRunId"_s ) );
 }
 
 void TestQgsAiModelRouter::planPayloadUsesAnthropicBlocksAndTools()

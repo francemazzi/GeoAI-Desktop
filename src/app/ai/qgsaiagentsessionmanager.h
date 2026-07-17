@@ -34,6 +34,7 @@ using namespace Qt::StringLiterals;
 class QgsAiFileContextProvider;
 class QgsAiReviewPatchEngine;
 class QgsAiToolRegistry;
+class QTimer;
 
 struct APP_EXPORT QgsAiChatContextFile
 {
@@ -144,7 +145,7 @@ class APP_EXPORT QgsAiAgentSessionManager : public QObject
     void sendUserMessage( const QString &text, const QList<QgsAiChatContextFile> &contextFiles );
     bool continueAfterToolLimit( const QString &messageId );
     void cancelActiveRequest();
-    bool hasActiveRequest() const { return !mActiveRequestId.isEmpty(); }
+    bool hasActiveRequest() const { return !mActiveRequestId.isEmpty() || mAwaitingAgentRunApproval; }
     QStringList projectFileCandidates( const QString &query, int maxResults = 25 ) const;
     QString resolveProjectFile( const QString &filePath ) const;
     QString workspaceRoot() const;
@@ -260,6 +261,13 @@ class APP_EXPORT QgsAiAgentSessionManager : public QObject
 
   private:
     void startProviderAttempt( QgsAiModelRouter::Provider provider );
+    bool needsManagedTaskApproval( QgsAiModelRouter::Provider provider ) const;
+    void createManagedAgentRun();
+    void approveManagedAgentRun();
+    void completeManagedAgentRun();
+    void sendAgentSessionHeartbeat();
+    void closeDesktopAgentSession();
+    QString planApiBase() const;
     QString actionableError( const QString &providerName, const QString &errorMessage, int httpStatus ) const;
     QgsAiChatMessage buildAssistantMessage( const QString &text ) const;
     QgsAiChatMessage buildAssistantToolUseMessage( const QString &text, const QList<QgsAiToolCall> &calls ) const;
@@ -325,6 +333,10 @@ class APP_EXPORT QgsAiAgentSessionManager : public QObject
     int mNextMessageOrdering = 0;
     QgsAiUsage mSessionUsage;
     QVariantList mAgentMemory;
+    QString mDesktopClientSessionId;
+    QString mAgentRunId;
+    bool mAwaitingAgentRunApproval = false;
+    QTimer *mAgentHeartbeatTimer = nullptr;
 };
 
 #endif // QGSAIAGENTSESSIONMANAGER_H

@@ -708,7 +708,13 @@ QByteArray QgsAiModelRouter::buildRequestPayload( Provider provider, const QList
   if ( provider == Provider::Plan && !mAgentMode.isEmpty() )
     payload.insert( u"agent_mode"_s, mAgentMode );
   if ( provider == Provider::Plan )
+  {
     payload.insert( u"session_id"_s, planPromptCacheSessionId() );
+    if ( !mPlanAgentRunId.isEmpty() )
+      payload.insert( u"agentRunId"_s, mPlanAgentRunId );
+    if ( !mPlanClientSessionId.isEmpty() )
+      payload.insert( u"agentClientSessionId"_s, mPlanClientSessionId );
+  }
 
   const ApiWireFormat wireFormat = wireFormatForProvider( provider );
 
