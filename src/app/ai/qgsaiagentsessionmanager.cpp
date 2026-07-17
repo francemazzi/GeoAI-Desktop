@@ -35,9 +35,9 @@
 #include "qgsproject.h"
 #include "qgssettings.h"
 
+#include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
-#include <QCoreApplication>
 #include <QFile>
 #include <QFileInfo>
 #include <QImageReader>
@@ -51,11 +51,11 @@
 #include <QRegularExpression>
 #include <QSet>
 #include <QString>
+#include <QTimer>
+#include <QUrl>
 #include <QUuid>
 #include <QVariant>
 #include <QVariantList>
-#include <QTimer>
-#include <QUrl>
 
 #include "moc_qgsaiagentsessionmanager.cpp"
 
@@ -929,8 +929,8 @@ void QgsAiAgentSessionManager::createManagedAgentRun()
     }
     if ( response.value( u"status"_s ).toString() == "approval_required"_L1 )
     {
-      const QString detail = tr( "Approve this task to let the agent request these desktop tools:\n%1\n\nEach edit will still require its local confirmation." )
-                               .arg( allowedToolsForActiveAgent().join( ", "_L1 ) );
+      const QString detail
+        = tr( "Approve this task to let the agent request these desktop tools:\n%1\n\nEach edit will still require its local confirmation." ).arg( allowedToolsForActiveAgent().join( ", "_L1 ) );
       const auto answer = QMessageBox::question( nullptr, tr( "Approve agent task" ), detail, QMessageBox::Yes | QMessageBox::No, QMessageBox::No );
       if ( answer != QMessageBox::Yes )
       {
