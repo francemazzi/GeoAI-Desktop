@@ -616,7 +616,7 @@ void TestQgsAiAgentSessionManager::managedPolicyRestrictsAgentTools()
   manager.setAgentBehaviorSettings( updated );
 
   QgsAiManagedAgentPolicy policy;
-  policy.toolCatalogVersion = 5;
+  policy.toolCatalogVersion = 6;
   policy.tier = u"FREE"_s;
   policy.allowedTools = QStringList { u"read_file"_s };
   policy.allowedModels = QStringList { u"managed-plan"_s };

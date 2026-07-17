@@ -31,11 +31,13 @@
 #include "qgsapplication.h"
 #include "qgsmaplayer.h"
 #include "qgsmessagelog.h"
+#include "qgsnetworkaccessmanager.h"
 #include "qgsproject.h"
 #include "qgssettings.h"
 
 #include <QDateTime>
 #include <QDir>
+#include <QCoreApplication>
 #include <QFile>
 #include <QFileInfo>
 #include <QImageReader>
@@ -44,12 +46,16 @@
 #include <QJsonObject>
 #include <QJsonParseError>
 #include <QMessageBox>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QRegularExpression>
 #include <QSet>
 #include <QString>
 #include <QUuid>
 #include <QVariant>
 #include <QVariantList>
+#include <QTimer>
+#include <QUrl>
 
 #include "moc_qgsaiagentsessionmanager.cpp"
 
@@ -57,8 +63,9 @@ using namespace Qt::StringLiterals;
 
 namespace
 {
-  constexpr int MIN_MANAGED_TOOL_CATALOG_VERSION = 5;
+  constexpr int MIN_MANAGED_TOOL_CATALOG_VERSION = 6;
   constexpr int MAX_TOOL_RESULT_CHARS = 50000;
+  constexpr int AGENT_API_TIMEOUT_MS = 20000;
 
   int managedToolRoundLimit( const QString &model )
   {
@@ -337,6 +344,12 @@ QgsAiAgentSessionManager::QgsAiAgentSessionManager( QgsAiModelRouter *router, Qg
 {
   loadPersistedBehaviorSettings();
   refreshRouterToolPolicy();
+  mDesktopClientSessionId = QUuid::createUuid().toString( QUuid::WithoutBraces );
+  mAgentHeartbeatTimer = new QTimer( this );
+  mAgentHeartbeatTimer->setInterval( 60 * 1000 );
+  connect( mAgentHeartbeatTimer, &QTimer::timeout, this, &QgsAiAgentSessionManager::sendAgentSessionHeartbeat );
+  if ( QCoreApplication::instance() )
+    connect( QCoreApplication::instance(), &QCoreApplication::aboutToQuit, this, &QgsAiAgentSessionManager::closeDesktopAgentSession );
 
   if ( mRouter )
   {
@@ -370,12 +383,16 @@ QgsAiAgentSessionManager::QgsAiAgentSessionManager( QgsAiModelRouter *router, Qg
         recordHistoryMessage( assistant );
         emit requestStateChanged( u"completed"_s, u"%1 (%2 ms)"_s.arg( providerName ).arg( latencyMs ) );
         mActiveRequestId.clear();
+        if ( mActiveProvider == QgsAiModelRouter::Provider::Plan )
+          completeManagedAgentRun();
         emit requestRunningChanged( false );
         return;
       }
 
       if ( !mPendingProviders.isEmpty() )
       {
+        if ( mActiveProvider == QgsAiModelRouter::Provider::Plan )
+          completeManagedAgentRun();
         const QgsAiModelRouter::Provider fallbackProvider = mPendingProviders.takeFirst();
         emit requestStateChanged( u"retrying"_s, u"%1 failed, retrying with %2…"_s.arg( providerName, mRouter->providerDisplayName( fallbackProvider ) ) );
         startProviderAttempt( fallbackProvider );
@@ -387,6 +404,8 @@ QgsAiAgentSessionManager::QgsAiAgentSessionManager( QgsAiModelRouter *router, Qg
       recordHistoryMessage( assistant );
       emit requestStateChanged( u"failed"_s, finalError );
       mActiveRequestId.clear();
+      if ( mActiveProvider == QgsAiModelRouter::Provider::Plan )
+        completeManagedAgentRun();
       emit requestRunningChanged( false );
     } );
   }
@@ -401,6 +420,8 @@ void QgsAiAgentSessionManager::setActiveAgent( const QString &agentName )
 {
   if ( availableAgents().contains( agentName ) )
   {
+    if ( agentName != mActiveAgent && !mAgentRunId.isEmpty() )
+      completeManagedAgentRun();
     mActiveAgent = agentName;
     refreshRouterToolPolicy();
   }
@@ -759,12 +780,22 @@ void QgsAiAgentSessionManager::deleteSession( const QString &sessionId )
 
 void QgsAiAgentSessionManager::cancelActiveRequest()
 {
+  if ( mAwaitingAgentRunApproval )
+  {
+    mAwaitingAgentRunApproval = false;
+    completeManagedAgentRun();
+    emit requestStateChanged( u"cancelled"_s, u"Request cancelled by user."_s );
+    emit requestRunningChanged( false );
+    return;
+  }
   if ( mActiveRequestId.isEmpty() || !mRouter )
     return;
 
   mRouter->cancelRequest( mActiveRequestId );
   mActiveRequestId.clear();
   mPendingProviders.clear();
+  if ( mActiveProvider == QgsAiModelRouter::Provider::Plan )
+    completeManagedAgentRun();
   emit requestStateChanged( u"cancelled"_s, u"Request cancelled by user."_s ); //#spellok
   emit requestRunningChanged( false );                                         //#spellok
 }
@@ -812,13 +843,222 @@ QList<QgsAiModelRouter::Provider> QgsAiAgentSessionManager::providerFallbackOrde
   return order;
 }
 
+QString QgsAiAgentSessionManager::planApiBase() const
+{
+  if ( !mRouter )
+    return QString();
+  QUrl url( mRouter->providerSettings( QgsAiModelRouter::Provider::Plan ).endpoint );
+  if ( !url.isValid() || url.scheme().isEmpty() || url.host().isEmpty() )
+    return QString();
+  url.setPath( QString() );
+  url.setQuery( QString() );
+  url.setFragment( QString() );
+  QString base = url.toString();
+  if ( base.endsWith( '/' ) )
+    base.chop( 1 );
+  return base;
+}
+
+bool QgsAiAgentSessionManager::needsManagedTaskApproval( QgsAiModelRouter::Provider provider ) const
+{
+  return provider == QgsAiModelRouter::Provider::Plan && mActiveAgent == "ask_before_edits"_L1 && mAgentRunId.isEmpty();
+}
+
+void QgsAiAgentSessionManager::createManagedAgentRun()
+{
+  if ( !mRouter || mAwaitingAgentRunApproval )
+    return;
+  const QString apiBase = planApiBase();
+  const QString token = mRouter->planSessionToken();
+  if ( apiBase.isEmpty() || token.isEmpty() )
+  {
+    const QString message = tr( "Ask-before-edits requires an authenticated Strata Plan account." );
+    recordHistoryMessage( buildAssistantMessage( message ) );
+    emit requestStateChanged( u"failed"_s, message );
+    emit requestRunningChanged( false );
+    return;
+  }
+
+  QJsonObject body;
+  body.insert( u"mode"_s, u"ask_before_edits"_s );
+  body.insert( u"model"_s, mRouter->providerSettings( QgsAiModelRouter::Provider::Plan ).model );
+  body.insert( u"tools"_s, QJsonArray::fromStringList( allowedToolsForActiveAgent() ) );
+  body.insert( u"clientSessionId"_s, mDesktopClientSessionId );
+
+  QNetworkRequest request( QUrl( apiBase + u"/v1/agents/runs"_s ) );
+  request.setHeader( QNetworkRequest::ContentTypeHeader, u"application/json"_s );
+  request.setRawHeader( "Authorization", ( u"Bearer %1"_s.arg( token ) ).toUtf8() );
+  request.setTransferTimeout( AGENT_API_TIMEOUT_MS );
+  QgsNetworkAccessManager *network = QgsNetworkAccessManager::instance();
+  if ( !network )
+  {
+    emit requestStateChanged( u"failed"_s, tr( "Network manager is not available for task approval." ) );
+    emit requestRunningChanged( false );
+    return;
+  }
+
+  mAwaitingAgentRunApproval = true;
+  QNetworkReply *reply = network->post( request, QJsonDocument( body ).toJson( QJsonDocument::Compact ) );
+  if ( !reply )
+  {
+    mAwaitingAgentRunApproval = false;
+    emit requestStateChanged( u"failed"_s, tr( "Unable to create the managed agent task." ) );
+    emit requestRunningChanged( false );
+    return;
+  }
+  connect( reply, &QNetworkReply::finished, reply, &QObject::deleteLater );
+  connect( reply, &QNetworkReply::finished, this, [this, reply]() {
+    const int status = reply->attribute( QNetworkRequest::HttpStatusCodeAttribute ).toInt();
+    const QJsonObject response = QJsonDocument::fromJson( reply->readAll() ).object();
+    if ( reply->error() != QNetworkReply::NoError || status < 200 || status >= 300 )
+    {
+      mAwaitingAgentRunApproval = false;
+      const QString message = tr( "Strata could not create the approval-gated task. No tools were run." );
+      recordHistoryMessage( buildAssistantMessage( message ) );
+      emit requestStateChanged( u"failed"_s, message );
+      emit requestRunningChanged( false );
+      return;
+    }
+    mAgentRunId = response.value( u"id"_s ).toString();
+    if ( mAgentRunId.isEmpty() )
+    {
+      mAwaitingAgentRunApproval = false;
+      emit requestStateChanged( u"failed"_s, tr( "The managed task response was invalid." ) );
+      emit requestRunningChanged( false );
+      return;
+    }
+    if ( response.value( u"status"_s ).toString() == "approval_required"_L1 )
+    {
+      const QString detail = tr( "Approve this task to let the agent request these desktop tools:\n%1\n\nEach edit will still require its local confirmation." )
+                               .arg( allowedToolsForActiveAgent().join( ", "_L1 ) );
+      const auto answer = QMessageBox::question( nullptr, tr( "Approve agent task" ), detail, QMessageBox::Yes | QMessageBox::No, QMessageBox::No );
+      if ( answer != QMessageBox::Yes )
+      {
+        mAwaitingAgentRunApproval = false;
+        completeManagedAgentRun();
+        const QString message = tr( "The agent task was not approved. No tools were run." );
+        recordHistoryMessage( buildAssistantMessage( message ) );
+        emit requestStateChanged( u"cancelled"_s, message );
+        emit requestRunningChanged( false );
+        return;
+      }
+      approveManagedAgentRun();
+      return;
+    }
+    if ( response.value( u"status"_s ).toString() != "approved"_L1 )
+    {
+      mAwaitingAgentRunApproval = false;
+      completeManagedAgentRun();
+      emit requestStateChanged( u"failed"_s, tr( "The managed task is blocked by policy." ) );
+      emit requestRunningChanged( false );
+      return;
+    }
+    mAwaitingAgentRunApproval = false;
+    if ( mAgentHeartbeatTimer )
+      mAgentHeartbeatTimer->start();
+    startProviderAttempt( QgsAiModelRouter::Provider::Plan );
+  } );
+}
+
+void QgsAiAgentSessionManager::approveManagedAgentRun()
+{
+  if ( !mRouter || mAgentRunId.isEmpty() )
+    return;
+  const QString apiBase = planApiBase();
+  QNetworkRequest request( QUrl( apiBase + u"/v1/agents/runs/"_s + mAgentRunId + u"/approve"_s ) );
+  request.setHeader( QNetworkRequest::ContentTypeHeader, u"application/json"_s );
+  request.setRawHeader( "Authorization", ( u"Bearer %1"_s.arg( mRouter->planSessionToken() ) ).toUtf8() );
+  request.setTransferTimeout( AGENT_API_TIMEOUT_MS );
+  QgsNetworkAccessManager *network = QgsNetworkAccessManager::instance();
+  QNetworkReply *reply = network ? network->post( request, QJsonDocument( QJsonObject { { u"clientSessionId"_s, mDesktopClientSessionId } } ).toJson( QJsonDocument::Compact ) ) : nullptr;
+  if ( !reply )
+  {
+    mAwaitingAgentRunApproval = false;
+    emit requestStateChanged( u"failed"_s, tr( "Unable to approve the managed agent task." ) );
+    emit requestRunningChanged( false );
+    return;
+  }
+  connect( reply, &QNetworkReply::finished, reply, &QObject::deleteLater );
+  connect( reply, &QNetworkReply::finished, this, [this, reply]() {
+    const int status = reply->attribute( QNetworkRequest::HttpStatusCodeAttribute ).toInt();
+    if ( reply->error() != QNetworkReply::NoError || status < 200 || status >= 300 )
+    {
+      mAwaitingAgentRunApproval = false;
+      const QString message = tr( "The managed task could not be approved. No tools were run." );
+      recordHistoryMessage( buildAssistantMessage( message ) );
+      emit requestStateChanged( u"failed"_s, message );
+      emit requestRunningChanged( false );
+      return;
+    }
+    mAwaitingAgentRunApproval = false;
+    if ( mAgentHeartbeatTimer )
+      mAgentHeartbeatTimer->start();
+    startProviderAttempt( QgsAiModelRouter::Provider::Plan );
+  } );
+}
+
+void QgsAiAgentSessionManager::completeManagedAgentRun()
+{
+  if ( !mRouter || mAgentRunId.isEmpty() )
+    return;
+  const QString runId = mAgentRunId;
+  mAgentRunId.clear();
+  if ( mAgentHeartbeatTimer )
+    mAgentHeartbeatTimer->stop();
+  mRouter->setPlanAgentRunId( QString() );
+  QNetworkRequest request( QUrl( planApiBase() + u"/v1/agents/runs/"_s + runId + u"/complete"_s ) );
+  request.setHeader( QNetworkRequest::ContentTypeHeader, u"application/json"_s );
+  request.setRawHeader( "Authorization", ( u"Bearer %1"_s.arg( mRouter->planSessionToken() ) ).toUtf8() );
+  request.setTransferTimeout( AGENT_API_TIMEOUT_MS );
+  if ( QgsNetworkAccessManager *network = QgsNetworkAccessManager::instance() )
+  {
+    if ( QNetworkReply *reply = network->post( request, QJsonDocument( QJsonObject { { u"clientSessionId"_s, mDesktopClientSessionId } } ).toJson( QJsonDocument::Compact ) ) )
+      connect( reply, &QNetworkReply::finished, reply, &QObject::deleteLater );
+  }
+}
+
+void QgsAiAgentSessionManager::sendAgentSessionHeartbeat()
+{
+  if ( !mRouter || mAgentRunId.isEmpty() )
+    return;
+  QNetworkRequest request( QUrl( planApiBase() + u"/v1/agents/sessions/heartbeat"_s ) );
+  request.setHeader( QNetworkRequest::ContentTypeHeader, u"application/json"_s );
+  request.setRawHeader( "Authorization", ( u"Bearer %1"_s.arg( mRouter->planSessionToken() ) ).toUtf8() );
+  if ( QgsNetworkAccessManager *network = QgsNetworkAccessManager::instance() )
+  {
+    if ( QNetworkReply *reply = network->post( request, QJsonDocument( QJsonObject { { u"clientSessionId"_s, mDesktopClientSessionId } } ).toJson( QJsonDocument::Compact ) ) )
+      connect( reply, &QNetworkReply::finished, reply, &QObject::deleteLater );
+  }
+}
+
+void QgsAiAgentSessionManager::closeDesktopAgentSession()
+{
+  if ( !mRouter || mDesktopClientSessionId.isEmpty() )
+    return;
+  QNetworkRequest request( QUrl( planApiBase() + u"/v1/agents/sessions/close"_s ) );
+  request.setHeader( QNetworkRequest::ContentTypeHeader, u"application/json"_s );
+  request.setRawHeader( "Authorization", ( u"Bearer %1"_s.arg( mRouter->planSessionToken() ) ).toUtf8() );
+  if ( QgsNetworkAccessManager *network = QgsNetworkAccessManager::instance() )
+  {
+    if ( QNetworkReply *reply = network->post( request, QJsonDocument( QJsonObject { { u"clientSessionId"_s, mDesktopClientSessionId } } ).toJson( QJsonDocument::Compact ) ) )
+      connect( reply, &QNetworkReply::finished, reply, &QObject::deleteLater );
+  }
+}
+
 void QgsAiAgentSessionManager::startProviderAttempt( QgsAiModelRouter::Provider provider )
 {
   if ( !mRouter )
     return;
 
   refreshRouterToolPolicy();
+  if ( needsManagedTaskApproval( provider ) )
+  {
+    createManagedAgentRun();
+    return;
+  }
   mRouter->setPlanConversationId( mActiveSessionId );
+  mRouter->setPlanAgentRunId( mAgentRunId );
+  mRouter->setPlanClientSessionId( mDesktopClientSessionId );
 
   mActiveProvider = provider;
   const QList<QgsAiChatMessage> messages = buildOutgoingMessages();
@@ -2113,6 +2353,8 @@ void QgsAiAgentSessionManager::onToolCallsRequested( const QString &requestId, c
     const QgsAiChatMessage error = buildAssistantMessage( u"The model requested tool use but no tool registry is configured. Aborting turn."_s );
     recordHistoryMessage( error );
     mActiveRequestId.clear();
+    if ( mActiveProvider == QgsAiModelRouter::Provider::Plan )
+      completeManagedAgentRun();
     emit requestRunningChanged( false );
     return;
   }
@@ -2185,6 +2427,8 @@ void QgsAiAgentSessionManager::onToolCallsRequested( const QString &requestId, c
       const QgsAiChatMessage error = buildAssistantMessage( message );
       recordHistoryMessage( error );
       mActiveRequestId.clear();
+      if ( mActiveProvider == QgsAiModelRouter::Provider::Plan )
+        completeManagedAgentRun();
       emit requestRunningChanged( false );
       return;
     }
