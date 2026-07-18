@@ -6,6 +6,21 @@ add_custom_target(bundle
                   COMMENT "Running CPACK. Please wait..."
                   DEPENDS qgis)
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND QGIS_MAC_BUNDLE AND WITH_BINDINGS)
+  add_custom_target(strata_python_runtime_deps
+                    COMMAND ${CMAKE_COMMAND} -E env
+                      "STRATA_BUILD_DIR=${CMAKE_BINARY_DIR}"
+                      "STRATA_PYTHON_EXECUTABLE=${Python_EXECUTABLE}"
+                      /bin/bash "${CMAKE_SOURCE_DIR}/scripts/bootstrap-strata-python-deps.sh"
+                    COMMENT "Preparing bundled Strata Python runtime dependencies"
+                    DEPENDS qgis)
+  add_dependencies(bundle strata_python_runtime_deps)
+
+  if(TARGET test_app_qgisapppython)
+    add_dependencies(test_app_qgisapppython strata_python_runtime_deps)
+  endif()
+endif()
+
 if(WIN32 AND NOT UNIX)
   set (CREATE_NSIS FALSE CACHE BOOL "Create an installer using NSIS")
 endif()

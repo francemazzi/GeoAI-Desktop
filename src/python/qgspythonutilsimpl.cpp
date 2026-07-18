@@ -33,6 +33,7 @@
 
 #include <QDebug>
 #include <QDir>
+#include <QFile>
 #include <QStandardPaths>
 #include <QString>
 #include <QStringList>
@@ -157,6 +158,14 @@ _ssr = StartupScriptRunner()
   // also add path to plugins
   QStringList newpaths;
   newpaths << '"' + pythonPath() + '"';
+#ifdef QGIS_MAC_BUNDLE
+  // macOS application bundles install the PyQGIS package directly under
+  // Contents/Frameworks. Keep that directory distinct from Python's home:
+  // the latter only contains the interpreter standard library.
+  const QString bundledBindingsPath = QgsApplication::libraryPath();
+  if ( QFile::exists( QDir( bundledBindingsPath ).filePath( u"qgis/__init__.py"_s ) ) )
+    newpaths << '"' + bundledBindingsPath + '"';
+#endif
   newpaths << homePythonPath();
   newpaths << pluginpaths;
   runString( "sys.path = [" + newpaths.join( ','_L1 ) + "] + sys.path" );
@@ -207,10 +216,12 @@ _ssr = StartupScriptRunner()
   return true;
 }
 
-void QgsPythonUtilsImpl::init()
+bool QgsPythonUtilsImpl::init()
 {
-#if defined( PY_MAJOR_VERSION ) && defined( PY_MINOR_VERSION ) && ( ( PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 8 ) || PY_MAJOR_VERSION > 3 )
+  mPythonEnabled = false;
+
   PyStatus status;
+#if defined( PY_MAJOR_VERSION ) && defined( PY_MINOR_VERSION ) && ( ( PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 8 ) || PY_MAJOR_VERSION > 3 )
   PyPreConfig preconfig;
   PyPreConfig_InitPythonConfig( &preconfig );
 
@@ -219,7 +230,8 @@ void QgsPythonUtilsImpl::init()
   status = Py_PreInitialize( &preconfig );
   if ( PyStatus_Exception( status ) )
   {
-    Py_ExitStatusException( status );
+    qWarning() << "Failed to preinitialize Python:" << ( status.err_msg ? status.err_msg : "unknown error" );
+    return false;
   }
 #endif
 
@@ -227,13 +239,28 @@ void QgsPythonUtilsImpl::init()
   PyConfig_InitPythonConfig( &config );
 
 #ifdef QGIS_MAC_BUNDLE
-  // If we package QGIS as a mac app, we deploy Qt plugins into [app]/Contents/PlugIns
-  if ( qgetenv( "PYTHONHOME" ).isNull() )
+  // Bundled Python uses Contents/Frameworks as its home. Build outputs do not
+  // contain a stdlib there, so leave the home unset and let the linked Python
+  // framework resolve its own installation prefix instead.
+  if ( qgetenv( "PYTHONHOME" ).trimmed().isEmpty() )
   {
-    status = PyConfig_SetString( &config, &config.home, QgsApplication::libraryPath().toStdWString().c_str() );
-    if ( PyStatus_Exception( status ) )
+    const QString libraryPath = QgsApplication::libraryPath();
+    const QString pythonStdlib = QDir( libraryPath ).filePath( u"lib/python%1.%2/traceback.py"_s.arg( PY_MAJOR_VERSION ).arg( PY_MINOR_VERSION ) );
+    if ( QFile::exists( pythonStdlib ) )
     {
-      qWarning() << "Failed to set python home";
+      status = PyConfig_SetString( &config, &config.home, libraryPath.toStdWString().c_str() );
+      if ( PyStatus_Exception( status ) )
+      {
+        qWarning() << "Failed to set Python home:" << ( status.err_msg ? status.err_msg : "unknown error" );
+        PyConfig_Clear( &config );
+        return false;
+      }
+
+      // Do not let Python's linked framework add its development
+      // site-packages directory. The bundle explicitly supplies its runtime
+      // packages beside Contents/Frameworks, which is added to sys.path below.
+      config.site_import = 0;
+      config.user_site_directory = 0;
     }
   }
 #endif
@@ -241,14 +268,24 @@ void QgsPythonUtilsImpl::init()
   status = Py_InitializeFromConfig( &config );
   if ( PyStatus_Exception( status ) )
   {
-    qWarning() << "Failed to initialize from config";
+    qWarning() << "Failed to initialize Python from config:" << ( status.err_msg ? status.err_msg : "unknown error" );
+    PyConfig_Clear( &config );
+    return false;
   }
   PyConfig_Clear( &config );
 
-  mPythonEnabled = true;
-
   mMainModule = PyImport_AddModule( "__main__" ); // borrowed reference
   mMainDict = PyModule_GetDict( mMainModule );    // borrowed reference
+  if ( !mMainModule || !mMainDict )
+  {
+    qWarning() << "Failed to access Python __main__ module";
+    mMainModule = nullptr;
+    mMainDict = nullptr;
+    return false;
+  }
+
+  mPythonEnabled = true;
+  return true;
 }
 
 void QgsPythonUtilsImpl::finish()
@@ -294,7 +331,9 @@ void QgsPythonUtilsImpl::doCustomImports()
 
 void QgsPythonUtilsImpl::initPython( QgisInterface *interface, const bool installErrorHook, const QString &faultHandlerLogPath )
 {
-  init();
+  if ( !init() )
+    return;
+
   if ( !checkSystemImports() )
   {
     exitPython();
@@ -334,7 +373,9 @@ void QgsPythonUtilsImpl::initPython( QgisInterface *interface, const bool instal
 #ifdef HAVE_SERVER_PYTHON_PLUGINS
 void QgsPythonUtilsImpl::initServerPython( QgsServerInterface *interface )
 {
-  init();
+  if ( !init() )
+    return;
+
   if ( !checkSystemImports() )
   {
     exitPython();

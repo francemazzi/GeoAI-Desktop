@@ -105,7 +105,7 @@ class QgsPythonUtilsImpl : public QgsPythonUtils
     /* functions that do the initialization work */
 
     //! initialize Python context
-    void init();
+    bool init();
 
     //! check qgis imports and plugins
     //\returns true if all imports worked

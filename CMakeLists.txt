@@ -1235,6 +1235,20 @@ if (WITH_CORE AND WITH_BINDINGS)
     set(QGIS_PYTHON_INSTALL_DIR ${QGIS_DATA_DIR}/python)
   endif()
 
+  if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND QGIS_MAC_BUNDLE)
+    # These packages are populated in PYTHON_OUTPUT_DIRECTORY by the bundle
+    # prerequisite. Install only the explicit runtime allow-list, never the
+    # packager's complete site-packages tree.
+    foreach (STRATA_PYTHON_RUNTIME_PACKAGE packaging jinja2 markupsafe psycopg2 osgeo)
+      install(
+        DIRECTORY "${PYTHON_OUTPUT_DIRECTORY}/${STRATA_PYTHON_RUNTIME_PACKAGE}"
+        DESTINATION "${QGIS_PYTHON_INSTALL_DIR}"
+        PATTERN "__pycache__" EXCLUDE
+        PATTERN "*.pyc" EXCLUDE
+      )
+    endforeach()
+  endif()
+
   if (WITH_CUSTOM_WIDGETS)
     set(PYUIC_WIDGET_PLUGIN_DIRECTORY ${PYQT_MOD_DIR}/uic/widget-plugins/)
   endif()

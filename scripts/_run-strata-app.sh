@@ -9,7 +9,17 @@ fi
 export STRATA_PLAN_ENDPOINT
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BUILD="${STRATA_BUILD_DIR:-${GEOAI_BUILD_DIR:-${ROOT}/build}}"
+if [[ -n "${STRATA_BUILD_DIR:-}" ]]; then
+  BUILD="${STRATA_BUILD_DIR}"
+elif [[ -n "${GEOAI_BUILD_DIR:-}" ]]; then
+  BUILD="${GEOAI_BUILD_DIR}"
+elif [[ -x "/Volumes/LLM_MODELS/strata_core-build-pyqgis/output/Contents/MacOS/Strata" ]]; then
+  # This is the canonical local macOS build on this workstation. Keep the
+  # repository-local build as the portable fallback for other environments.
+  BUILD="/Volumes/LLM_MODELS/strata_core-build-pyqgis"
+else
+  BUILD="${ROOT}/build"
+fi
 BUILD_OUTPUT="${BUILD}/output"
 STRATA_BIN="${BUILD_OUTPUT}/Contents/MacOS/Strata"
 
@@ -18,6 +28,10 @@ if [[ ! -x "${STRATA_BIN}" ]]; then
   echo "Build first with: ${ROOT}/scripts/build-strata-app.sh" >&2
   exit 1
 fi
+
+# patch-macos-bundle.sh must target the exact build resolved above, including
+# the SSD build when no environment variable was supplied.
+export STRATA_BUILD_DIR="${BUILD}"
 
 # PYTHONHOME must match the Python used to build/link PyQGIS. A wrong value can leave
 # the embedded interpreter in a broken state and break subprocess pip installs even
