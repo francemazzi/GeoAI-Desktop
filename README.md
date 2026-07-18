@@ -116,7 +116,34 @@ Provider credential options:
 
 BYOK keys are stored locally on your machine. OAuth logins save refresh tokens locally through the same secret-store path used by Strata Cloud desktop tokens. Credentials are never sent to any server other than the provider or Strata Cloud endpoint you choose.
 
-Developers can override the managed backend with `STRATA_PLAN_ENDPOINT` and provide a desktop token with `STRATA_PLAN_TOKEN`.
+For desktop launches, always use one of the existing mode scripts rather than starting the binary directly:
+
+```bash
+# Starts and verifies the local strata-be service, then opens the SSD build.
+./scripts/run-strata-dev.sh
+
+# Opens the same desktop build against Cloud Run only. It never starts a local backend.
+./scripts/run-strata-prod.sh
+```
+
+`run-strata-dev.sh` uses `http://localhost:3001`, starts `../strata-be` when necessary, and waits for `/health/ready`. `run-strata-prod.sh` uses `https://strata-be-372580174147.europe-west1.run.app/ai/messages`. The scripts deliberately ignore an inherited `STRATA_PLAN_ENDPOINT`; set `STRATA_BACKEND_LOCAL` or `STRATA_BACKEND_PROD` only when deliberately targeting another environment. `STRATA_PLAN_TOKEN` remains available for supplying a desktop token during development.
+
+### Strata Cloud endpoint defaults
+
+The desktop app **always defaults to production** Strata Cloud:
+
+`https://strata-be-372580174147.europe-west1.run.app/ai/messages`
+
+Localhost is used only when you launch via `run-strata-dev.sh` (which sets `STRATA_PLAN_ENDPOINT`). Stale `localhost` or `example.invalid` values saved in local settings are automatically reset to production on the next launch.
+
+### Troubleshooting login / signup
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| **Connection refused** | Backend endpoint points to `localhost:3001` but no local `strata-be` is running | Use `run-strata-dev.sh`, or set **Advanced → Backend endpoint** to the production URL above |
+| **Connection refused** (release app) | Leftover dev endpoint in local settings | Restart Strata (auto-reset) or set the production URL in Advanced |
+| **Incorrect email or password** | Wrong credentials | Use **Log in** if the email is already registered |
+| **HTTP 402** | Out of credits | Top up credits in the web account area |
 
 ---
 

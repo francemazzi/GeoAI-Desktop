@@ -125,6 +125,13 @@ class APP_EXPORT QgsAiModelRouter : public QObject
     //! Default Plan chat endpoint used when nothing is configured yet.
     static QString defaultPlanEndpoint();
 
+    /**
+     * Resolves the Plan chat endpoint for this process: \c STRATA_PLAN_ENDPOINT when set
+     * (dev launchers), otherwise production unless \a persistedEndpoint is a non-empty
+     * non-local URL saved explicitly by the user.
+     */
+    static QString resolvedPlanEndpoint( const QString &persistedEndpoint );
+
     QString providerDisplayName( Provider provider ) const;
     QByteArray buildRequestPayload( Provider provider, const QList<QgsAiChatMessage> &messages, bool stream ) const;
     QString sanitizeErrorText( const QString &errorText ) const;

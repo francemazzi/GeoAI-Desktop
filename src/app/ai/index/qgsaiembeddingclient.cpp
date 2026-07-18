@@ -18,6 +18,7 @@
 #include <algorithm>
 
 #include "ai/qgsaisecretstore.h"
+#include "ai/qgsaimodelrouter.h"
 #include "qgsmessagelog.h"
 #include "qgsnetworkaccessmanager.h"
 #include "qgssettings.h"
@@ -78,9 +79,8 @@ QString QgsAiEmbeddingClient::endpoint() const
     const QString configured = settings.value( QString::fromLatin1( STRATA_CLOUD_EMBEDDINGS_ENDPOINT_SETTING ) ).toString().trimmed();
     if ( !configured.isEmpty() )
       return configured;
-    const QString envPlanEndpoint = QString::fromUtf8( qgetenv( "STRATA_PLAN_ENDPOINT" ) ).trimmed();
-    const QString configuredPlanEndpoint = envPlanEndpoint.isEmpty() ? settings.value( QString::fromLatin1( PLAN_ENDPOINT_SETTING ), u"https://example.invalid/ai/messages"_s ).toString().trimmed()
-                                                                     : envPlanEndpoint;
+    const QString persistedPlanEndpoint = settings.value( QString::fromLatin1( PLAN_ENDPOINT_SETTING ) ).toString().trimmed();
+    const QString configuredPlanEndpoint = QgsAiModelRouter::resolvedPlanEndpoint( persistedPlanEndpoint );
     QUrl planEndpoint( configuredPlanEndpoint );
     planEndpoint.setPath( u"/v1/embeddings"_s );
     planEndpoint.setQuery( QString() );

@@ -251,6 +251,7 @@ class TestQgsAiModelRouter : public QObject
     void visualContextImageIsAddedToCodexPayload();
     void attachedImageIncludedInUserPayload();
     void preDispatchFailureIsQueued();
+    void resolvedPlanEndpointDefaultsToProduction();
     void dispatchLogDoesNotExposeEndpointQuery();
 
     // OpenRouter chat/completions migration
@@ -1249,6 +1250,27 @@ void TestQgsAiModelRouter::preDispatchFailureIsQueued()
   QVERIFY( args.at( 4 ).toString().contains( u"endpoint is not configured"_s, Qt::CaseInsensitive ) );
 
   settings.remove( u"ai/provider/plan"_s );
+}
+
+void TestQgsAiModelRouter::resolvedPlanEndpointDefaultsToProduction()
+{
+  const QString prod = QgsAiModelRouter::defaultPlanEndpoint();
+  const QByteArray savedEnv = qgetenv( "STRATA_PLAN_ENDPOINT" );
+  qunsetenv( "STRATA_PLAN_ENDPOINT" );
+  const auto restoreEnv = qScopeGuard( [savedEnv]() {
+    if ( !savedEnv.isEmpty() )
+      qputenv( "STRATA_PLAN_ENDPOINT", savedEnv );
+  } );
+
+  QCOMPARE( QgsAiModelRouter::resolvedPlanEndpoint( QString() ), prod );
+  QCOMPARE( QgsAiModelRouter::resolvedPlanEndpoint( u"http://localhost:3001/ai/messages"_s ), prod );
+  QCOMPARE( QgsAiModelRouter::resolvedPlanEndpoint( u"https://example.invalid/ai/messages"_s ), prod );
+
+  qputenv( "STRATA_PLAN_ENDPOINT", "http://localhost:3001/ai/messages" );
+  QCOMPARE( QgsAiModelRouter::resolvedPlanEndpoint( prod ), u"http://localhost:3001/ai/messages"_s );
+
+  qunsetenv( "STRATA_PLAN_ENDPOINT" );
+  QCOMPARE( QgsAiModelRouter::resolvedPlanEndpoint( prod ), prod );
 }
 
 void TestQgsAiModelRouter::dispatchLogDoesNotExposeEndpointQuery()
