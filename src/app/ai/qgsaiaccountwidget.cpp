@@ -531,8 +531,7 @@ QString QgsAiAccountWidget::friendlyErrorMessage( const QString &message )
     return tr( "Incorrect email or password." );
   if ( message.contains( "account_suspended"_L1, Qt::CaseInsensitive ) )
     return tr( "This account is suspended. Contact support." );
-  if ( message.contains( u"Connection refused"_s, Qt::CaseInsensitive )
-       || message.contains( u"connection refused"_s, Qt::CaseInsensitive ) )
+  if ( message.contains( u"Connection refused"_s, Qt::CaseInsensitive ) || message.contains( u"connection refused"_s, Qt::CaseInsensitive ) )
   {
     const QString endpoint = currentEndpoint();
     if ( endpoint.contains( u"localhost"_s, Qt::CaseInsensitive ) || endpoint.contains( u"127.0.0.1"_s ) )

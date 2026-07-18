@@ -17,8 +17,8 @@
 
 #include <algorithm>
 
-#include "ai/qgsaisecretstore.h"
 #include "ai/qgsaimodelrouter.h"
+#include "ai/qgsaisecretstore.h"
 #include "qgsmessagelog.h"
 #include "qgsnetworkaccessmanager.h"
 #include "qgssettings.h"

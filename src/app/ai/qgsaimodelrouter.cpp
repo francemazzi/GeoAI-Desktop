@@ -2429,10 +2429,7 @@ QString QgsAiModelRouter::resolvedPlanEndpoint( const QString &persistedEndpoint
     return envEndpoint;
 
   const QString trimmed = persistedEndpoint.trimmed();
-  if ( trimmed.isEmpty()
-       || trimmed.contains( u"example.invalid"_s, Qt::CaseInsensitive )
-       || trimmed.contains( u"localhost"_s, Qt::CaseInsensitive )
-       || trimmed.contains( u"127.0.0.1"_s ) )
+  if ( trimmed.isEmpty() || trimmed.contains( u"example.invalid"_s, Qt::CaseInsensitive ) || trimmed.contains( u"localhost"_s, Qt::CaseInsensitive ) || trimmed.contains( u"127.0.0.1"_s ) )
     return defaultPlanEndpoint();
 
   return trimmed;
