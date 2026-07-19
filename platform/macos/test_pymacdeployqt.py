@@ -68,6 +68,21 @@ class PythonRuntimePackageValidationTest(unittest.TestCase):
                 stdlib_dir,
             )
 
+    def test_discovers_staged_python_site_packages_without_running_python(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            frameworks_dir = Path(temporary_directory) / "Contents" / "Frameworks"
+            python_library = frameworks_dir / "libpython3.12.dylib"
+            site_packages = frameworks_dir / "lib" / "python3.12" / "site-packages"
+            python_library.parent.mkdir(parents=True, exist_ok=True)
+            python_library.touch()
+            site_packages.mkdir(parents=True)
+            (site_packages.parent / "traceback.py").touch()
+
+            self.assertEqual(
+                PYMACDEPLOYQT.python_site_packages_path(str(python_library)),
+                site_packages.resolve(),
+            )
+
 
 class QtRuntimeDiscoveryTest(unittest.TestCase):
     """Cover flat vcpkg Qt resources and already-staged CPack resources."""

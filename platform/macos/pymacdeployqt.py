@@ -351,6 +351,14 @@ def python_site_packages_path(python_library: str) -> Path:
 
     version_dir = source_stdlib.parent.parent
     version = source_stdlib.name.removeprefix("python")
+    staged_site_packages = source_stdlib / "site-packages"
+    if staged_site_packages.is_dir():
+        # CPack may already have staged the embedded runtime below
+        # Contents/Frameworks. Do not execute that partially-relocated
+        # interpreter just to rediscover this deterministic path: it may not
+        # yet have all of its dylib rpaths rewritten.
+        return staged_site_packages
+
     candidates = [
         version_dir / "bin" / f"python{version}",
         version_dir / "bin" / "python3",
