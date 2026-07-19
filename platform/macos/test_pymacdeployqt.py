@@ -51,6 +51,23 @@ class PythonRuntimePackageValidationTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "osgeo"):
                 PYMACDEPLOYQT.validate_python_runtime_packages(str(frameworks_dir))
 
+    def test_reuses_already_staged_python_stdlib(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            frameworks_dir = Path(temporary_directory) / "Contents" / "Frameworks"
+            python_library = frameworks_dir / "libpython3.12.dylib"
+            stdlib_dir = frameworks_dir / "lib" / "python3.12"
+            python_library.parent.mkdir(parents=True, exist_ok=True)
+            python_library.touch()
+            (stdlib_dir / "traceback.py").parent.mkdir(parents=True, exist_ok=True)
+            (stdlib_dir / "traceback.py").touch()
+
+            self.assertEqual(
+                PYMACDEPLOYQT.stage_python_stdlib(
+                    str(python_library), str(frameworks_dir)
+                ),
+                stdlib_dir,
+            )
+
 
 class QtRuntimeDiscoveryTest(unittest.TestCase):
     """Cover flat vcpkg Qt resources and already-staged CPack resources."""

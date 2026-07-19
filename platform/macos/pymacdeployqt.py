@@ -301,6 +301,21 @@ def python_stdlib_path(python_library: str) -> Path | None:
     return None
 
 
+def same_filesystem_path(left: Path, right: Path) -> bool:
+    """Return whether two paths identify the same on-disk object.
+
+    CPack can already stage a runtime tree before this script resolves the
+    matching library dependency. In particular, the default case-insensitive
+    macOS filesystem makes ``Contents/plugins`` and ``Contents/PlugIns`` the
+    same directory. Comparing path text would miss that and make ``copytree``
+    copy a tree onto itself.
+    """
+    try:
+        return left.samefile(right)
+    except FileNotFoundError:
+        return left.resolve() == right.resolve()
+
+
 def stage_python_stdlib(python_library: str, frameworks_dir: str) -> Path:
     """Copy Python's relocatable stdlib while excluding developer site-packages."""
     source_stdlib = python_stdlib_path(python_library)
@@ -311,13 +326,14 @@ def stage_python_stdlib(python_library: str, frameworks_dir: str) -> Path:
 
     destination_stdlib = Path(frameworks_dir) / "lib" / source_stdlib.name
     print(f"Deploy Python standard library: {source_stdlib} -> {destination_stdlib}")
-    shutil.copytree(
-        source_stdlib,
-        destination_stdlib,
-        symlinks=True,
-        dirs_exist_ok=True,
-        ignore=shutil.ignore_patterns("site-packages", "__pycache__", "*.pyc"),
-    )
+    if not same_filesystem_path(source_stdlib, destination_stdlib):
+        shutil.copytree(
+            source_stdlib,
+            destination_stdlib,
+            symlinks=True,
+            dirs_exist_ok=True,
+            ignore=shutil.ignore_patterns("site-packages", "__pycache__", "*.pyc"),
+        )
     if not (destination_stdlib / "traceback.py").is_file():
         raise RuntimeError(
             f"Python standard library deployment is incomplete: {destination_stdlib / 'traceback.py'} is missing"
@@ -510,21 +526,6 @@ def qt_qml_directory(library_paths: list[str]) -> Path | None:
     # Prefer the aggregate import tree for the same reason as the plugin tree:
     # it includes imports contributed by Qt modules outside QtDeclarative.
     return max(candidates, key=lambda path: sum(1 for _ in path.rglob("*")))
-
-
-def same_filesystem_path(left: Path, right: Path) -> bool:
-    """Return whether two paths identify the same on-disk object.
-
-    CPack stages Qt plugins in ``Contents/PlugIns``. On the default
-    case-insensitive macOS filesystem, discovery through the vcpkg layout can
-    return the equivalent spelling ``Contents/plugins``. Comparing path text
-    would miss that these are the same directory and make ``copytree`` copy a
-    tree onto itself.
-    """
-    try:
-        return left.samefile(right)
-    except FileNotFoundError:
-        return left.resolve() == right.resolve()
 
 
 def stage_qt_plugins(app_bundle: str, library_paths: list[str]) -> list[str]:
