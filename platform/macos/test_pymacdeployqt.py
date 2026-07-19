@@ -6,6 +6,7 @@ import importlib.util
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 MODULE_PATH = Path(__file__).with_name("pymacdeployqt.py")
 SPEC = importlib.util.spec_from_file_location("pymacdeployqt", MODULE_PATH)
@@ -130,6 +131,32 @@ class QtRuntimeDiscoveryTest(unittest.TestCase):
                     / "qmldir"
                 ).is_file()
             )
+
+    def test_does_not_copy_staged_plugins_onto_themselves(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            app_bundle = Path(temporary_directory) / "Strata.app"
+            plugins = app_bundle / "Contents" / "PlugIns"
+            cocoa = plugins / "platforms" / "libqcocoa.dylib"
+            svg = plugins / "imageformats" / "libqsvg.dylib"
+            for path in (cocoa, svg):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.touch()
+
+            source_plugins = Path(temporary_directory) / "plugins-alias"
+            source_plugins.symlink_to(plugins, target_is_directory=True)
+            with (
+                patch.object(
+                    PYMACDEPLOYQT, "qt_plugin_directory", return_value=source_plugins
+                ),
+                patch.object(
+                    PYMACDEPLOYQT,
+                    "qt_svg_plugin",
+                    return_value=source_plugins / "imageformats" / "libqsvg.dylib",
+                ),
+            ):
+                self.assertEqual(
+                    PYMACDEPLOYQT.stage_qt_plugins(str(app_bundle), []), []
+                )
 
 
 if __name__ == "__main__":

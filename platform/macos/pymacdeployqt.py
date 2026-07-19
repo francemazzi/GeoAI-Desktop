@@ -512,12 +512,29 @@ def qt_qml_directory(library_paths: list[str]) -> Path | None:
     return max(candidates, key=lambda path: sum(1 for _ in path.rglob("*")))
 
 
+def same_filesystem_path(left: Path, right: Path) -> bool:
+    """Return whether two paths identify the same on-disk object.
+
+    CPack stages Qt plugins in ``Contents/PlugIns``. On the default
+    case-insensitive macOS filesystem, discovery through the vcpkg layout can
+    return the equivalent spelling ``Contents/plugins``. Comparing path text
+    would miss that these are the same directory and make ``copytree`` copy a
+    tree onto itself.
+    """
+    try:
+        return left.samefile(right)
+    except FileNotFoundError:
+        return left.resolve() == right.resolve()
+
+
 def stage_qt_plugins(app_bundle: str, library_paths: list[str]) -> list[str]:
     """Deploy Qt plugins and configure Qt to load them from Contents/PlugIns."""
     contents_dir = Path(app_bundle) / "Contents"
     destination_plugins = contents_dir / "PlugIns"
     source_plugins = qt_plugin_directory(library_paths)
-    if source_plugins is not None:
+    if source_plugins is not None and not same_filesystem_path(
+        source_plugins, destination_plugins
+    ):
         print(f"Deploy Qt plugins: {source_plugins} -> {destination_plugins}")
         shutil.copytree(
             source_plugins,
@@ -537,7 +554,9 @@ def stage_qt_plugins(app_bundle: str, library_paths: list[str]) -> list[str]:
     # also contains tooling and development-only plugins.
     source_svg_plugin = qt_svg_plugin(library_paths)
     destination_svg_plugin = destination_plugins / "imageformats" / "libqsvg.dylib"
-    if source_svg_plugin is not None:
+    if source_svg_plugin is not None and not same_filesystem_path(
+        source_svg_plugin, destination_svg_plugin
+    ):
         destination_svg_plugin.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source_svg_plugin, destination_svg_plugin)
     elif not destination_svg_plugin.is_file():
@@ -565,13 +584,14 @@ def stage_qt_qml_imports(app_bundle: str, library_paths: list[str]) -> list[str]
     print(f"Deploy Qt QML imports: {source_qml} -> {destination_qml}")
     # The Homebrew QML tree contains links into its Cellar. Materialize those
     # links so the distributed app is self-contained.
-    shutil.copytree(
-        source_qml,
-        destination_qml,
-        symlinks=False,
-        dirs_exist_ok=True,
-        ignore=shutil.ignore_patterns("objects-*", "*.o", "*.prl"),
-    )
+    if not same_filesystem_path(source_qml, destination_qml):
+        shutil.copytree(
+            source_qml,
+            destination_qml,
+            symlinks=False,
+            dirs_exist_ok=True,
+            ignore=shutil.ignore_patterns("objects-*", "*.o", "*.prl"),
+        )
 
     controls_dir = destination_qml / "QtQuick" / "Controls"
     if not (controls_dir / "qmldir").is_file() or not any(
