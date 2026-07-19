@@ -434,45 +434,75 @@ def validate_python_runtime_packages(frameworks_dir: str) -> None:
         )
 
 
-def qt_plugin_directory(library_paths: list[str]) -> Path | None:
-    """Locate the Qt plugin directory associated with a QtCore framework."""
-    for library_path in library_paths:
-        framework = framework_details(library_path)
-        if framework is None or framework[0].name != "QtCore.framework":
-            continue
-        for parent in framework[0].parents:
-            plugins_dir = parent / "share" / "qt" / "plugins"
-            if (plugins_dir / "platforms" / "libqcocoa.dylib").is_file():
-                return plugins_dir
-    return None
-
-
-def qt_svg_plugin(library_paths: list[str]) -> Path | None:
-    """Locate the SVG image plugin belonging to the bundled QtSvg framework."""
-    for library_path in library_paths:
-        framework = framework_details(library_path)
-        if framework is None or framework[0].name != "QtSvg.framework":
-            continue
-        for parent in framework[0].parents:
-            svg_plugin = (
-                parent / "share" / "qt" / "plugins" / "imageformats" / "libqsvg.dylib"
-            )
-            if svg_plugin.is_file():
-                return svg_plugin
-    return None
-
-
-def qt_qml_directory(library_paths: list[str]) -> Path | None:
-    """Locate Qt's QML import tree from the QtCore framework dependency."""
+def qt_resource_directories(
+    library_paths: list[str], qt_library: str, resource_name: str
+) -> list[Path]:
+    """Locate a Qt resource tree for framework and flat vcpkg installations."""
     candidates = []
     for library_path in library_paths:
         framework = framework_details(library_path)
-        if framework is None or framework[0].name != "QtCore.framework":
+        framework_library = "Qt" + qt_library.removeprefix("Qt6")
+        if (
+            framework is not None
+            and framework[0].name == f"{framework_library}.framework"
+        ):
+            candidates.extend(
+                parent / "share" / "qt" / resource_name
+                for parent in framework[0].parents
+            )
             continue
-        for parent in framework[0].parents:
-            qml_dir = parent / "share" / "qt" / "qml"
-            if (qml_dir / "QtQuick" / "Controls" / "qmldir").is_file():
-                candidates.append(qml_dir)
+
+        # The macOS vcpkg SDK links a flat libQt6*.dylib, with resources in
+        # either <prefix>/plugins and <prefix>/qml or <prefix>/share/qt/.
+        library = Path(library_path)
+        if not re.fullmatch(rf"lib{qt_library}(?:\.\d+)*\.dylib", library.name):
+            continue
+        prefix = library.parent.parent
+        candidates.extend(
+            (
+                prefix / "share" / "qt" / resource_name,
+                prefix / resource_name,
+            )
+        )
+    return candidates
+
+
+def qt_plugin_directory(library_paths: list[str]) -> Path | None:
+    """Locate the Qt plugin directory associated with QtCore."""
+    return next(
+        (
+            plugins_dir
+            for plugins_dir in qt_resource_directories(
+                library_paths, "Qt6Core", "plugins"
+            )
+            if (plugins_dir / "platforms" / "libqcocoa.dylib").is_file()
+        ),
+        None,
+    )
+
+
+def qt_svg_plugin(library_paths: list[str]) -> Path | None:
+    """Locate the SVG image plugin belonging to the bundled QtSvg library."""
+    return next(
+        (
+            svg_plugin
+            for plugins_dir in qt_resource_directories(
+                library_paths, "Qt6Svg", "plugins"
+            )
+            for svg_plugin in (plugins_dir / "imageformats" / "libqsvg.dylib",)
+            if svg_plugin.is_file()
+        ),
+        None,
+    )
+
+
+def qt_qml_directory(library_paths: list[str]) -> Path | None:
+    """Locate Qt's QML import tree from the QtCore dependency."""
+    candidates = [
+        qml_dir
+        for qml_dir in qt_resource_directories(library_paths, "Qt6Core", "qml")
+        if (qml_dir / "QtQuick" / "Controls" / "qmldir").is_file()
+    ]
 
     if not candidates:
         return None
@@ -484,34 +514,37 @@ def qt_qml_directory(library_paths: list[str]) -> Path | None:
 
 def stage_qt_plugins(app_bundle: str, library_paths: list[str]) -> list[str]:
     """Deploy Qt plugins and configure Qt to load them from Contents/PlugIns."""
-    source_plugins = qt_plugin_directory(library_paths)
-    if source_plugins is None:
-        raise RuntimeError("Could not locate Qt's Cocoa platform plugin")
-
     contents_dir = Path(app_bundle) / "Contents"
     destination_plugins = contents_dir / "PlugIns"
-    print(f"Deploy Qt plugins: {source_plugins} -> {destination_plugins}")
-    shutil.copytree(
-        source_plugins,
-        destination_plugins,
-        # Materialize links so the final app cannot load a plugin from the
-        # packager machine.
-        symlinks=False,
-        dirs_exist_ok=True,
-        ignore=shutil.ignore_patterns("objects-*", "*.o", "*.prl"),
-    )
+    source_plugins = qt_plugin_directory(library_paths)
+    if source_plugins is not None:
+        print(f"Deploy Qt plugins: {source_plugins} -> {destination_plugins}")
+        shutil.copytree(
+            source_plugins,
+            destination_plugins,
+            # Materialize links so the final app cannot load a plugin from the
+            # packager machine.
+            symlinks=False,
+            dirs_exist_ok=True,
+            ignore=shutil.ignore_patterns("objects-*", "*.o", "*.prl"),
+        )
+    elif not (destination_plugins / "platforms" / "libqcocoa.dylib").is_file():
+        raise RuntimeError("Could not locate Qt's Cocoa platform plugin")
 
     # Qt's base plugin tree does not contain the SVG image handler, but the
     # bundled welcome screen renders SVG resources through it. Stage precisely
     # that runtime plugin instead of the complete aggregate plugin tree, which
     # also contains tooling and development-only plugins.
     source_svg_plugin = qt_svg_plugin(library_paths)
-    if source_svg_plugin is None:
-        raise RuntimeError("Could not locate Qt's SVG image plugin")
     destination_svg_plugin = destination_plugins / "imageformats" / "libqsvg.dylib"
-    destination_svg_plugin.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source_svg_plugin, destination_svg_plugin)
-    (contents_dir / "Resources" / "qt.conf").write_text(
+    if source_svg_plugin is not None:
+        destination_svg_plugin.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source_svg_plugin, destination_svg_plugin)
+    elif not destination_svg_plugin.is_file():
+        raise RuntimeError("Could not locate Qt's SVG image plugin")
+    qt_conf = contents_dir / "Resources" / "qt.conf"
+    qt_conf.parent.mkdir(parents=True, exist_ok=True)
+    qt_conf.write_text(
         "[Paths]\nPrefix = ..\nPlugins = PlugIns\nQmlImports = Resources/qml\n",
         encoding="utf-8",
     )
@@ -521,6 +554,10 @@ def stage_qt_plugins(app_bundle: str, library_paths: list[str]) -> list[str]:
 def stage_qt_qml_imports(app_bundle: str, library_paths: list[str]) -> list[str]:
     """Deploy the Qt QML import tree required by the bundled welcome screen."""
     source_qml = qt_qml_directory(library_paths)
+    if source_qml is None:
+        staged_qml = Path(app_bundle) / "Contents" / "Qt6" / "qml"
+        if (staged_qml / "QtQuick" / "Controls" / "qmldir").is_file():
+            source_qml = staged_qml
     if source_qml is None:
         raise RuntimeError("Could not locate Qt's QML import tree")
 
