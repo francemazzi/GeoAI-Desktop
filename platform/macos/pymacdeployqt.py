@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -253,7 +254,7 @@ def collect_macho_files(root: str) -> list[str]:
 
 
 def python_stdlib_path(python_library: str) -> Path | None:
-    """Locate the standard library associated with a Python.framework binary."""
+    """Locate the standard library associated with a framework or flat libpython."""
     library_path = Path(python_library).resolve()
     framework_root = next(
         (
@@ -264,7 +265,16 @@ def python_stdlib_path(python_library: str) -> Path | None:
         None,
     )
     if framework_root is None:
-        return None
+        # vcpkg installs a flat ``libpythonX.Y.dylib`` alongside
+        # ``lib/pythonX.Y`` rather than a Python.framework.  This is the
+        # layout used by the macOS CI SDK, and it is equally relocatable.
+        match = re.fullmatch(
+            r"libpython(\d+\.\d+)(?:[a-z]+)?\.dylib", library_path.name
+        )
+        if match is None:
+            return None
+        stdlib_dir = library_path.parent / f"python{match.group(1)}"
+        return stdlib_dir if (stdlib_dir / "traceback.py").is_file() else None
 
     versions_dir = framework_root / "Versions"
     if not versions_dir.is_dir():
@@ -321,6 +331,9 @@ def python_site_packages_path(python_library: str) -> Path:
         version_dir / "bin" / f"python{version}",
         version_dir / "bin" / "python3",
         version_dir / "bin" / "python",
+        # vcpkg stores the interpreter outside lib/pythonX.Y.
+        version_dir / "tools" / "python3" / f"python{version}",
+        version_dir / "tools" / "python3" / "python3",
     ]
     python_executable = next((path for path in candidates if path.is_file()), None)
     if python_executable is None:
