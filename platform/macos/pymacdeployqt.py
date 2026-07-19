@@ -273,8 +273,16 @@ def python_stdlib_path(python_library: str) -> Path | None:
         )
         if match is None:
             return None
-        stdlib_dir = library_path.parent / f"python{match.group(1)}"
-        return stdlib_dir if (stdlib_dir / "traceback.py").is_file() else None
+        version = match.group(1)
+        for stdlib_dir in (
+            library_path.parent / f"python{version}",
+            # Once CPack has staged the library, the stdlib lives below the
+            # app's Frameworks/lib directory rather than beside libpython.
+            library_path.parent / "lib" / f"python{version}",
+        ):
+            if (stdlib_dir / "traceback.py").is_file():
+                return stdlib_dir
+        return None
 
     versions_dir = framework_root / "Versions"
     if not versions_dir.is_dir():
@@ -334,6 +342,9 @@ def python_site_packages_path(python_library: str) -> Path:
         # vcpkg stores the interpreter outside lib/pythonX.Y.
         version_dir / "tools" / "python3" / f"python{version}",
         version_dir / "tools" / "python3" / "python3",
+        # The staged macOS app has its Python executable in Contents/MacOS.
+        version_dir.parent / "MacOS" / f"python{version}",
+        version_dir.parent / "MacOS" / "python3",
     ]
     python_executable = next((path for path in candidates if path.is_file()), None)
     if python_executable is None:
