@@ -404,11 +404,29 @@ def stage_python_runtime_packages(
 
 
 def validate_python_runtime_packages(frameworks_dir: str) -> None:
-    """Ensure CPack staged the explicit Python runtime package allow-list."""
+    """Ensure CPack staged the explicit Python runtime package allow-list.
+
+    The legacy framework build installs these packages directly in
+    ``Contents/Frameworks``. Flat vcpkg Python installs them in the standard
+    ``lib/pythonX.Y/site-packages`` layout. Both are bundle-local layouts.
+    """
+    runtime_package_roots = [Path(frameworks_dir)]
+    runtime_site_packages = sorted(
+        site_packages
+        for site_packages in (Path(frameworks_dir) / "lib").glob(
+            "python*/site-packages"
+        )
+        if site_packages.is_dir()
+    )
+    runtime_package_roots.extend(runtime_site_packages)
+
     missing = [
         package
         for package in PYTHON_RUNTIME_PACKAGES
-        if not (Path(frameworks_dir) / package / "__init__.py").is_file()
+        if not any(
+            (package_root / package / "__init__.py").is_file()
+            for package_root in runtime_package_roots
+        )
     ]
     if missing:
         raise RuntimeError(
