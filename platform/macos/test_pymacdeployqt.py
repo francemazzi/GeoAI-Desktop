@@ -208,6 +208,16 @@ class QtRuntimeDiscoveryTest(unittest.TestCase):
             ],
         )
 
+    def test_removes_lone_duplicate_rpath(self):
+        self.assertEqual(
+            PYMACDEPLOYQT.without_duplicate_rpath_command(
+                [("-add_rpath", "@loader_path/.")],
+                "install_name_tool: option '-add_rpath @loader_path/.' would "
+                "duplicate path, file already has LC_RPATH for: @loader_path/.",
+            ),
+            [],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

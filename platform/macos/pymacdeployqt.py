@@ -975,6 +975,12 @@ def deploy_libraries(app_bundle: str, lib_dirs: list[str]) -> None:
         except subprocess.CalledProcessError as e:
             retry_changes = without_duplicate_rpath_command(changes, e.stderr)
             if len(retry_changes) != len(changes):
+                # The duplicate rpath can be the sole requested change.  In
+                # that case the binary is already in its desired state and
+                # invoking install_name_tool without an operation is itself
+                # an error.
+                if not retry_changes:
+                    continue
                 retry_cmd = ["install_name_tool"]
                 for command_tuple in retry_changes:
                     retry_cmd.extend(command_tuple)
