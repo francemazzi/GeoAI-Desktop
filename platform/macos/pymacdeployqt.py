@@ -82,6 +82,19 @@ def parse_macho_info(path: str) -> Library:
     return Library(path, install_name, dependencies, rpaths)
 
 
+def without_duplicate_rpath_command(
+    changes: list[tuple[str, str]], stderr: str | None
+) -> list[tuple[str, str]]:
+    """Remove the rpath operation Xcode reports as already present."""
+    if not stderr:
+        return changes
+    match = re.search(r"duplicate path, file already has LC_RPATH for: (.+)", stderr)
+    if match is None:
+        return changes
+    duplicate_path = match.group(1).strip()
+    return [change for change in changes if change != ("-add_rpath", duplicate_path)]
+
+
 def is_system_path(path: str) -> bool:
     """Check if the path is a system path that should be excluded."""
     return any(path.startswith(sys_path) for sys_path in SYSTEM_PATHS)
@@ -960,6 +973,15 @@ def deploy_libraries(app_bundle: str, lib_dirs: list[str]) -> None:
             print(result.stdout)
             print(result.stderr)
         except subprocess.CalledProcessError as e:
+            retry_changes = without_duplicate_rpath_command(changes, e.stderr)
+            if len(retry_changes) != len(changes):
+                retry_cmd = ["install_name_tool"]
+                for command_tuple in retry_changes:
+                    retry_cmd.extend(command_tuple)
+                subprocess.run(
+                    retry_cmd + [path], check=True, capture_output=True, text=True
+                )
+                continue
             print(f"Command failed with exit code {e.returncode}")
             print("stdout:")
             print(e.stdout)

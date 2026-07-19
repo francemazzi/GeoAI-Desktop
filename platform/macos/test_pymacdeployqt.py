@@ -190,6 +190,24 @@ class QtRuntimeDiscoveryTest(unittest.TestCase):
                     PYMACDEPLOYQT.stage_qt_plugins(str(app_bundle), []), []
                 )
 
+    def test_removes_only_reported_duplicate_rpath(self):
+        changes = [
+            ("-change", "old", "new"),
+            ("-add_rpath", "@loader_path/."),
+            ("-add_rpath", "@loader_path/../Frameworks"),
+        ]
+        stderr = (
+            "install_name_tool: option '-add_rpath @loader_path/.' would duplicate "
+            "path, file already has LC_RPATH for: @loader_path/."
+        )
+        self.assertEqual(
+            PYMACDEPLOYQT.without_duplicate_rpath_command(changes, stderr),
+            [
+                ("-change", "old", "new"),
+                ("-add_rpath", "@loader_path/../Frameworks"),
+            ],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
