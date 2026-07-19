@@ -5,7 +5,7 @@ packaging==26.2
 Jinja2==3.1.6
 MarkupSafe==3.0.3
 psycopg2==2.9.12
-# Required by QgsPythonUtils during every Python bootstrap. Build the bindings
-# from source against the GDAL used for the Strata build; do not copy a
-# Homebrew site-packages directory into the app bundle.
-GDAL==3.13.1
+# GDAL is intentionally absent from this lock file: its Python binding must be
+# built from source at the exact version selected by the Strata CMake toolchain.
+# The bootstrap receives that version from CMake (or gdal-config for direct
+# developer invocations), preventing an ABI mismatch with vcpkg.

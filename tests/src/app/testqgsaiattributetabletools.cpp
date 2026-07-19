@@ -97,7 +97,7 @@ void TestQgsAiAttributeTableTools::queryFeaturesFiltersAndPaginates()
 void TestQgsAiAttributeTableTools::queryFeaturesCapsLargeResult()
 {
   QgsProject project;
-  QgsVectorLayer *layer = new QgsVectorLayer( u"Point?crs=EPSG:4326&field=payload:string"_s, u"Large values"_s, u"memory"_s );
+  QgsVectorLayer *layer = new QgsVectorLayer( u"Point?crs=EPSG:4326&field=payload:string(60000)"_s, u"Large values"_s, u"memory"_s );
   QVERIFY( layer->isValid() );
   QgsFeature feature( layer->fields() );
   feature.setGeometry( QgsGeometry::fromWkt( u"Point(1 1)"_s ) );
