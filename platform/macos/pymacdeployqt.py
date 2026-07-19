@@ -256,11 +256,18 @@ def is_macho(filepath: str) -> bool:
 
 
 def collect_macho_files(root: str) -> list[str]:
-    """Return every non-symlink Mach-O file below *root*."""
+    """Return every deployable non-symlink Mach-O file below *root*.
+
+    Qt's plugin build directories may contain intermediate ``.o`` files.
+    They are Mach-O objects, but they are not runtime-loadable binaries and
+    cannot safely receive rpath edits with ``install_name_tool``.
+    """
     binaries = []
     for directory, _, files in os.walk(root):
         for file in files:
             path = os.path.join(directory, file)
+            if file.endswith(".o"):
+                continue
             if not os.path.islink(path) and is_macho(path):
                 binaries.append(path)
     return binaries

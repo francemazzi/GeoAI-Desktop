@@ -164,6 +164,19 @@ class QtRuntimeDiscoveryTest(unittest.TestCase):
                 ).is_file()
             )
 
+    def test_ignores_macho_object_files_when_collecting_runtime_binaries(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            runtime_binary = Path(temporary_directory) / "plugin.dylib"
+            object_file = Path(temporary_directory) / "plugin_init.cpp.o"
+            runtime_binary.touch()
+            object_file.touch()
+
+            with patch.object(PYMACDEPLOYQT, "is_macho", return_value=True):
+                self.assertEqual(
+                    PYMACDEPLOYQT.collect_macho_files(temporary_directory),
+                    [str(runtime_binary)],
+                )
+
     def test_does_not_copy_staged_plugins_onto_themselves(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             app_bundle = Path(temporary_directory) / "Strata.app"
