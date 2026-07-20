@@ -71,6 +71,31 @@ set(COMPLETE_VERSION ${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINO
 set(RELEASE_NAME "Master")
 project(qgis VERSION ${COMPLETE_VERSION})
 
+# NuGet, which backs the macOS vcpkg SDK cache, does not preserve symlinks.
+# Qt's CMake targets refer to a fully versioned dylib while the cached SDK can
+# contain only the ABI link (for example libQt6Core.6.dylib). Restore the
+# missing link immediately after vcpkg has installed the SDK and before the
+# first find_package(Qt6) call.
+if(APPLE AND WITH_VCPKG AND EXISTS "${TARGET_SYSROOT}/lib")
+  file(GLOB _qgis_qt_target_files "${TARGET_SYSROOT}/share/Qt6*/Qt6*Targets-*.cmake")
+  foreach(_qgis_qt_target_file IN LISTS _qgis_qt_target_files)
+    file(READ "${_qgis_qt_target_file}" _qgis_qt_target_content)
+    string(REGEX MATCHALL "lib/libQt6[^\" ]+\\.dylib" _qgis_qt_referenced_dylibs "${_qgis_qt_target_content}")
+    foreach(_qgis_qt_referenced_dylib IN LISTS _qgis_qt_referenced_dylibs)
+      get_filename_component(_qgis_qt_dylib_name "${_qgis_qt_referenced_dylib}" NAME)
+      if(_qgis_qt_dylib_name MATCHES "^(libQt6.+)\\.([0-9]+)\\.[0-9]+\\.[0-9]+\\.dylib$")
+        set(_qgis_qt_versioned_dylib "${TARGET_SYSROOT}/lib/${_qgis_qt_dylib_name}")
+        string(REGEX REPLACE "^(libQt6.+)\\.([0-9]+)\\.[0-9]+\\.[0-9]+\\.dylib$" "\\1.\\2.dylib" _qgis_qt_abi_dylib_name "${_qgis_qt_dylib_name}")
+        if(NOT EXISTS "${_qgis_qt_versioned_dylib}" AND EXISTS "${TARGET_SYSROOT}/lib/${_qgis_qt_abi_dylib_name}")
+          file(REMOVE "${_qgis_qt_versioned_dylib}")
+          file(CREATE_LINK "${_qgis_qt_abi_dylib_name}" "${_qgis_qt_versioned_dylib}" SYMBOLIC)
+          message(STATUS "Restored missing Qt SDK link: ${_qgis_qt_dylib_name}")
+        endif()
+      endif()
+    endforeach()
+  endforeach()
+endif()
+
 set(QGIS_APP_NAME "Strata" CACHE STRING "The main app name and bundle name")
 if(DEFINED ENV{STRATA_VERSION} AND NOT DEFINED STRATA_VERSION)
   set(STRATA_VERSION "$ENV{STRATA_VERSION}" CACHE STRING "The Strata application release version")

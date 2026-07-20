@@ -196,6 +196,12 @@ jobs:
                   if [[ "${qt_name}" =~ ^(libQt6.+)\.([0-9]+)\.([0-9]+)\.([0-9]+)\.dylib$ ]]; then
                     qt_stem="${BASH_REMATCH[1]}"
                     qt_major="${BASH_REMATCH[2]}"
+                    if [[ -L "${qt_full_lib}" ]]; then
+                      qt_materialized="${qt_full_lib}.materialized"
+                      cp -pL "${qt_full_lib}" "${qt_materialized}"
+                      rm "${qt_full_lib}"
+                      mv "${qt_materialized}" "${qt_full_lib}"
+                    fi
                     rm -f "${VCPKG_LIB_DIR}/${qt_stem}.dylib" "${VCPKG_LIB_DIR}/${qt_stem}.${qt_major}.dylib"
                     ln -s "${qt_name}" "${VCPKG_LIB_DIR}/${qt_stem}.dylib"
                     ln -s "${qt_name}" "${VCPKG_LIB_DIR}/${qt_stem}.${qt_major}.dylib"
