@@ -410,7 +410,17 @@ jobs:
           APP_NAME=$(basename "${APP_PATH}" .app)
           MAIN_EXEC="${APP_PATH}/Contents/MacOS/${APP_NAME}"
           DEST="${APP_PATH}/Contents/Resources/python"
+          PYI_DEST="${APP_PATH}/Contents/Resources/python_stubs"
           mkdir -p "${DEST}"
+          # PyQt typing stubs are not loaded at runtime.  Leaving them under
+          # Frameworks makes the outer bundle seal treat them as code objects.
+          # Keep their relative paths under Resources, outside the code seal.
+          while IFS= read -r -d '' f; do
+            rel="${f#${APP_PATH}/Contents/Frameworks/}"
+            target="${PYI_DEST}/${rel}"
+            mkdir -p "$(dirname "${target}")"
+            mv "${f}" "${target}"
+          done < <(find "${APP_PATH}/Contents/Frameworks" -type f -name '*.pyi' -print0)
           echo "Signing ${APP_PATH} (main executable: ${MAIN_EXEC})..."
 
           # Try to sign $1; if codesign refuses because the file is not a
