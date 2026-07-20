@@ -189,7 +189,7 @@ jobs:
                 # Recreate the canonical Qt symlink chain, e.g.
                 # libQt6Core.dylib -> libQt6Core.6.11.1.dylib and
                 # libQt6Core.6.dylib -> libQt6Core.6.11.1.dylib. This makes every
-                # module resolve the same Mach-O image during the build.
+                # module resolve the same binary image during the build.
                 for qt_full_lib in "${VCPKG_LIB_DIR}"/libQt6*.[0-9]*.[0-9]*.[0-9]*.dylib; do
                   [[ -f "${qt_full_lib}" ]] || continue
                   qt_name="$(basename "${qt_full_lib}")"
