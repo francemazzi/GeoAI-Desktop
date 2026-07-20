@@ -24,8 +24,9 @@
 12. [Fase 10 — Marketplace, SDK e community — 0%](#fase-10--marketplace-sdk-e-community--0)
 13. [Sezione 13 — AI-GAP: chiusura gap tool GIS core — 100%](#sezione-13--ai-gap-chiusura-gap-tool-gis-core--100)
 14. [Sezione 14 — AI-MAP: Map Context Engine + 3D — 0%](#sezione-14--ai-map-map-context-engine--3d--0)
-15. [Metriche](#metriche)
-16. [Sequenza sprint](#sequenza-sprint)
+15. [Sezione 15 — AI-VKP: Knowledge pack verticali e ricerca scientifica — 0%](#sezione-15--ai-vkp-knowledge-pack-verticali-e-ricerca-scientifica--0)
+16. [Metriche](#metriche)
+17. [Sequenza sprint](#sequenza-sprint)
 
 ---
 
@@ -58,6 +59,7 @@
 | 10 — Marketplace/SDK           | 0%   | tutto                                                                      |
 | 13 — AI-GAP tool GIS core      | 100% | chiusa                                                                     |
 | 14 — AI-MAP (Map Context + 3D) | 0%   | tutto                                                                      |
+| 15 — AI-VKP (pack + research)  | 0%   | tutto; prerequisito deterministico AI-VKP-1/2/3                            |
 | B8 — Data Hub (backend)        | 0%   | fase **B8** in `strata-be/ROADMAP.md` — bisogno n.1 utenti (need: 15)      |
 
 
@@ -85,6 +87,7 @@ flowchart LR
 - [ ] GIS diff/rollback strutturato (layer/stile/layout) + execution log JSON per run — chiude i gap di Fase 4
 - [ ] Report generator v1 anticipato (PDF + DOCX: capitolati, perizie) (need: 12)
 - [ ] AI-MAP: Map Context Provider + layer descriptor + `capture_view` — Sezione 14
+- [ ] AI-VKP Blocco A: metadata raster deterministici per banda (scale/offset/NoData) — fix della classe errori bande/offset emersa nei test NBS — Sezione 15
 - [ ] Demo project + onboarding AI wizard — chiude i gap critici di Fase 0
 - [ ] GIS Tab UI dedicata (oltre il suggestion engine inline)
 
@@ -163,7 +166,7 @@ Cosa evitare:
   - [ ] `inspect_crs` dedicato (oggi parziale via `describe_layer` / `manage_project`)
   - [ ] `inspect_project` completo (oggi snapshot layer nel prompt + `list_project_layers`)
   - [ ] `create_memory_note`
-  - [ ] Tool raster dedicati: `raster_calculator`, statistiche zonali, NDVI tipizzato — oggi solo via `run_processing_algorithm`/`run_python` (need: 11)
+  - [ ] Tool raster dedicati: `raster_calculator`, statistiche zonali, NDVI tipizzato — oggi solo via `run_processing_algorithm`/`run_python` (need: 11) — vedi Sezione 15 (AI-VKP-1/AI-VKP-2)
   - [ ] Supporto atlanti in `create_print_layout`/`edit_print_layout` + cartigli SVG aziendali (need: 10)
 - [x] Modalità operative (`qgsaiagentsessionmanager`) (AGT-003)
   - [x] Ask — agent `reviewer`, 14 tool read-only + web search
@@ -211,7 +214,7 @@ Cosa evitare:
   - [ ] Scheda YAML: null_ratio, unique_count, min/max, quality, suggested_actions
 - [ ] CRS analyzer dedicato (CTX-003) — oggi via `describe_layer`; condiviso con `inspect_crs` (Fase 1)
 - [ ] Geometry quality summary (CTX-005)
-- [ ] Raster metadata summary completo: bands, resolution, NoData (CTX-006)
+- [ ] Raster metadata summary completo: bands, resolution, NoData (CTX-006) — vedi Sezione 15 (AI-VKP-1)
 - [ ] Style summarizer (CTX-008)
 - [ ] Layout summarizer (CTX-009)
 - [ ] Processing history parser (CTX-010)
@@ -220,7 +223,7 @@ Cosa evitare:
   - [ ] Pack dichiarativi (`crs_debug`, `styling`, …) visibili all'utente
 - [ ] Context preview UI (CTX-013)
 - [ ] Context budget manager (intent detection → relevance scoring → context pack)
-- [ ] Ingestione PDF/Excel/CSV come contesto: piani urbanistici, perizie, archivi storici (need: 5)
+- [ ] Ingestione PDF/Excel/CSV come contesto: piani urbanistici, perizie, archivi storici (need: 5) — condiviso con AI-VKP-10 (Sezione 15)
 
 > Nota: la ricerca cataloghi (`catalog_search`) diventa registry-first grazie alla fase **B8 Data Hub** del backend (`strata-be/ROADMAP.md`) — zero lavoro client, stesso schema di risposta.
 
@@ -267,7 +270,7 @@ Cosa evitare:
 - [ ] Step executor isolato (AGT-005)
   - [x] Loop tool per turno
   - [ ] Esecuzione per step con pause/checkpoint
-- [ ] Step verifier (AGT-006): output esiste, CRS coerente, geometrie valide, feature count plausibile, campi preservati, extent, warnings
+- [ ] Step verifier (AGT-006): output esiste, CRS coerente, geometrie valide, feature count plausibile, campi preservati, extent, warnings — esteso da AI-VKP-3 (plausibilità raster, Sezione 15)
 - [ ] GIS diff v1
   - [ ] Diff layer: feature count, CRS, geometrie invalide, campi (REV-001)
   - [ ] Diff stile: renderer, classi, opacità, label (REV-002)
@@ -320,7 +323,7 @@ Cosa evitare:
 > Da prodotto generico a prodotto vendibile: workflow pronti per PA, agricoltura, ambiente, utilities.
 
 - [ ] Pack installer + pack validation (verifica requisiti input)
-- [ ] **Pack Verde urbano** — censimenti arborei, VTA, NDVI verde pubblico, capitolati potature, crediti di carbonio; **primo pack**: clienti già paganti nel segmento (need: 8)
+- [ ] **Pack Verde urbano** — censimenti arborei, VTA, NDVI verde pubblico, capitolati potature, crediti di carbonio; **primo pack**: clienti già paganti nel segmento (need: 8) — contenuto metodologico seedato da AI-VKP-5 (Sezione 15)
 - [ ] **Pack Energia / screening vincoli** — fattibilità siti fotovoltaici, vincoli idrogeologici/paesaggistici/belle arti, incrocio catasto; prospect in pipeline: Re5, Pratifly, Refive (need: 7)
 - [ ] Pack PA locale/urbanistica: controllo CRS, buffer vincoli, overlay particelle-vincoli, report vincoli, layout delibera, QA geometrie, export open data
 - [ ] Pack agricoltura: import particelle aziendali, calcolo superfici per coltura, buffer corsi d'acqua, overlay suolo/pendenza, report aziendale, QA fascicolo, export consulente
@@ -442,6 +445,34 @@ Note: workaround stopgap possibile via skill `.strata/skills/3d.md` + `run_pytho
 
 ---
 
+# Sezione 15 — AI-VKP: Knowledge pack verticali e ricerca scientifica — 0%
+
+> Origine: test NBS Gottolengo/Brescia di Massimo (lug 2026, cartella `nbs` — 2 conversazioni Claude Code, 22 script PyQGIS, 8 PDF di letteratura distillati a mano). Lezione appresa: gli errori "bande sbagliate / offset non sottratto" hanno due nature distinte — un gap **deterministico** (l'AI oggi non vede scale/offset/NoData: `describe_layer` espone solo width/height/bands e il chunker RAG salta esplicitamente le statistiche di banda, `qgsailayerchunker.cpp:86`) e un gap **metodologico** (soglie, indici, fonti di dominio — dove il metodo "letteratura prima, codice dopo" ha funzionato: costanti Landsat C2L2 corrette al primo colpo perché scritte nella metodologia prima del codice). Principio guida: **il deterministico prima del RAG; il pack curato prima della ricerca automatica; sempre review-first**.
+
+**Blocco A — Contesto raster deterministico (prerequisito)**
+
+- [ ] AI-VKP-1 — Metadata per banda in `describe_layer`/`list_project_layers`/chunker RAG: band name, data type, `bandScale()`/`bandOffset()`, NoData, min/max — le API QGIS core esistono e non sono mai chiamate da `src/app/ai/` (`qgsrasterdataprovider.h:186-225`); completa CTX-006 (Fase 2) e i tool raster dedicati (Fase 1, need: 11)
+- [ ] AI-VKP-2 — Riconoscimento prodotto satellitare: parsing sidecar MTL Landsat C2 (scale/offset LEVEL2 vs LEVEL1 nello stesso file), offset baseline Sentinel-2, hint esplicito nel contesto ("questa banda va scalata ×0.0000275 −0.2")
+- [ ] AI-VKP-3 — Verifica di plausibilità output raster (estende lo step verifier AGT-006, Fase 4): indici normalizzati bounded [−1,1], range LST fisici — avrebbe intercettato il bug NDVI −21…−1.4 dei test NBS, scoperto solo da screenshot utente
+- [ ] Fix collaterale da tracciare: `QgsRasterLayer.crs().authid()` vuoto sui GeoTIFF Landsat in Strata 4.1.0 (workaround GDAL/osr negli script di Massimo, "Problema 5" del log)
+
+**Blocco B — Knowledge pack verticali curati**
+
+- [ ] AI-VKP-4 — Formato knowledge pack sopra `.strata/skills` esistente (progressive disclosure già supportata): bande/formule/soglie **con citazione e range di validità**, vincoli ambiente Strata (no pandas, no GDAL CLI, `native:rastercalc`, `fixgeometries` prima di ogni cutline), nomenclatura fonti dati regionali
+- [ ] AI-VKP-5 — Primo pack **Verde urbano / NBS** seedato dal materiale Gottolengo: Landsat C2L2 (LST/NDVI/NDBI), regola 3-30-300 metodo Ferrara (DOI 10.3390/ijgi15060256), DBGT (`_SUP` = geometrie), PGRA (TRITORNO basso = pericolosità alta, tipi RP/RSP), ISTAT P26–P29, Meta/WRI canopy via `/vsicurl/` — contenuto del pack Verde urbano di Fase 6 (need: 8)
+- [ ] AI-VKP-6 — Golden-set eval dagli errori reali del caso NBS (clamp NDVI, CRS vuoto, SR_B6 mancante, LEVEL1 vs LEVEL2) → alimenta l'eval harness promptfoo (Fase 4)
+
+**Blocco C — Deep research opt-in → bozza di pack**
+
+- [ ] AI-VKP-7 — Card suggestion engine all'apertura di un progetto nuovo: "Prepara il dossier scientifico per questa verticale?" — verticale **dichiarata dall'utente** (mai inferita: una classificazione sbagliata inquina tutte le sessioni successive), dismiss persistente per progetto (pattern `QgsAiGisSuggestionEngine` esistente)
+- [ ] AI-VKP-8 — Flusso client: research job sul backend (fase **B10** in `strata-be/ROADMAP.md`) → bozza skill markdown con citazione per ogni soglia/formula → review Accept/Reject → salvataggio in `.strata/skills` → auto-index nel RAG locale (i `.md` di workspace sono già indicizzati)
+- [ ] AI-VKP-9 — Fallback BYOK/offline: stesso flusso senza backend via tool esistenti (`web_search` + `web_fetch` + `propose_create_file`) con prompt dedicato; in air-gapped resta il pack curato (Blocco B)
+- [ ] AI-VKP-10 — Ingestione PDF locale come contesto ("trascina i tuoi paper nel progetto") — condiviso con l'item di Fase 2 (need: 5)
+
+Anti-pattern da evitare: ricerca automatica all'avvio progetto (collide con local-first/air-gapped, BYOK gratis, review-first e time-to-first-value < 10 min); RAG di letteratura per valori che GDAL espone deterministicamente; fonti non-OA senza licenza/attribution; soglie numeriche senza citazione e range di validità. Nota di validazione: la ricerca bibliografica automatica non è un bisogno emerso nei 27 meeting Granola — i bisogni correlati validati sono tool raster (need: 11), fonti citate (need: 12), ingestione PDF (need: 5); il Blocco C va validato con 3–5 interviste sui verticali target prima di investire.
+
+---
+
 # Metriche
 
 - Activation rate > 40% degli installati completa il primo task; time-to-first-value < 10 minuti
@@ -471,14 +502,14 @@ Note: workaround stopgap possibile via skill `.strata/skills/3d.md` + `run_pytho
 ## Q4 2026 — GIS Tab UI + Agent v2 maturo + azioni 3D + inizio Fase 5
 
 - [ ] Sprint 5 — GIS Tab v1: tab/panel dedicato, shortcut Tab/Esc, ranking base
-- [ ] Sprint 6 — Tool 3D (`configure_layer_3d`, `configure_terrain`, `export_3d_scene`), tool raster dedicati, diff stile/layout, rollback GIS strutturato, run history, 20 workflow demo
+- [ ] Sprint 6 — Tool 3D (`configure_layer_3d`, `configure_terrain`, `export_3d_scene`), tool raster dedicati + AI-VKP Blocco A (AI-VKP-1/2/3: metadata banda, riconoscimento prodotto, plausibilità raster), diff stile/layout, rollback GIS strutturato, run history, 20 workflow demo
 - [ ] Sprint 7 — **Report generator v1 (PDF+DOCX, anticipato da Q1 2027)**, schema `.strataflow` v1 (sopra la v0 JSON del dock), save run as workflow da sessione, runner base
 - [ ] Sprint 8 — Auto-update in-app, telemetria opt-in (+ tracing OTel via relay gateway), eval harness agente promptfoo in CI, crash reporting Strata-branded, benchmark baseline, beta 100–300 utenti tecnici
 
 ## Q1 2027 — Fase 5 completa + inizio Fase 6
 
 - [ ] Sprint 9–10 — Parameter editor, export PyQGIS, provenance per output, template report verticali, export Processing model, Composer UI v1
-- [ ] Sprint 11–12 — **Vertical pack Verde urbano** (primo, clienti paganti) + **pack Energia/screening vincoli** (Re5, Pratifly, Refive), dry-run workflow, artifact bundle per run
+- [ ] Sprint 11–12 — **Vertical pack Verde urbano** (primo, clienti paganti) + **pack Energia/screening vincoli** (Re5, Pratifly, Refive), contenuto pack da AI-VKP-5 + deep research opt-in AI-VKP-7/8 (backend **B10**), dry-run workflow, artifact bundle per run
 
 ## Q2 2027 — Fase 6 + inizio Fase 7
 
