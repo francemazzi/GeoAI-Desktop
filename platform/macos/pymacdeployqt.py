@@ -95,6 +95,16 @@ def without_duplicate_rpath_command(
     return [change for change in changes if change != ("-add_rpath", duplicate_path)]
 
 
+def needs_frameworks_rpath(library: Library, changes: list[tuple[str, ...]]) -> bool:
+    """Return whether a binary needs an rpath to resolve bundled frameworks."""
+    if any(dependency.startswith("@rpath/") for dependency in library.dependencies):
+        return True
+    return any(
+        command[0] == "-change" and command[-1].startswith("@rpath/")
+        for command in changes
+    )
+
+
 def is_system_path(path: str) -> bool:
     """Check if the path is a system path that should be excluded."""
     return any(path.startswith(sys_path) for sys_path in SYSTEM_PATHS)
@@ -957,10 +967,15 @@ def deploy_libraries(app_bundle: str, lib_dirs: list[str]) -> None:
             if rpath.startswith("/"):
                 commands[binary].append(("-delete_rpath", rpath))
 
-        # Add proper search path for all executables
+        # Add the Frameworks search path only when this binary resolves an
+        # @rpath dependency. Some Python extension modules have no dynamic
+        # dependencies and no spare load-command header padding, so a no-op
+        # rpath insertion would make install_name_tool fail unnecessarily.
         rel_frameworks_path = calculate_relative_frameworks_path(binary)
         new_path = f"@loader_path/{rel_frameworks_path}"
-        if new_path not in lib_info.rpaths:
+        if needs_frameworks_rpath(lib_info, commands[binary]) and (
+            new_path not in lib_info.rpaths
+        ):
             commands[binary].append(("-add_rpath", new_path))
 
     # Execute install_name_tool commands

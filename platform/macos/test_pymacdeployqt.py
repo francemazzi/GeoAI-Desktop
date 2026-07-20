@@ -231,6 +231,25 @@ class QtRuntimeDiscoveryTest(unittest.TestCase):
             [],
         )
 
+    def test_adds_framework_rpath_only_for_rpath_dependencies(self):
+        no_dependencies = PYMACDEPLOYQT.Library("extension", "extension", [], [])
+        self.assertFalse(PYMACDEPLOYQT.needs_frameworks_rpath(no_dependencies, []))
+
+        direct_rpath_dependency = PYMACDEPLOYQT.Library(
+            "plugin", "plugin", ["@rpath/libQt6Core.dylib"], []
+        )
+        self.assertTrue(
+            PYMACDEPLOYQT.needs_frameworks_rpath(direct_rpath_dependency, [])
+        )
+
+        rewritten_dependency = PYMACDEPLOYQT.Library("plugin", "plugin", [], [])
+        self.assertTrue(
+            PYMACDEPLOYQT.needs_frameworks_rpath(
+                rewritten_dependency,
+                [("-change", "old", "@rpath/libQt6Core.dylib")],
+            )
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
