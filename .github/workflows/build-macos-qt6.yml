@@ -178,10 +178,32 @@ jobs:
                 -D WITH_HANA=ON \
                 || true
 
-                fdupes -q -r -1 build/vcpkg_installed/${{ matrix.triplet }}/lib | grep -E '\.(so|dylib)' | while read line; do master=""; for file in ${line[*]}; do if  [[ "x${master}" == "x" ]]; then master=$file; else rm "${file}"; ln -s $(basename "${master}") "${file}"; fi; done; done
+                VCPKG_LIB_DIR="${PWD}/build/vcpkg_installed/${{ matrix.triplet }}/lib"
+                # Nuget cannot retain symlinks, so restore them for duplicate shared
+                # libraries. Keep Qt's versioned dylibs out of this generic pass:
+                # their install names distinguish the full version from the ABI link.
+                # Collapsing those files in an arbitrary direction makes PyQt load
+                # Qt twice on macOS and abort while generating the QScintilla PAP.
+                fdupes -q -r -1 "${VCPKG_LIB_DIR}" | grep -E '\.(so|dylib)' | grep -v '/libQt6[^/]*\.dylib$' | while read line; do master=""; for file in ${line[*]}; do if [[ "x${master}" == "x" ]]; then master=$file; else rm "${file}"; ln -s "$(basename "${master}")" "${file}"; fi; done; done
 
-                export DYLD_LIBRARY_PATH="${PWD}/build/vcpkg_installed/${{ matrix.triplet }}/lib:${DYLD_LIBRARY_PATH:-}"
-                export DYLD_FALLBACK_LIBRARY_PATH="${PWD}/build/vcpkg_installed/${{ matrix.triplet }}/lib:${DYLD_FALLBACK_LIBRARY_PATH:-}"
+                # Recreate the canonical Qt symlink chain, e.g.
+                # libQt6Core.dylib -> libQt6Core.6.11.1.dylib and
+                # libQt6Core.6.dylib -> libQt6Core.6.11.1.dylib. This makes every
+                # module resolve the same Mach-O image during the build.
+                for qt_full_lib in "${VCPKG_LIB_DIR}"/libQt6*.[0-9]*.[0-9]*.[0-9]*.dylib; do
+                  [[ -f "${qt_full_lib}" ]] || continue
+                  qt_name="$(basename "${qt_full_lib}")"
+                  if [[ "${qt_name}" =~ ^(libQt6.+)\.([0-9]+)\.([0-9]+)\.([0-9]+)\.dylib$ ]]; then
+                    qt_stem="${BASH_REMATCH[1]}"
+                    qt_major="${BASH_REMATCH[2]}"
+                    rm -f "${VCPKG_LIB_DIR}/${qt_stem}.dylib" "${VCPKG_LIB_DIR}/${qt_stem}.${qt_major}.dylib"
+                    ln -s "${qt_name}" "${VCPKG_LIB_DIR}/${qt_stem}.dylib"
+                    ln -s "${qt_name}" "${VCPKG_LIB_DIR}/${qt_stem}.${qt_major}.dylib"
+                  fi
+                done
+
+                export DYLD_LIBRARY_PATH="${VCPKG_LIB_DIR}:${DYLD_LIBRARY_PATH:-}"
+                export DYLD_FALLBACK_LIBRARY_PATH="${VCPKG_LIB_DIR}:${DYLD_FALLBACK_LIBRARY_PATH:-}"
                 cmake -D VCPKG_INSTALL_OPTIONS="" build
 
       - name: 📑 Upload vcpkg build logs
