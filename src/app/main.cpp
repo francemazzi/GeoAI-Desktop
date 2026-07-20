@@ -1594,6 +1594,18 @@ int main( int argc, char *argv[] )
 #endif
 
 #ifdef Q_OS_MACOS
+  if ( !getenv( "OPENSSL_MODULES" ) )
+  {
+    // The macOS bundle ships the OpenSSL provider modules alongside its
+    // Frameworks. Keep provider discovery self-contained instead of falling
+    // back to the build machine's OpenSSL installation.
+    const QString opensslModules = QDir::cleanPath( QCoreApplication::applicationDirPath().append( "/../Resources/openssl-modules" ) );
+    if ( QFile::exists( opensslModules ) )
+    {
+      setenv( "OPENSSL_MODULES", opensslModules.toUtf8(), 1 );
+    }
+  }
+
   if ( !getenv( "GDAL_DRIVER_PATH" ) )
   {
     // If the GDAL plugins are bundled with the application and GDAL_DRIVER_PATH
@@ -1621,15 +1633,6 @@ int main( int argc, char *argv[] )
         setenv( "GDAL_DATA", gdalShare.toUtf8().constData(), 1 );
         break;
       }
-    }
-  }
-
-  // Point PYTHONHOME to embedded interpreter if present in the bundle
-  if ( !getenv( "PYTHONHOME" ) )
-  {
-    if ( QFile::exists( QCoreApplication::applicationDirPath().append( "/bin/python3" ) ) )
-    {
-      setenv( "PYTHONHOME", QCoreApplication::applicationDirPath().toUtf8().constData(), 1 );
     }
   }
 

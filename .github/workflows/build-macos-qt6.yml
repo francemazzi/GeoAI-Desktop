@@ -54,6 +54,9 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: 🧪 Test macOS bundle packager
+        run: python3 platform/macos/test_pymacdeployqt.py
+
       - name: 🐩 Install CMake and Ninja
         uses: lukka/get-cmake@591817e96fcad43505fb4eae36172462abb3a42e # latest
         with:

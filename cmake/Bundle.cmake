@@ -6,6 +6,35 @@ add_custom_target(bundle
                   COMMENT "Running CPACK. Please wait..."
                   DEPENDS qgis)
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND QGIS_MAC_BUNDLE AND WITH_BINDINGS)
+  # vcpkg deliberately does not install pg_config or gdal-config. The Python
+  # bootstrap receives this prefix to create build-only shims from the same
+  # include and library directories used by the desktop build.
+  set(STRATA_PYTHON_RUNTIME_PREFIX "")
+  if(WITH_VCPKG AND DEFINED TARGET_SYSROOT)
+    set(STRATA_PYTHON_RUNTIME_PREFIX "${TARGET_SYSROOT}")
+  endif()
+  # Python GDAL bindings must have exactly the same release as the native
+  # library selected by CMake. Passing it through avoids a stale package pin
+  # when the vcpkg baseline changes GDAL.
+  set(STRATA_PYTHON_RUNTIME_GDAL_VERSION "${GDAL_VERSION}")
+
+  add_custom_target(strata_python_runtime_deps
+                    COMMAND ${CMAKE_COMMAND} -E env
+                      "STRATA_BUILD_DIR=${CMAKE_BINARY_DIR}"
+                      "STRATA_PYTHON_EXECUTABLE=${Python_EXECUTABLE}"
+                      "STRATA_RUNTIME_PREFIX=${STRATA_PYTHON_RUNTIME_PREFIX}"
+                      "STRATA_GDAL_VERSION=${STRATA_PYTHON_RUNTIME_GDAL_VERSION}"
+                      /bin/bash "${CMAKE_SOURCE_DIR}/scripts/bootstrap-strata-python-deps.sh"
+                    COMMENT "Preparing bundled Strata Python runtime dependencies"
+                    DEPENDS qgis)
+  add_dependencies(bundle strata_python_runtime_deps)
+
+  if(TARGET test_app_qgisapppython)
+    add_dependencies(test_app_qgisapppython strata_python_runtime_deps)
+  endif()
+endif()
+
 if(WIN32 AND NOT UNIX)
   set (CREATE_NSIS FALSE CACHE BOOL "Create an installer using NSIS")
 endif()

@@ -1150,12 +1150,6 @@ void QgsAiModelRouter::loadPersistedProviderSettings()
     if ( !endpoint.isEmpty() )
       providerSettings.endpoint = endpoint;
 
-    // Migrate away from the historical example.invalid placeholder so fresh
-    // and previously-unconfigured profiles can log in without touching the
-    // Advanced endpoint field.
-    if ( provider == Provider::Plan && providerSettings.endpoint.contains( "example.invalid"_L1, Qt::CaseInsensitive ) )
-      providerSettings.endpoint = defaultPlanEndpoint();
-
     const QString model = settings.value( modelSettingKey( provider ), providerSettings.model ).toString().trimmed();
     if ( !model.isEmpty() )
       providerSettings.model = normalizedModelForProvider( provider, model );
@@ -1198,11 +1192,15 @@ void QgsAiModelRouter::loadPersistedProviderSettings()
       providerSettings.authConfigId = settings.value( planAuthConfigIdSettingKey(), providerSettings.authConfigId ).toString().trimmed();
       providerSettings.enabled = settings.value( enabledSettingKey( provider ), !providerSettings.authConfigId.isEmpty() ).toBool();
 
-      // Dev launchers (run-strata-dev.sh / run-strata-prod.sh) pin the backend
-      // for this process without touching persisted QSettings.
+      const QString persistedEndpoint = providerSettings.endpoint;
+      providerSettings.endpoint = resolvedPlanEndpoint( persistedEndpoint );
+
+      // Dev launchers pin the backend for this process via STRATA_PLAN_ENDPOINT.
+      // Release builds always land on production; scrub stale localhost/example.invalid
+      // from QSettings so the next session does not inherit a dead dev endpoint.
       const QString envEndpoint = QString::fromUtf8( qgetenv( "STRATA_PLAN_ENDPOINT" ) ).trimmed();
-      if ( !envEndpoint.isEmpty() )
-        providerSettings.endpoint = envEndpoint;
+      if ( envEndpoint.isEmpty() && providerSettings.endpoint != persistedEndpoint )
+        settings.setValue( endpointSettingKey( provider ), providerSettings.endpoint );
     }
     else if ( provider == Provider::OpenAi || provider == Provider::OpenRouter )
     {
@@ -2422,6 +2420,19 @@ QString QgsAiModelRouter::defaultPlanEndpoint()
   // Production Cloud Run backend (strata-be, europe-west1). Local dev overrides
   // via STRATA_PLAN_ENDPOINT or run-strata-dev.sh.
   return u"https://strata-be-372580174147.europe-west1.run.app/ai/messages"_s;
+}
+
+QString QgsAiModelRouter::resolvedPlanEndpoint( const QString &persistedEndpoint )
+{
+  const QString envEndpoint = QString::fromUtf8( qgetenv( "STRATA_PLAN_ENDPOINT" ) ).trimmed();
+  if ( !envEndpoint.isEmpty() )
+    return envEndpoint;
+
+  const QString trimmed = persistedEndpoint.trimmed();
+  if ( trimmed.isEmpty() || trimmed.contains( u"example.invalid"_s, Qt::CaseInsensitive ) || trimmed.contains( u"localhost"_s, Qt::CaseInsensitive ) || trimmed.contains( u"127.0.0.1"_s ) )
+    return defaultPlanEndpoint();
+
+  return trimmed;
 }
 
 bool QgsAiModelRouter::isUsablePlanEndpoint( const QString &endpoint )

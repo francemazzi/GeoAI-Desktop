@@ -23,6 +23,7 @@
 #include <QFileInfo>
 #include <QMutexLocker>
 #include <QObject>
+#include <QPluginLoader>
 #include <QRandomGenerator>
 #include <QRegularExpression>
 #include <QSet>
@@ -40,6 +41,7 @@ using namespace Qt::StringLiterals;
 
 #ifdef HAVE_AUTH
 #include <QtCrypto>
+#include <qcaprovider.h>
 #endif
 
 #ifndef QT_NO_SSL
@@ -77,6 +79,49 @@ const QString QgsAuthManager::AUTH_CFG_REGEX = u"authcfg=([a-z]|[A-Z]|[0-9]){7}"
 
 const QLatin1String QgsAuthManager::AUTH_PASSWORD_HELPER_KEY_NAME_BASE( "QGIS-Master-Password" );
 const QLatin1String QgsAuthManager::AUTH_PASSWORD_HELPER_FOLDER_NAME( "QGIS" );
+
+#if defined( HAVE_AUTH ) && defined( QGIS_MAC_BUNDLE )
+namespace
+{
+  bool registerBundledQcaOsslProvider()
+  {
+    const QString providerPath = QDir::cleanPath( QCoreApplication::applicationDirPath() + u"/../PlugIns/crypto/libqca-ossl.dylib"_s );
+    if ( !QFile::exists( providerPath ) )
+    {
+      QgsDebugError( u"Bundled QCA OpenSSL provider was not found: %1"_s.arg( providerPath ) );
+      return false;
+    }
+
+    // QCA owns only the Provider. The plugin object has to remain loaded for
+    // the complete process lifetime, otherwise the provider's vtable becomes
+    // invalid during authentication teardown.
+    auto *loader = new QPluginLoader( providerPath );
+    loader->setLoadHints( QLibrary::PreventUnloadHint );
+    if ( !loader->load() )
+    {
+      QgsDebugError( u"Could not load bundled QCA OpenSSL provider: %1"_s.arg( loader->errorString() ) );
+      return false;
+    }
+
+    auto *plugin = qobject_cast< QCAPlugin * >( loader->instance() );
+    if ( !plugin )
+    {
+      QgsDebugError( u"Bundled QCA OpenSSL provider does not implement QCAPlugin"_s );
+      return false;
+    }
+
+    QCA::Provider *provider = plugin->createProvider();
+    if ( !provider || !QCA::insertProvider( provider, 0 ) )
+    {
+      delete provider;
+      QgsDebugError( u"Could not register bundled QCA OpenSSL provider"_s );
+      return false;
+    }
+
+    return true;
+  }
+} // namespace
+#endif
 
 const QgsSettingsEntryBool *QgsAuthManager::settingsGenerateRandomPasswordForPasswordHelper
   = new QgsSettingsEntryBool( u"generate-random-password-for-keychain"_s, QgsSettingsTree::sTreeAuthentication, true, u"Whether a random password should be automatically generated for the authentication database and stored in the system keychain."_s );
@@ -269,10 +314,30 @@ bool QgsAuthManager::initPrivate( const QString &pluginPath )
   mAuthInit = true;
   QgsScopedRuntimeProfile profile( tr( "Initializing authentication manager" ) );
 
+#if defined( QGIS_MAC_BUNDLE )
+  const QString bundledQcaOsslProvider = QDir::cleanPath( QCoreApplication::applicationDirPath() + u"/../PlugIns/crypto/libqca-ossl.dylib"_s );
+  const bool useBundledQcaProvider = qEnvironmentVariableIsEmpty( "QCA_NO_PLUGINS" ) && QFile::exists( bundledQcaOsslProvider );
+  if ( useBundledQcaProvider )
+  {
+    // Homebrew QCA appends its build-time plugin directory to every scan.
+    // That can load a second Qt from a developer machine even when the app
+    // bundle has its own relocated provider. Register the bundled OpenSSL
+    // provider explicitly instead.
+    qputenv( "QCA_NO_PLUGINS", "1" );
+  }
+#endif
+
   QgsDebugMsgLevel( u"Initializing QCA..."_s, 2 );
   mQcaInitializer = std::make_unique<QCA::Initializer>( QCA::Practical, 256 );
 
   QgsDebugMsgLevel( u"QCA initialized."_s, 2 );
+#if defined( QGIS_MAC_BUNDLE )
+  if ( useBundledQcaProvider )
+  {
+    if ( !registerBundledQcaOsslProvider() )
+      QgsDebugError( u"Authentication will be disabled because the bundled QCA provider could not be registered"_s );
+  }
+#endif
   QCA::scanForPlugins();
 
   QgsDebugMsgLevel( u"QCA Plugin Diagnostics Context: %1"_s.arg( QCA::pluginDiagnosticText() ), 2 );

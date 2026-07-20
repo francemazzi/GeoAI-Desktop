@@ -44,6 +44,7 @@ class TestQgisAppPython : public QObject
     void cleanup() {}       // will be called after every testfunction.
 
     void hasPython();
+    void standardLibraryImports();
     void plugins();
     void pythonPlugin();
     void pluginMetadata();
@@ -62,6 +63,7 @@ TestQgisAppPython::TestQgisAppPython() = default;
 //runs before all tests
 void TestQgisAppPython::initTestCase()
 {
+  qputenv( "PYTHONNOUSERSITE", "1" );
   const QByteArray pluginPath = QByteArray( TEST_DATA_DIR ) + "/test_plugin_path";
   qputenv( "QGIS_PLUGINPATH", pluginPath );
 
@@ -83,6 +85,12 @@ void TestQgisAppPython::cleanupTestCase()
 void TestQgisAppPython::hasPython()
 {
   QVERIFY( mQgisApp->mPythonUtils->isEnabled() );
+}
+
+void TestQgisAppPython::standardLibraryImports()
+{
+  QVERIFY( mQgisApp->mPythonUtils->isEnabled() );
+  QVERIFY( mQgisApp->mPythonUtils->runString( u"import traceback; import os; import pathlib; import packaging; import jinja2; import markupsafe; import psycopg2; from osgeo import gdal, ogr, osr"_s ) );
 }
 
 void TestQgisAppPython::plugins()
