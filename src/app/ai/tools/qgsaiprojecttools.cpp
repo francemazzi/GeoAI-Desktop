@@ -74,7 +74,7 @@ namespace
     return token;
   }
 
-  QJsonObject rollbackJson( const QString &token, const QString &action )
+  QJsonObject projectRollbackJson( const QString &token, const QString &action )
   {
     QJsonObject rollback;
     rollback.insert( u"token"_s, token );
@@ -525,7 +525,7 @@ QgsAiToolResult QgsAiManageProjectTool::execute( const QJsonObject &args )
     QJsonObject output = projectSummary( project );
     output.insert( u"status"_s, u"saved"_s );
     output.insert( u"rollback_token"_s, token );
-    output.insert( u"rollback"_s, rollbackJson( token, name() ) );
+    output.insert( u"rollback"_s, projectRollbackJson( token, name() ) );
     output.insert( u"diff"_s, diff );
     return QgsAiToolResult::ok( output );
   }
@@ -557,7 +557,7 @@ QgsAiToolResult QgsAiManageProjectTool::execute( const QJsonObject &args )
     QJsonObject output = projectSummary( project );
     output.insert( u"status"_s, u"updated"_s );
     output.insert( u"rollback_token"_s, token );
-    output.insert( u"rollback"_s, rollbackJson( token, name() ) );
+    output.insert( u"rollback"_s, projectRollbackJson( token, name() ) );
     output.insert( u"diff"_s, diff );
     return QgsAiToolResult::ok( output );
   }
@@ -603,7 +603,7 @@ QgsAiToolResult QgsAiManageProjectTool::execute( const QJsonObject &args )
     QJsonObject output = projectSummary( project );
     output.insert( u"status"_s, u"updated"_s );
     output.insert( u"rollback_token"_s, token );
-    output.insert( u"rollback"_s, rollbackJson( token, name() ) );
+    output.insert( u"rollback"_s, projectRollbackJson( token, name() ) );
     output.insert( u"diff"_s, diff );
     return QgsAiToolResult::ok( output );
   }
