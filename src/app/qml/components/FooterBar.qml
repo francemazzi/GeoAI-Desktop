@@ -8,8 +8,8 @@ Rectangle {
   signal issueTrackerClicked
 
   readonly property bool compactLayout: width < 640
-  
-  implicitHeight: compactLayout ? 88 : 60
+
+  implicitHeight: Math.max(compactLayout ? 88 : 60, footerText.contentHeight + 10)
   color: "transparent"
   clip: true
 
@@ -20,6 +20,7 @@ Rectangle {
     rowSpacing: 8
 
     Text {
+      id: footerText
       text: qsTr("Strata combines QGIS-based GIS tools with native AI assistance. Report bugs and feature requests in the Strata issue tracker.")
       Layout.fillWidth: true
       Layout.alignment: Qt.AlignVCenter

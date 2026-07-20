@@ -676,6 +676,7 @@ set(QGIS_GUI_SRCS
   qgsfocuswatcher.cpp
   qgsformlabelformatwidget.cpp
   qgsfontbutton.cpp
+  qgsfontcombobox.cpp
   qgsformannotation.cpp
   qgsgeocoderlocatorfilter.cpp
   qgsgeometryrubberband.cpp
@@ -949,6 +950,7 @@ set(QGIS_GUI_HDRS
   qgsfocuskeeper.h
   qgsfocuswatcher.h
   qgsfontbutton.h
+  qgsfontcombobox.h
   qgsformannotation.h
   qgsformlabelformatwidget.h
   qgsgeocoderlocatorfilter.h
@@ -2054,8 +2056,9 @@ if (WITH_QTWEBENGINE)
 endif()
 
 if (WITH_QTGAMEPAD)
+    # QtGamepadLegacy from https://github.com/pumphaus/qtgamepadlegacy must be used for Qt6 builds
     target_link_libraries(qgis_gui
-      Qt::Gamepad
+      Qt::GamepadLegacy
     )
 endif()
 

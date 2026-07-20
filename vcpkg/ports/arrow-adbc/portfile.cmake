@@ -2,34 +2,21 @@ vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO apache/arrow-adbc
     REF apache-arrow-adbc-${VERSION}
-    SHA512 5d4610ae2efa503347e2db8b216b8e5149091edb8752b73c871288b549cba8254d927dc0a0ccd7eb1f55075a126fc11d29128cf7ba22e51b9f6d4c7b33047466
+    SHA512 48f3e5663ae59d3910f0e545f0bad68778151017e7a67804143832a5812126ff5796db18e9584be75dcedae751f294f13457600964bb84c1038f65eb285c2d05
     HEAD_REF main
+    PATCHES
+        # Status is move-only (holds a std::unique_ptr); newer libc++ (Xcode 26)
+        # eagerly instantiates a copy at some use site and the build fails with
+        # "copy constructor of 'Status' is implicitly deleted". Make Status
+        # copyable (deep-copying the error detail) while keeping moves cheap.
+        fix-status-copy.patch
+        # fmt 11+ moved fmt::vformat() out of <fmt/core.h> into <fmt/format.h>;
+        # include the right header so the (de-vendored) vcpkg fmt builds.
+        fix-fmt-include.patch
 )
 file(REMOVE_RECURSE "${SOURCE_PATH}/c/vendor/fmt")
 file(REMOVE_RECURSE "${SOURCE_PATH}/c/vendor/nanoarrow")
 
-# arrow-adbc 22 does not build with the Xcode 26/macOS 15 Intel image used by
-# CI. Keep the upstream version pinned and apply the minimal source fix locally.
-vcpkg_replace_string(
-    "${SOURCE_PATH}/c/driver/framework/status.h"
-    "    assert(code != ADBC_STATUS_OK);\n  }\n\n  /// \\brief Check if this is an error or not."
-    "    assert(code != ADBC_STATUS_OK);\n  }\n  Status(Status&&) noexcept = default;\n  Status& operator=(Status&&) noexcept = default;\n  Status(const Status&) = delete;\n  Status& operator=(const Status&) = delete;\n\n  /// \\brief Check if this is an error or not."
-)
-vcpkg_replace_string(
-    "${SOURCE_PATH}/c/driver/framework/status.h"
-    "#include <fmt/core.h>\n#endif"
-    "#include <fmt/core.h>\n#include <fmt/format.h>\n#endif"
-)
-vcpkg_replace_string(
-    "${SOURCE_PATH}/c/driver/postgresql/error.h"
-    "#include <vector>\n\n#include <arrow-adbc/adbc.h>"
-    "#include <vector>\n#include <utility>\n\n#include <arrow-adbc/adbc.h>"
-)
-vcpkg_replace_string(
-    "${SOURCE_PATH}/c/driver/postgresql/error.h"
-    "#include <fmt/core.h>\n\n#include \"driver/framework/status.h\""
-    "#include <fmt/core.h>\n#include <fmt/format.h>\n\n#include \"driver/framework/status.h\""
-)
 vcpkg_check_features(OUT_FEATURE_OPTIONS FEATURE_OPTIONS
     FEATURES
         "sqlite" "ADBC_DRIVER_SQLITE"

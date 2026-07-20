@@ -718,62 +718,65 @@ bool QgsMapBoxGlStyleConverter::parseLineLayer( const QVariantMap &jsonLayer, Qg
       {
         const QVariantList dashSource = jsonLineDashArray.toList();
 
-        if ( dashSource.at( 0 ).userType() == QMetaType::Type::QString )
+        if ( !dashSource.empty() )
         {
-          QgsProperty property = parseValueList( dashSource, PropertyType::DashArray, context, 1, 255, nullptr, nullptr );
-          if ( !lineWidthProperty.asExpression().isEmpty() )
+          if ( dashSource.at( 0 ).userType() == QMetaType::Type::QString )
           {
-            property = QgsProperty::fromExpression(
-              u"array_to_string(array_foreach(%1,@element * (%2)), ';')"_s // skip-keyword-check
-                .arg( property.asExpression(), lineWidthProperty.asExpression() )
-            );
+            QgsProperty property = parseValueList( dashSource, PropertyType::DashArray, context, 1, 255, nullptr, nullptr );
+            if ( !lineWidthProperty.asExpression().isEmpty() )
+            {
+              property = QgsProperty::fromExpression(
+                u"array_to_string(array_foreach(%1,@element * (%2)), ';')"_s // skip-keyword-check
+                  .arg( property.asExpression(), lineWidthProperty.asExpression() )
+              );
+            }
+            else
+            {
+              property = QgsProperty::fromExpression( u"array_to_string(%1, ';')"_s.arg( property.asExpression() ) );
+            }
+            ddProperties.setProperty( QgsSymbolLayer::Property::CustomDash, property );
           }
           else
           {
-            property = QgsProperty::fromExpression( u"array_to_string(%1, ';')"_s.arg( property.asExpression() ) );
-          }
-          ddProperties.setProperty( QgsSymbolLayer::Property::CustomDash, property );
-        }
-        else
-        {
-          QVector< double > rawDashVectorSizes;
-          rawDashVectorSizes.reserve( dashSource.size() );
-          for ( const QVariant &v : dashSource )
-          {
-            rawDashVectorSizes << v.toDouble();
-          }
-
-          // handle non-compliant dash vector patterns
-          if ( rawDashVectorSizes.size() == 1 )
-          {
-            // match behavior of MapBox style rendering -- if a user makes a line dash array with one element, it's ignored
-            rawDashVectorSizes.clear();
-          }
-          else if ( rawDashVectorSizes.size() % 2 == 1 )
-          {
-            // odd number of dash pattern sizes -- this isn't permitted by Qt/QGIS, but isn't explicitly blocked by the MapBox specs
-            // MapBox seems to implicitly add a 0 length gap to the array if odd length.
-            rawDashVectorSizes.append( 0 );
-          }
-
-          if ( !rawDashVectorSizes.isEmpty() && ( !lineWidthProperty.asExpression().isEmpty() ) )
-          {
-            QStringList dashArrayStringParts;
-            dashArrayStringParts.reserve( rawDashVectorSizes.size() );
-            for ( double v : std::as_const( rawDashVectorSizes ) )
+            QVector< double > rawDashVectorSizes;
+            rawDashVectorSizes.reserve( dashSource.size() );
+            for ( const QVariant &v : dashSource )
             {
-              dashArrayStringParts << qgsDoubleToString( v );
+              rawDashVectorSizes << v.toDouble();
             }
 
-            QString arrayExpression = u"array_to_string(array_foreach(array(%1),@element * (%2)), ';')"_s // skip-keyword-check
-                                        .arg( dashArrayStringParts.join( ',' ), lineWidthProperty.asExpression() );
-            ddProperties.setProperty( QgsSymbolLayer::Property::CustomDash, QgsProperty::fromExpression( arrayExpression ) );
-          }
+            // handle non-compliant dash vector patterns
+            if ( rawDashVectorSizes.size() == 1 )
+            {
+              // match behavior of MapBox style rendering -- if a user makes a line dash array with one element, it's ignored
+              rawDashVectorSizes.clear();
+            }
+            else if ( rawDashVectorSizes.size() % 2 == 1 )
+            {
+              // odd number of dash pattern sizes -- this isn't permitted by Qt/QGIS, but isn't explicitly blocked by the MapBox specs
+              // MapBox seems to implicitly add a 0 length gap to the array if odd length.
+              rawDashVectorSizes.append( 0 );
+            }
 
-          // dash vector sizes for QGIS symbols must be multiplied by the target line width
-          for ( double v : std::as_const( rawDashVectorSizes ) )
-          {
-            dashVector << v * lineWidth;
+            if ( !rawDashVectorSizes.isEmpty() && ( !lineWidthProperty.asExpression().isEmpty() ) )
+            {
+              QStringList dashArrayStringParts;
+              dashArrayStringParts.reserve( rawDashVectorSizes.size() );
+              for ( double v : std::as_const( rawDashVectorSizes ) )
+              {
+                dashArrayStringParts << qgsDoubleToString( v );
+              }
+
+              QString arrayExpression = u"array_to_string(array_foreach(array(%1),@element * (%2)), ';')"_s // skip-keyword-check
+                                          .arg( dashArrayStringParts.join( ',' ), lineWidthProperty.asExpression() );
+              ddProperties.setProperty( QgsSymbolLayer::Property::CustomDash, QgsProperty::fromExpression( arrayExpression ) );
+            }
+
+            // dash vector sizes for QGIS symbols must be multiplied by the target line width
+            for ( double v : std::as_const( rawDashVectorSizes ) )
+            {
+              dashVector << v * lineWidth;
+            }
           }
         }
         break;
@@ -4018,7 +4021,11 @@ QImage QgsMapBoxGlStyleConverter::retrieveSprite( const QString &name, QgsMapBox
 
   if ( category.isEmpty() )
   {
-    spriteImage = context.spriteImage();
+    // Images referenced without a category prefix belong to the sprite source with
+    // the id "default" (if present), otherwise the single unnamed sprite sheet.
+    if ( context.spriteCategories().contains( "default"_L1 ) )
+      category = u"default"_s;
+    spriteImage = context.spriteImage( category );
   }
 
   if ( spriteImage.isNull() )
@@ -4224,35 +4231,60 @@ QString QgsMapBoxGlStyleConverter::retrieveSpriteAsBase64WithProperties(
               break;
           }
 
-          const QImage sprite = retrieveSprite( matchValue.toString(), context, spriteSize );
-          spritePath = prepareBase64( sprite );
+          QString valuePathExpression;
+          QString valueSizeExpression;
+          if ( matchValue.userType() == QMetaType::Type::QVariantList || matchValue.userType() == QMetaType::Type::QStringList )
+          {
+            // nested expression (e.g. a nested "match"/"step"/"case") -- resolve recursively
+            QSize nestedSize;
+            QString nestedProperty;
+            QString nestedSizeProperty;
+            const QString nestedPath = retrieveSpriteAsBase64WithProperties( matchValue, context, nestedSize, nestedProperty, nestedSizeProperty );
+            valuePathExpression = nestedProperty.isEmpty() ? u"'%1'"_s.arg( nestedPath ) : nestedProperty;
+            valueSizeExpression = nestedSizeProperty.isEmpty() ? QString::number( nestedSize.width() ) : nestedSizeProperty;
+            spritePath = nestedPath;
+            spriteSize = nestedSize;
+          }
+          else
+          {
+            const QImage sprite = retrieveSprite( matchValue.toString(), context, spriteSize );
+            spritePath = prepareBase64( sprite );
+            valuePathExpression = u"'%1'"_s.arg( spritePath );
+            valueSizeExpression = QString::number( spriteSize.width() );
+          }
 
-          spriteProperty += QStringLiteral(
-                              " WHEN %1 IN (%2) "
-                              "THEN '%3'"
-          )
-                              .arg( attribute, matchString, spritePath );
-
-          spriteSizeProperty += QStringLiteral(
-                                  " WHEN %1 IN (%2) "
-                                  "THEN %3"
-          )
-                                  .arg( attribute, matchString )
-                                  .arg( spriteSize.width() );
+          spriteProperty += u" WHEN %1 IN (%2) THEN %3"_s.arg( attribute, matchString, valuePathExpression );
+          spriteSizeProperty += u" WHEN %1 IN (%2) THEN %3"_s.arg( attribute, matchString, valueSizeExpression );
         }
 
-        if ( !json.constLast().toString().isEmpty() )
+        const QVariant defaultValue = json.constLast();
+        if ( defaultValue.userType() == QMetaType::Type::QVariantList || defaultValue.userType() == QMetaType::Type::QStringList )
         {
-          const QImage sprite = retrieveSprite( json.constLast().toString(), context, spriteSize );
-          spritePath = prepareBase64( sprite );
+          // default is a nested expression (e.g. a nested "match"/"step"/"case") -- resolve recursively
+          QSize nestedSize;
+          QString nestedProperty;
+          QString nestedSizeProperty;
+          const QString nestedPath = retrieveSpriteAsBase64WithProperties( defaultValue, context, nestedSize, nestedProperty, nestedSizeProperty );
+          spriteProperty += u" ELSE %1 END"_s.arg( nestedProperty.isEmpty() ? u"'%1'"_s.arg( nestedPath ) : nestedProperty );
+          spriteSizeProperty += u" ELSE %1 END"_s.arg( nestedSizeProperty.isEmpty() ? QString::number( nestedSize.width() ) : nestedSizeProperty );
+          spritePath = nestedPath;
+          spriteSize = nestedSize;
         }
         else
         {
-          spritePath = QString();
-        }
+          if ( !defaultValue.toString().isEmpty() )
+          {
+            const QImage sprite = retrieveSprite( defaultValue.toString(), context, spriteSize );
+            spritePath = prepareBase64( sprite );
+          }
+          else
+          {
+            spritePath = QString();
+          }
 
-        spriteProperty += u" ELSE '%1' END"_s.arg( spritePath );
-        spriteSizeProperty += u" ELSE %3 END"_s.arg( spriteSize.width() );
+          spriteProperty += u" ELSE '%1' END"_s.arg( spritePath );
+          spriteSizeProperty += u" ELSE %3 END"_s.arg( spriteSize.width() );
+        }
         break;
       }
       else if ( method == "step"_L1 )
