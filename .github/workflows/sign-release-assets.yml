@@ -116,8 +116,8 @@ jobs:
 
             pending=0
             for spec in '\.AppImage$' '\.dmg$' '\.exe$' '-win64\.zip$'; do
-              status="$(asset_needs_signature "${assets}" "${spec}")"
-              echo "${status}"
+            status="$(asset_needs_signature "${assets}" "${spec}" || true)"
+            echo "${status}"
               case "${status}" in
                 missing:*|unsigned:*) pending=1 ;;
               esac
