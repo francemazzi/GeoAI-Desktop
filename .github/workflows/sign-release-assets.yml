@@ -157,7 +157,7 @@ jobs:
 
           pick_first() {
             local pattern="$1"
-            find release-assets -maxdepth 1 -type f -printf '%f\n' | sort | grep -E "${pattern}" | grep -Ev '\.(sha256|sigstore\.json)$' | head -1 || true
+            find release-assets -maxdepth 1 -type f -printf '%f\n' | sort | grep -E -- "${pattern}" | grep -Ev -- '\.(sha256|sigstore\.json)$' | head -1 || true
           }
 
           needs_signature() {
