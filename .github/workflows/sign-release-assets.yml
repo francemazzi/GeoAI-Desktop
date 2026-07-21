@@ -9,6 +9,8 @@ on:
   workflow_run:
     workflows:
       - '🍎 Build - MacOS Qt6'
+      - '🪟 Windows Qt6'
+      - '🐧 Build AppImage (Linux)'
     types:
       - completed
   workflow_dispatch:
@@ -21,6 +23,10 @@ on:
 permissions:
   contents: write
   id-token: write
+
+concurrency:
+  group: sign-release-assets
+  cancel-in-progress: false
 
 jobs:
   sign-release-assets:
@@ -47,12 +53,16 @@ jobs:
               if [[ "${HEAD_BRANCH}" == strata-v* ]]; then
                 TAG="${HEAD_BRANCH}"
               else
-                echo "Skipping signing for non-release workflow run (${HEAD_BRANCH})."
-                echo "skip=true" >> "$GITHUB_OUTPUT"
-                exit 0
+                TAG=$(gh release list --repo "${GITHUB_REPOSITORY}" --limit 1 --json tagName,isDraft --jq '.[] | select(.isDraft == false) | .tagName' | head -1)
+                if [ -z "${TAG}" ]; then
+                  echo "No published release found to sign after workflow run on ${HEAD_BRANCH}."
+                  echo "skip=true" >> "$GITHUB_OUTPUT"
+                  exit 0
+                fi
+                echo "Build finished on ${HEAD_BRANCH}; signing latest release ${TAG}."
               fi
             else
-              TAG=$(gh release list --repo "${GITHUB_REPOSITORY}" --limit 1 --json tagName --jq '.[0].tagName')
+              TAG=$(gh release list --repo "${GITHUB_REPOSITORY}" --limit 1 --json tagName,isDraft --jq '.[] | select(.isDraft == false) | .tagName' | head -1)
             fi
           fi
 
@@ -67,35 +77,62 @@ jobs:
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
           echo "Resolved release tag: ${TAG}"
 
-      - name: Wait for required release binaries
+      - name: Wait for unsigned release binaries
         if: steps.resolve-tag.outputs.skip != 'true'
         shell: bash
         run: |
           set -euo pipefail
 
           TAG="${{ steps.resolve-tag.outputs.tag }}"
+
+          asset_needs_signature() {
+            local assets="$1"
+            local pattern="$2"
+            local base=""
+
+            while IFS= read -r asset; do
+              [ -n "${asset}" ] || continue
+              if [[ "${asset}" =~ ${pattern} ]]; then
+                base="${asset}"
+                break
+              fi
+            done <<< "${assets}"
+
+            if [ -z "${base}" ]; then
+              echo "missing:${pattern}"
+              return 0
+            fi
+            if grep -qx "${base}.sigstore.json" <<< "${assets}"; then
+              echo "signed:${base}"
+              return 1
+            fi
+            echo "unsigned:${base}"
+            return 0
+          }
+
           for attempt in $(seq 1 120); do
-            mapfile -t assets < <(gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" --json assets --jq '.assets[].name')
-            has_appimage=0
-            has_dmg=0
-            has_exe=0
-            has_zip=0
-            for asset in "${assets[@]}"; do
-              case "${asset}" in
-                *.AppImage) has_appimage=1 ;;
-                *.dmg) has_dmg=1 ;;
-                *.exe) has_exe=1 ;;
-                *-win64.zip) has_zip=1 ;;
+            mapfile -t asset_lines < <(gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" --json assets --jq '.assets[].name')
+            assets="$(printf '%s\n' "${asset_lines[@]}")"
+
+            pending=0
+            for spec in '\.AppImage$' '\.dmg$' '\.exe$' '-win64\.zip$'; do
+              status="$(asset_needs_signature "${assets}" "${spec}")"
+              echo "${status}"
+              case "${status}" in
+                missing:*|unsigned:*) pending=1 ;;
               esac
             done
-            if [ "${has_appimage}" -eq 1 ] && [ "${has_dmg}" -eq 1 ] && [ "${has_exe}" -eq 1 ] && [ "${has_zip}" -eq 1 ]; then
-              echo "All required release binaries are present."
+
+            if [ "${pending}" -eq 0 ]; then
+              echo "All required release binaries are present and signed."
               exit 0
             fi
-            echo "Attempt ${attempt}/120: waiting for release binaries (appimage=${has_appimage}, dmg=${has_dmg}, exe=${has_exe}, zip=${has_zip})"
+
+            echo "Attempt ${attempt}/120: waiting for unsigned or missing release binaries on ${TAG}"
             sleep 300
           done
-          echo "::error::Timed out waiting for release binaries on ${TAG}"
+
+          echo "::error::Timed out waiting for unsigned release binaries on ${TAG}"
           exit 1
 
       - name: Validate release tag
@@ -107,49 +144,12 @@ jobs:
           gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null
           echo "TAG=${TAG}" >> "$GITHUB_ENV"
 
-      - name: Skip when signatures already exist
-        if: steps.resolve-tag.outputs.skip != 'true' && github.event_name == 'push' && startsWith(github.ref, 'refs/heads/')
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          TAG="${{ steps.resolve-tag.outputs.tag }}"
-          mapfile -t assets < <(gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" --json assets --jq '.assets[].name')
-          missing=0
-          for required in "*.AppImage" "*.dmg" "*.exe" "*-win64.zip"; do
-            case "${required}" in
-              *.AppImage) pattern='\.AppImage$' ;;
-              *.dmg) pattern='\.dmg$' ;;
-              *.exe) pattern='\.exe$' ;;
-              *-win64.zip) pattern='-win64\.zip$' ;;
-            esac
-            base=""
-            for asset in "${assets[@]}"; do
-              if [[ "${asset}" =~ ${pattern} ]]; then
-                base="${asset}"
-                break
-              fi
-            done
-            if [ -z "${base}" ]; then
-              missing=1
-              break
-            fi
-            if ! printf '%s\n' "${assets[@]}" | grep -qx "${base}.sigstore.json"; then
-              missing=1
-              break
-            fi
-          done
-          if [ "${missing}" -eq 0 ]; then
-            echo "All required sigstore bundles already exist for ${TAG}."
-            echo "SKIP_SIGNING=true" >> "$GITHUB_ENV"
-          fi
-
       - name: Install cosign
-        if: steps.resolve-tag.outputs.skip != 'true' && env.SKIP_SIGNING != 'true'
+        if: steps.resolve-tag.outputs.skip != 'true'
         uses: sigstore/cosign-installer@v3.9.2
 
       - name: Download release assets
-        if: steps.resolve-tag.outputs.skip != 'true' && env.SKIP_SIGNING != 'true'
+        if: steps.resolve-tag.outputs.skip != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -163,38 +163,42 @@ jobs:
           find release-assets -maxdepth 1 -type f -print | sort
 
       - name: Sign and verify release assets
-        if: steps.resolve-tag.outputs.skip != 'true' && env.SKIP_SIGNING != 'true'
+        if: steps.resolve-tag.outputs.skip != 'true'
         shell: bash
         run: |
           set -euo pipefail
 
-          mapfile -t appimages < <(find release-assets -maxdepth 1 -type f -name '*.AppImage' | sort)
-          mapfile -t dmgs < <(find release-assets -maxdepth 1 -type f -name '*.dmg' | sort)
-          mapfile -t exes < <(find release-assets -maxdepth 1 -type f -name '*.exe' | sort)
-          mapfile -t zips < <(find release-assets -maxdepth 1 -type f -name '*-win64.zip' | sort)
+          mapfile -t release_assets < <(gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" --json assets --jq '.assets[].name')
 
-          missing=0
-          if [ "${#appimages[@]}" -eq 0 ]; then
-            echo "::error::Missing Linux AppImage asset"
-            missing=1
-          fi
-          if [ "${#dmgs[@]}" -eq 0 ]; then
-            echo "::error::Missing macOS DMG asset"
-            missing=1
-          fi
-          if [ "${#exes[@]}" -eq 0 ]; then
-            echo "::error::Missing Windows installer EXE asset"
-            missing=1
-          fi
-          if [ "${#zips[@]}" -eq 0 ]; then
-            echo "::error::Missing Windows portable ZIP asset"
-            missing=1
-          fi
-          if [ "${missing}" -ne 0 ]; then
-            exit 1
+          pick_first() {
+            local pattern="$1"
+            find release-assets -maxdepth 1 -type f -printf '%f\n' | sort | grep -E "${pattern}" | grep -Ev '\.(sha256|sigstore\.json)$' | head -1 || true
+          }
+
+          needs_signature() {
+            local base="$1"
+            printf '%s\n' "${release_assets[@]}" | grep -qx "${base}.sigstore.json"
+          }
+
+          targets=()
+          for pattern in '\.AppImage$' '\.dmg$' '\.exe$' '-win64\.zip$'; do
+            base="$(pick_first "${pattern}")"
+            if [ -z "${base}" ]; then
+              echo "::error::Missing release binary matching ${pattern}"
+              exit 1
+            fi
+            if needs_signature "${base}"; then
+              echo "Already signed: ${base}"
+              continue
+            fi
+            targets+=("release-assets/${base}")
+          done
+
+          if [ "${#targets[@]}" -eq 0 ]; then
+            echo "All release binaries already have Sigstore bundles."
+            exit 0
           fi
 
-          targets=("${appimages[@]}" "${dmgs[@]}" "${exes[@]}" "${zips[@]}")
           identity="https://github.com/${GITHUB_WORKFLOW_REF}"
 
           for file in "${targets[@]}"; do
@@ -231,10 +235,15 @@ jobs:
           } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Upload signature assets
-        if: steps.resolve-tag.outputs.skip != 'true' && env.SKIP_SIGNING != 'true'
+        if: steps.resolve-tag.outputs.skip != 'true'
         shell: bash
         run: |
           set -euo pipefail
+
+          if [ ! -d release-signatures ] || [ -z "$(ls -A release-signatures 2>/dev/null || true)" ]; then
+            echo "No new signature assets to upload."
+            exit 0
+          fi
 
           gh release upload "${TAG}" release-signatures/* \
             --repo "${GITHUB_REPOSITORY}" \
