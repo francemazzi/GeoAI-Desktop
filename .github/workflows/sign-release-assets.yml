@@ -25,13 +25,14 @@ permissions:
   id-token: write
 
 concurrency:
-  group: sign-release-assets
+  group: sign-release-assets-v2
   cancel-in-progress: false
 
 jobs:
   sign-release-assets:
     name: Sign release assets
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     env:
       GH_TOKEN: ${{ github.token }}
