@@ -159,12 +159,15 @@ _ssr = StartupScriptRunner()
   QStringList newpaths;
   newpaths << '"' + pythonPath() + '"';
 #ifdef QGIS_MAC_BUNDLE
-  // macOS application bundles install the PyQGIS package directly under
-  // Contents/Frameworks. Keep that directory distinct from Python's home:
-  // the latter only contains the interpreter standard library.
+  // macOS bundles ship the PyQGIS package under Contents/Frameworks, either directly
+  // or inside the bundled interpreter's site-packages. The embedded interpreter runs
+  // with site imports disabled, so add whichever location holds the bindings explicitly.
   const QString bundledBindingsPath = QgsApplication::libraryPath();
+  const QString bundledSitePackages = QDir( bundledBindingsPath ).filePath( u"lib/python%1.%2/site-packages"_s.arg( PY_MAJOR_VERSION ).arg( PY_MINOR_VERSION ) );
   if ( QFile::exists( QDir( bundledBindingsPath ).filePath( u"qgis/__init__.py"_s ) ) )
     newpaths << '"' + bundledBindingsPath + '"';
+  else if ( QFile::exists( QDir( bundledSitePackages ).filePath( u"qgis/__init__.py"_s ) ) )
+    newpaths << '"' + bundledSitePackages + '"';
 #endif
   newpaths << homePythonPath();
   newpaths << pluginpaths;
