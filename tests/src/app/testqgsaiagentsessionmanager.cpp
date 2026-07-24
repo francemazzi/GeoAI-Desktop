@@ -105,10 +105,7 @@ namespace
         schema.insert( u"properties"_s, properties );
         return schema;
       }
-      QgsAiToolResult execute( const QJsonObject & ) override
-      {
-        return QgsAiToolResult::error( u"simulated tool failure"_s );
-      }
+      QgsAiToolResult execute( const QJsonObject & ) override { return QgsAiToolResult::error( u"simulated tool failure"_s ); }
       bool requiresApproval() const override { return false; }
   };
 

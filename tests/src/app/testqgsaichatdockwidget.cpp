@@ -814,9 +814,7 @@ void TestQgsAiChatDockWidget::acceptingPlanWithAllowedToolsStaysInAgentAndExecut
 
   QgsSettings settings;
   settings.remove( u"strata/agent"_s );
-  const auto cleanup = qScopeGuard( [&settings]() {
-    settings.remove( u"strata/agent"_s );
-  } );
+  const auto cleanup = qScopeGuard( [&settings]() { settings.remove( u"strata/agent"_s ); } );
 
   QgsAiToolRegistry registry;
   registry.registerTool( std::make_unique<QgsAiEchoTool>() );

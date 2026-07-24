@@ -1780,10 +1780,7 @@ bool QgsAiChatDockWidget::blockPlanExecutionForDisallowedTools( const QString &m
 
   markMessageStatus( messageId, metadata, u"plan_status"_s, u"blocked"_s );
 
-  QString notice = tr(
-                     "Plan accepted into Agent mode, but execution is blocked because these tools are not allowed by the current Agent allowlist: %1."
-  )
-                     .arg( disallowedTools.join( ", "_L1 ) );
+  QString notice = tr( "Plan accepted into Agent mode, but execution is blocked because these tools are not allowed by the current Agent allowlist: %1." ).arg( disallowedTools.join( ", "_L1 ) );
   if ( !mSessionManager->agentBehaviorSettings().allowCustomActions )
   {
     notice += u"\n\n"_s + tr( "Enable \"Allow custom agent actions\" in AI settings, then Accept the plan again or use Reject / revise." );

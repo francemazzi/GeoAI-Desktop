@@ -386,7 +386,8 @@ QgsAiAgentSessionManager::QgsAiAgentSessionManager( QgsAiModelRouter *router, Qg
           QgsAiChatMessage recovery;
           recovery.id = QUuid::createUuid().toString( QUuid::WithoutBraces );
           recovery.role = QgsAiChatRole::User;
-          recovery.content = u"The previous tool call failed and your reply was empty. Explain the failure clearly, then either propose the next concrete step or stop with a clear next action for the user. Do not leave an empty response."_s;
+          recovery.content
+            = u"The previous tool call failed and your reply was empty. Explain the failure clearly, then either propose the next concrete step or stop with a clear next action for the user. Do not leave an empty response."_s;
           recovery.timestamp = QDateTime::currentDateTimeUtc();
           recordHistoryMessage( recovery );
           emit requestStateChanged( u"retrying"_s, u"Recovering after empty reply following a tool error…"_s );
@@ -2292,9 +2293,7 @@ QgsAiChatMessage QgsAiAgentSessionManager::buildToolResultMessage( const QgsAiTo
   const QgsAiTool *tool = mToolRegistry ? mToolRegistry->find( call.name ) : nullptr;
   const QJsonObject outputObject = result.output.isObject() ? result.output.toObject() : QJsonObject();
   const QString statusText = outputObject.value( u"status"_s ).toString();
-  const bool softFailure = result.success
-                           && ( statusText == "error"_L1
-                                || ( call.name == "run_python"_L1 && !outputObject.value( u"traceback"_s ).toString().trimmed().isEmpty() ) );
+  const bool softFailure = result.success && ( statusText == "error"_L1 || ( call.name == "run_python"_L1 && !outputObject.value( u"traceback"_s ).toString().trimmed().isEmpty() ) );
   const bool effectiveSuccess = result.success && !softFailure;
 
   QJsonObject verification;
