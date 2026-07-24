@@ -781,6 +781,10 @@ void TestQgsAiChatDockWidget::acceptingPlanWithDisallowedToolsStaysInAgentAndBlo
   QVERIFY( accept );
   QVERIFY( accept->isEnabled() );
   accept->click();
+  // reloadTranscriptFromHistory() clears cards with deleteLater(); flush them so
+  // findChild does not return the stale pending Accept button.
+  QCoreApplication::sendPostedEvents( nullptr, QEvent::DeferredDelete );
+  QApplication::processEvents();
 
   QCOMPARE( manager.activeAgent(), u"editor"_s );
   bool sawBlocked = false;
@@ -802,8 +806,10 @@ void TestQgsAiChatDockWidget::acceptingPlanWithDisallowedToolsStaysInAgentAndBlo
   QPushButton *reject = dock.findChild<QPushButton *>( u"aiRejectPlanButton"_s );
   QVERIFY( reject );
   QVERIFY( reject->isEnabled() );
+  QCOMPARE( reject->property( "plan_status" ).toString(), u"blocked"_s );
   accept = dock.findChild<QPushButton *>( u"aiAcceptPlanButton"_s );
   QVERIFY( accept );
+  QCOMPARE( accept->property( "plan_status" ).toString(), u"blocked"_s );
   QVERIFY( !accept->isEnabled() );
 }
 
