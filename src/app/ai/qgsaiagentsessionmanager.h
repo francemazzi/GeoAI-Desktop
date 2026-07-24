@@ -146,6 +146,15 @@ class APP_EXPORT QgsAiAgentSessionManager : public QObject
     bool continueAfterToolLimit( const QString &messageId );
     void cancelActiveRequest();
     bool hasActiveRequest() const { return !mActiveRequestId.isEmpty() || mAwaitingAgentRunApproval; }
+
+    /**
+     * Appends \a message to the in-memory (and persistent) history without starting a model
+     * request. Used for local notices and for seeding transcript state in tests.
+     */
+    void appendHistoryMessage( const QgsAiChatMessage &message );
+
+    //! Appends a local assistant notice (no model request).
+    void appendAssistantNotice( const QString &text );
     QStringList projectFileCandidates( const QString &query, int maxResults = 25 ) const;
     QString resolveProjectFile( const QString &filePath ) const;
     QString workspaceRoot() const;
@@ -325,6 +334,10 @@ class APP_EXPORT QgsAiAgentSessionManager : public QObject
     QList<QgsAiChatContextFile> mCurrentContextFiles;
     QString mStreamedText;
     int mToolIterations = 0;
+    //! True when the most recent completed tool round reported at least one failure.
+    bool mLastToolRoundHadError = false;
+    //! Guards a single empty-response recovery attempt after a failed tool round.
+    bool mEmptyErrorRecoveryAttempted = false;
     QgsAiAgentBehaviorSettings mBehaviorSettings;
     QgsAiManagedAgentPolicy mManagedAgentPolicy;
     QgsAiWorkspaceIndex *mWorkspaceIndex = nullptr;

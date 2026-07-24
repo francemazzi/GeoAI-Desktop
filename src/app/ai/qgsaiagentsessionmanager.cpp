@@ -379,10 +379,25 @@ QgsAiAgentSessionManager::QgsAiAgentSessionManager( QgsAiModelRouter *router, Qg
       if ( success )
       {
         const QString finalText = !responseText.isEmpty() ? responseText : mStreamedText;
+        if ( finalText.trimmed().isEmpty() && mLastToolRoundHadError && !mEmptyErrorRecoveryAttempted )
+        {
+          mEmptyErrorRecoveryAttempted = true;
+          mActiveRequestId.clear();
+          QgsAiChatMessage recovery;
+          recovery.id = QUuid::createUuid().toString( QUuid::WithoutBraces );
+          recovery.role = QgsAiChatRole::User;
+          recovery.content = u"The previous tool call failed and your reply was empty. Explain the failure clearly, then either propose the next concrete step or stop with a clear next action for the user. Do not leave an empty response."_s;
+          recovery.timestamp = QDateTime::currentDateTimeUtc();
+          recordHistoryMessage( recovery );
+          emit requestStateChanged( u"retrying"_s, u"Recovering after empty reply following a tool error…"_s );
+          startProviderAttempt( mActiveProvider );
+          return;
+        }
         const QgsAiChatMessage assistant = buildAssistantMessage( finalText );
         recordHistoryMessage( assistant );
         emit requestStateChanged( u"completed"_s, u"%1 (%2 ms)"_s.arg( providerName ).arg( latencyMs ) );
         mActiveRequestId.clear();
+        mLastToolRoundHadError = false;
         if ( mActiveProvider == QgsAiModelRouter::Provider::Plan )
           completeManagedAgentRun();
         emit requestRunningChanged( false );
@@ -486,6 +501,16 @@ void QgsAiAgentSessionManager::recordHistoryMessage( const QgsAiChatMessage &mes
   if ( mHistoryStore && mHistoryStore->hasPersistentHistoryScope() && !mActiveSessionId.isEmpty() )
     mHistoryStore->appendMessage( mActiveSessionId, message, mNextMessageOrdering++ );
   emit messageAdded( message );
+}
+
+void QgsAiAgentSessionManager::appendHistoryMessage( const QgsAiChatMessage &message )
+{
+  recordHistoryMessage( message );
+}
+
+void QgsAiAgentSessionManager::appendAssistantNotice( const QString &text )
+{
+  recordHistoryMessage( buildAssistantMessage( text ) );
 }
 
 QString QgsAiAgentSessionManager::deriveSessionTitle( const QString &text )
@@ -612,6 +637,8 @@ void QgsAiAgentSessionManager::resetCurrentSessionState( bool emitHistorySignal 
   mCurrentContextFiles.clear();
   mStreamedText.clear();
   mToolIterations = 0;
+  mLastToolRoundHadError = false;
+  mEmptyErrorRecoveryAttempted = false;
   mSessionUsage = QgsAiUsage();
   mAgentMemory.clear();
   // Runtime accumulation only (not persisted): the UI resets its usage display.
@@ -1311,6 +1338,8 @@ void QgsAiAgentSessionManager::sendUserMessage( const QString &text, const QList
   recordHistoryMessage( message );
   mCurrentContextFiles = contextFiles;
   mToolIterations = 0;
+  mLastToolRoundHadError = false;
+  mEmptyErrorRecoveryAttempted = false;
 
   mPendingProviders = providerFallbackOrder();
   if ( mPendingProviders.isEmpty() || !mRouter )
@@ -2261,12 +2290,22 @@ QgsAiChatMessage QgsAiAgentSessionManager::buildToolResultMessage( const QgsAiTo
 
   QString serialized;
   const QgsAiTool *tool = mToolRegistry ? mToolRegistry->find( call.name ) : nullptr;
+  const QJsonObject outputObject = result.output.isObject() ? result.output.toObject() : QJsonObject();
+  const QString statusText = outputObject.value( u"status"_s ).toString();
+  const bool softFailure = result.success
+                           && ( statusText == "error"_L1
+                                || ( call.name == "run_python"_L1 && !outputObject.value( u"traceback"_s ).toString().trimmed().isEmpty() ) );
+  const bool effectiveSuccess = result.success && !softFailure;
+
   QJsonObject verification;
   verification.insert( u"required"_s, true );
   verification.insert( u"tool"_s, call.name );
-  verification.insert( u"success"_s, result.success );
+  verification.insert( u"success"_s, effectiveSuccess );
   verification.insert( u"risk_level"_s, tool ? QgsAiToolRiskLevelName( tool->riskLevel() ) : u"unknown"_s );
   verification.insert( u"check"_s, u"Before the next action, verify the tool status, inspect any diff, confirm rollback availability for mutations, and stop if the result contradicts the plan."_s );
+  if ( softFailure )
+    verification.insert( u"soft_failure"_s, true );
+
   if ( result.success )
   {
     if ( result.output.isString() )
@@ -2279,11 +2318,11 @@ QgsAiChatMessage QgsAiAgentSessionManager::buildToolResultMessage( const QgsAiTo
     }
     else
     {
-      QJsonObject outputObject = result.output.toObject();
-      verification.insert( u"has_diff"_s, outputObject.contains( u"diff"_s ) );
-      verification.insert( u"rollback_available"_s, outputObject.contains( u"rollback_token"_s ) || outputObject.contains( u"rollback"_s ) );
-      outputObject.insert( u"verification"_s, verification );
-      serialized = QString::fromUtf8( QJsonDocument( outputObject ).toJson( QJsonDocument::Compact ) );
+      QJsonObject enriched = outputObject;
+      verification.insert( u"has_diff"_s, enriched.contains( u"diff"_s ) );
+      verification.insert( u"rollback_available"_s, enriched.contains( u"rollback_token"_s ) || enriched.contains( u"rollback"_s ) );
+      enriched.insert( u"verification"_s, verification );
+      serialized = QString::fromUtf8( QJsonDocument( enriched ).toJson( QJsonDocument::Compact ) );
     }
     if ( serialized.isEmpty() )
       serialized = u"{}"_s;
@@ -2331,7 +2370,7 @@ QgsAiChatMessage QgsAiAgentSessionManager::buildToolResultMessage( const QgsAiTo
       toolMessage.metadata.insert( u"visual_context_height"_s, image.value( u"height"_s ).toInt() );
     }
   }
-  if ( !result.success )
+  if ( !effectiveSuccess )
     toolMessage.metadata.insert( u"is_error"_s, true );
   return toolMessage;
 }
@@ -2457,6 +2496,8 @@ void QgsAiAgentSessionManager::onToolCallsRequested( const QString &requestId, c
   const QgsAiChatMessage assistantMessage = buildAssistantToolUseMessage( assistantText, calls );
   recordHistoryMessage( assistantMessage );
 
+  bool roundHadError = false;
+
   // Execute every requested, mode-allowed tool synchronously and add its result to history.
   for ( const QgsAiToolCall &call : calls )
   {
@@ -2495,8 +2536,14 @@ void QgsAiAgentSessionManager::onToolCallsRequested( const QString &requestId, c
     }
     rememberAgentEvent( u"tool_result"_s, memory );
     const QgsAiChatMessage resultMessage = buildToolResultMessage( call, result );
+    if ( resultMessage.metadata.value( u"is_error"_s ).toBool() )
+      roundHadError = true;
     recordHistoryMessage( resultMessage );
   }
+
+  mLastToolRoundHadError = roundHadError;
+  if ( roundHadError )
+    mEmptyErrorRecoveryAttempted = false;
 
   // Continue the conversation with the same provider (no fallback rotation mid-loop).
   mActiveRequestId.clear();
