@@ -18,6 +18,8 @@
 #include "ai/qgsaireviewpatchengine.h"
 #include "ai/qgsaisecretstore.h"
 #include "ai/qgsaiworkspacetrust.h"
+#include "ai/tools/qgsaiechotool.h"
+#include "ai/tools/qgsaitoolregistry.h"
 #include "qgscoordinatereferencesystem.h"
 #include "qgsproject.h"
 #include "qgssettings.h"
@@ -34,6 +36,7 @@
 #include <QDialog>
 #include <QDir>
 #include <QFile>
+#include <QFrame>
 #include <QImage>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -190,6 +193,9 @@ class TestQgsAiChatDockWidget : public QObject
     void transcriptMessagesFitNarrowDockWithoutHorizontalScroll();
     void acceptingPlanSwitchesToAgentAndSendsPlan();
     void acceptingAgentPlanJsonSwitchesToAgent();
+    void acceptingPlanWithDisallowedToolsStaysInAgentAndBlocks();
+    void acceptingPlanWithAllowedToolsStaysInAgentAndExecutes();
+    void cancelClearsOrphanStreamingAssistantCard();
     void workflowComposerExportsReportAndDryRun();
     void questionCardSendsStructuredAnswers();
     void toolLimitMessageShowsContinueButton();
@@ -727,6 +733,175 @@ void TestQgsAiChatDockWidget::acceptingAgentPlanJsonSwitchesToAgent()
   QVERIFY( !manager.history().isEmpty() );
   QVERIFY( manager.history().first().content.contains( u"Accepted plan"_s ) );
   QVERIFY( manager.history().first().content.contains( u"Load boundary"_s ) );
+}
+
+void TestQgsAiChatDockWidget::acceptingPlanWithDisallowedToolsStaysInAgentAndBlocks()
+{
+  QTemporaryDir tempDir;
+  QVERIFY( tempDir.isValid() );
+
+  QgsAiToolRegistry registry;
+  registry.registerTool( std::make_unique<QgsAiEchoTool>() );
+
+  QgsAiModelRouter router;
+  QgsAiFileContextProvider contextProvider( tempDir.path() );
+  QgsAiReviewPatchEngine reviewEngine;
+  QgsAiAgentSessionManager manager( nullptr, &contextProvider, &reviewEngine );
+  manager.setToolRegistry( &registry );
+  // Default allowCustomActions=false makes the Agent allowlist empty.
+  QCOMPARE( manager.agentBehaviorSettings().allowCustomActions, false );
+
+  QgsAiChatDockWidget dock( &manager, &router, &reviewEngine );
+
+  QJsonObject step;
+  step.insert( u"id"_s, u"s1"_s );
+  step.insert( u"title"_s, u"Echo probe"_s );
+  step.insert( u"tool"_s, u"echo"_s );
+  step.insert( u"risk"_s, u"low"_s );
+  step.insert( u"requires_approval"_s, false );
+  step.insert( u"depends_on"_s, QJsonArray() );
+
+  QJsonObject plan;
+  plan.insert( u"version"_s, 1 );
+  plan.insert( u"objective"_s, u"Probe allowlist gate"_s );
+  plan.insert( u"mode"_s, u"auto_edit"_s );
+  plan.insert( u"steps"_s, QJsonArray { step } );
+  const QString planJson = QString::fromUtf8( QJsonDocument( plan ).toJson( QJsonDocument::Compact ) );
+
+  QgsAiChatMessage planMessage;
+  planMessage.id = u"blocked-plan-1"_s;
+  planMessage.role = QgsAiChatRole::Assistant;
+  planMessage.content = u"Ready.\n```strata_agent_plan\n%1\n```"_s.arg( planJson );
+  planMessage.metadata.insert( u"ui_kind"_s, u"agent_plan"_s );
+  planMessage.metadata.insert( u"plan_json"_s, planJson );
+  planMessage.metadata.insert( u"plan_status"_s, u"pending"_s );
+  manager.appendHistoryMessage( planMessage );
+
+  QPushButton *accept = dock.findChild<QPushButton *>( u"aiAcceptPlanButton"_s );
+  QVERIFY( accept );
+  QVERIFY( accept->isEnabled() );
+  accept->click();
+  // reloadTranscriptFromHistory() clears cards with deleteLater(); flush them so
+  // findChild does not return the stale pending Accept button.
+  QCoreApplication::sendPostedEvents( nullptr, QEvent::DeferredDelete );
+  QApplication::processEvents();
+
+  QCOMPARE( manager.activeAgent(), u"editor"_s );
+  bool sawBlocked = false;
+  bool sawExecutePrompt = false;
+  bool sawNotice = false;
+  for ( const QgsAiChatMessage &message : manager.history() )
+  {
+    if ( message.id == planMessage.id )
+      sawBlocked = message.metadata.value( u"plan_status"_s ).toString() == "blocked"_L1;
+    if ( message.role == QgsAiChatRole::User && message.content.contains( u"Execute the accepted plan"_s ) )
+      sawExecutePrompt = true;
+    if ( message.role == QgsAiChatRole::Assistant && message.content.contains( u"echo"_s ) && message.content.contains( u"blocked"_s, Qt::CaseInsensitive ) )
+      sawNotice = true;
+  }
+  QVERIFY( sawBlocked );
+  QVERIFY( !sawExecutePrompt );
+  QVERIFY( sawNotice );
+
+  QPushButton *reject = dock.findChild<QPushButton *>( u"aiRejectPlanButton"_s );
+  QVERIFY( reject );
+  QVERIFY( reject->isEnabled() );
+  QCOMPARE( reject->property( "plan_status" ).toString(), u"blocked"_s );
+  accept = dock.findChild<QPushButton *>( u"aiAcceptPlanButton"_s );
+  QVERIFY( accept );
+  QCOMPARE( accept->property( "plan_status" ).toString(), u"blocked"_s );
+  QVERIFY( !accept->isEnabled() );
+}
+
+void TestQgsAiChatDockWidget::acceptingPlanWithAllowedToolsStaysInAgentAndExecutes()
+{
+  QTemporaryDir tempDir;
+  QVERIFY( tempDir.isValid() );
+
+  QgsSettings settings;
+  settings.remove( u"strata/agent"_s );
+  const auto cleanup = qScopeGuard( [&settings]() { settings.remove( u"strata/agent"_s ); } );
+
+  QgsAiToolRegistry registry;
+  registry.registerTool( std::make_unique<QgsAiEchoTool>() );
+
+  QgsAiModelRouter router;
+  QgsAiFileContextProvider contextProvider( tempDir.path() );
+  QgsAiReviewPatchEngine reviewEngine;
+  QgsAiAgentSessionManager manager( nullptr, &contextProvider, &reviewEngine );
+  manager.setToolRegistry( &registry );
+
+  QgsAiAgentBehaviorSettings behavior = manager.agentBehaviorSettings();
+  behavior.allowCustomActions = true;
+  manager.setAgentBehaviorSettings( behavior );
+
+  QgsAiChatDockWidget dock( &manager, &router, &reviewEngine );
+
+  QJsonObject step;
+  step.insert( u"id"_s, u"s1"_s );
+  step.insert( u"title"_s, u"Echo probe"_s );
+  step.insert( u"tool"_s, u"echo"_s );
+  step.insert( u"risk"_s, u"low"_s );
+  step.insert( u"requires_approval"_s, false );
+  step.insert( u"depends_on"_s, QJsonArray() );
+
+  QJsonObject plan;
+  plan.insert( u"version"_s, 1 );
+  plan.insert( u"objective"_s, u"Execute with allowlist"_s );
+  plan.insert( u"mode"_s, u"auto_edit"_s );
+  plan.insert( u"steps"_s, QJsonArray { step } );
+  const QString planJson = QString::fromUtf8( QJsonDocument( plan ).toJson( QJsonDocument::Compact ) );
+
+  QgsAiChatMessage planMessage;
+  planMessage.id = u"allowed-plan-1"_s;
+  planMessage.role = QgsAiChatRole::Assistant;
+  planMessage.content = u"Ready.\n```strata_agent_plan\n%1\n```"_s.arg( planJson );
+  planMessage.metadata.insert( u"ui_kind"_s, u"agent_plan"_s );
+  planMessage.metadata.insert( u"plan_json"_s, planJson );
+  planMessage.metadata.insert( u"plan_status"_s, u"pending"_s );
+  manager.appendHistoryMessage( planMessage );
+
+  QPushButton *accept = dock.findChild<QPushButton *>( u"aiAcceptPlanButton"_s );
+  QVERIFY( accept );
+  accept->click();
+
+  QCOMPARE( manager.activeAgent(), u"editor"_s );
+  QVERIFY( !manager.history().isEmpty() );
+  bool sawExecutePrompt = false;
+  bool sawBlockedNotice = false;
+  for ( const QgsAiChatMessage &message : manager.history() )
+  {
+    if ( message.role == QgsAiChatRole::User && message.content.contains( u"Execute the accepted plan"_s ) )
+      sawExecutePrompt = true;
+    if ( message.role == QgsAiChatRole::Assistant && message.content.contains( u"execution is blocked"_s ) )
+      sawBlockedNotice = true;
+    if ( message.id == planMessage.id )
+      QCOMPARE( message.metadata.value( u"plan_status"_s ).toString(), u"accepted"_s );
+  }
+  QVERIFY( sawExecutePrompt );
+  QVERIFY( !sawBlockedNotice );
+}
+
+void TestQgsAiChatDockWidget::cancelClearsOrphanStreamingAssistantCard()
+{
+  QTemporaryDir tempDir;
+  QVERIFY( tempDir.isValid() );
+
+  QgsAiModelRouter router;
+  QgsAiFileContextProvider contextProvider( tempDir.path() );
+  QgsAiReviewPatchEngine reviewEngine;
+  QgsAiAgentSessionManager manager( nullptr, &contextProvider, &reviewEngine );
+  QgsAiChatDockWidget dock( &manager, &router, &reviewEngine );
+
+  manager.requestRunningChanged( true );
+  manager.responseChunkReceived( u"partial stream"_s );
+  QVERIFY( dock.findChild<QFrame *>( u"aiStreamingMessage"_s ) );
+
+  manager.requestRunningChanged( false );
+  QCoreApplication::sendPostedEvents( nullptr, QEvent::DeferredDelete );
+  QApplication::processEvents();
+
+  QVERIFY( !dock.findChild<QFrame *>( u"aiStreamingMessage"_s ) );
 }
 
 void TestQgsAiChatDockWidget::workflowComposerExportsReportAndDryRun()

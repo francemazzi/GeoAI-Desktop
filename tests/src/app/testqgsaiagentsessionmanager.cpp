@@ -67,6 +67,48 @@ namespace
       bool mRequiresApproval = false;
   };
 
+  class SoftFailRunPythonTool : public QgsAiTool
+  {
+    public:
+      QString name() const override { return u"run_python"_s; }
+      QString description() const override { return u"soft-fail run_python"_s; }
+      QJsonObject schema() const override
+      {
+        QJsonObject schema;
+        schema.insert( u"type"_s, u"object"_s );
+        schema.insert( u"properties"_s, QJsonObject() );
+        return schema;
+      }
+      QgsAiToolResult execute( const QJsonObject & ) override
+      {
+        QJsonObject output;
+        output.insert( u"status"_s, u"error"_s );
+        output.insert( u"stdout"_s, QString() );
+        output.insert( u"stderr"_s, QString() );
+        output.insert( u"traceback"_s, u"Traceback (most recent call last):\nValueError: boom"_s );
+        return QgsAiToolResult::ok( output );
+      }
+      bool requiresApproval() const override { return false; }
+  };
+
+  class HardFailEchoTool : public QgsAiTool
+  {
+    public:
+      QString name() const override { return u"echo"_s; }
+      QString description() const override { return u"hard-fail echo"_s; }
+      QJsonObject schema() const override
+      {
+        QJsonObject schema;
+        schema.insert( u"type"_s, u"object"_s );
+        QJsonObject properties;
+        properties.insert( u"text"_s, QJsonObject { { u"type"_s, u"string"_s } } );
+        schema.insert( u"properties"_s, properties );
+        return schema;
+      }
+      QgsAiToolResult execute( const QJsonObject & ) override { return QgsAiToolResult::error( u"simulated tool failure"_s ); }
+      bool requiresApproval() const override { return false; }
+  };
+
   void clearProviderSettings()
   {
     QgsSettings settings;
@@ -116,6 +158,8 @@ class TestQgsAiAgentSessionManager : public QObject
     void allowsExplicitExternalAttachmentContext();
     void agentBehaviorSettingsRoundTrip();
     void toolCallLimitPausesAndContinues();
+    void runPythonSoftFailureMarksToolResultError();
+    void emptyAssistantAfterToolErrorTriggersRecovery();
     void agentBehaviorTogglePropagatesToRouter();
     void planModeDoesNotAdvertiseTools();
     void askAndAgentAdvertiseCaptureMapCanvasTool();
@@ -429,6 +473,138 @@ void TestQgsAiAgentSessionManager::toolCallLimitPausesAndContinues()
     }
   }
   QVERIFY( sawContinuedLimit );
+}
+
+void TestQgsAiAgentSessionManager::runPythonSoftFailureMarksToolResultError()
+{
+  clearProviderSettings();
+  QgsSettings settings;
+  settings.remove( u"ai/provider/openrouter"_s );
+  settings.remove( u"strata/agent"_s );
+  const auto cleanup = qScopeGuard( [&settings]() {
+    settings.remove( u"ai/provider/openrouter"_s );
+    settings.remove( u"ai/network/maxRetries"_s );
+    settings.remove( u"strata/agent"_s );
+    clearProviderSettings();
+  } );
+
+  QgsAiTestLoopbackServer server;
+  server.responses
+    << QgsAiTestLoopbackServer::
+         jsonResponse( 200, "OK", QByteArrayLiteral( "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":null,\"tool_calls\":[{\"id\":\"call_py\",\"type\":\"function\",\"function\":{\"name\":\"run_python\",\"arguments\":\"{\\\"code\\\":\\\"raise ValueError('boom')\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}" ) )
+    << QgsAiTestLoopbackServer::jsonResponse( 200, "OK", QByteArrayLiteral( "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"Python failed; stopping.\"},\"finish_reason\":\"stop\"}]}" ) );
+  QVERIFY( server.listen( QHostAddress::LocalHost, 0 ) );
+
+  settings.setValue( u"ai/provider/openrouter/apiKey"_s, u"sk-or-loopback-test"_s );
+  settings.setValue( u"ai/network/maxRetries"_s, 0 );
+
+  QgsAiToolRegistry registry;
+  registry.registerTool( std::make_unique<SoftFailRunPythonTool>() );
+
+  QgsAiModelRouter router;
+  router.setToolRegistry( &registry );
+  router.setActiveProvider( QgsAiModelRouter::Provider::OpenRouter );
+  QgsAiModelRouter::ProviderSettings providerSettings = router.providerSettings( QgsAiModelRouter::Provider::OpenRouter );
+  providerSettings.endpoint = u"http://127.0.0.1:%1/api/v1/chat/completions"_s.arg( server.serverPort() );
+  providerSettings.model = u"test/model"_s;
+  providerSettings.enabled = true;
+  router.setProviderSettings( QgsAiModelRouter::Provider::OpenRouter, providerSettings );
+
+  QTemporaryDir tempDir;
+  QVERIFY( tempDir.isValid() );
+  QgsAiFileContextProvider contextProvider( tempDir.path() );
+  QgsAiReviewPatchEngine reviewEngine;
+  QgsAiAgentSessionManager manager( &router, &contextProvider, &reviewEngine );
+  manager.setToolRegistry( &registry );
+
+  QgsAiAgentBehaviorSettings behavior = manager.agentBehaviorSettings();
+  behavior.allowCustomActions = true;
+  manager.setAgentBehaviorSettings( behavior );
+  manager.setActiveAgent( u"editor"_s );
+
+  manager.sendUserMessage( u"run failing python"_s );
+  QTRY_VERIFY_WITH_TIMEOUT( !manager.hasActiveRequest(), 10000 );
+
+  const QList<QgsAiChatMessage> history = manager.history();
+  const QgsAiChatMessage *toolMessage = nullptr;
+  for ( const QgsAiChatMessage &message : history )
+  {
+    if ( message.role == QgsAiChatRole::Tool && message.metadata.value( u"tool_name"_s ).toString() == "run_python"_L1 )
+      toolMessage = &message;
+  }
+  QVERIFY( toolMessage );
+  QVERIFY( toolMessage->metadata.value( u"is_error"_s ).toBool() );
+  const QJsonObject output = QJsonDocument::fromJson( toolMessage->content.toUtf8() ).object();
+  QCOMPARE( output.value( u"status"_s ).toString(), u"error"_s );
+  QVERIFY( !output.value( u"verification"_s ).toObject().value( u"success"_s ).toBool() );
+  QVERIFY( output.value( u"verification"_s ).toObject().value( u"soft_failure"_s ).toBool() );
+  QCOMPARE( history.last().content, u"Python failed; stopping."_s );
+}
+
+void TestQgsAiAgentSessionManager::emptyAssistantAfterToolErrorTriggersRecovery()
+{
+  clearProviderSettings();
+  QgsSettings settings;
+  settings.remove( u"ai/provider/openrouter"_s );
+  settings.remove( u"strata/agent"_s );
+  const auto cleanup = qScopeGuard( [&settings]() {
+    settings.remove( u"ai/provider/openrouter"_s );
+    settings.remove( u"ai/network/maxRetries"_s );
+    settings.remove( u"strata/agent"_s );
+    clearProviderSettings();
+  } );
+
+  QgsAiTestLoopbackServer server;
+  server.responses
+    << QgsAiTestLoopbackServer::
+         jsonResponse( 200, "OK", QByteArrayLiteral( "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":null,\"tool_calls\":[{\"id\":\"call_err\",\"type\":\"function\",\"function\":{\"name\":\"echo\",\"arguments\":\"{\\\"text\\\":\\\"x\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}" ) )
+    << QgsAiTestLoopbackServer::jsonResponse( 200, "OK", QByteArrayLiteral( "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"\"},\"finish_reason\":\"stop\"}]}" ) )
+    << QgsAiTestLoopbackServer::jsonResponse( 200, "OK", QByteArrayLiteral( "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"Recovered after tool failure.\"},\"finish_reason\":\"stop\"}]}" ) );
+  QVERIFY( server.listen( QHostAddress::LocalHost, 0 ) );
+
+  settings.setValue( u"ai/provider/openrouter/apiKey"_s, u"sk-or-loopback-test"_s );
+  settings.setValue( u"ai/network/maxRetries"_s, 0 );
+
+  QgsAiToolRegistry registry;
+  registry.registerTool( std::make_unique<HardFailEchoTool>() );
+
+  QgsAiModelRouter router;
+  router.setToolRegistry( &registry );
+  router.setActiveProvider( QgsAiModelRouter::Provider::OpenRouter );
+  QgsAiModelRouter::ProviderSettings providerSettings = router.providerSettings( QgsAiModelRouter::Provider::OpenRouter );
+  providerSettings.endpoint = u"http://127.0.0.1:%1/api/v1/chat/completions"_s.arg( server.serverPort() );
+  providerSettings.model = u"test/model"_s;
+  providerSettings.enabled = true;
+  router.setProviderSettings( QgsAiModelRouter::Provider::OpenRouter, providerSettings );
+
+  QTemporaryDir tempDir;
+  QVERIFY( tempDir.isValid() );
+  QgsAiFileContextProvider contextProvider( tempDir.path() );
+  QgsAiReviewPatchEngine reviewEngine;
+  QgsAiAgentSessionManager manager( &router, &contextProvider, &reviewEngine );
+  manager.setToolRegistry( &registry );
+
+  QgsAiAgentBehaviorSettings behavior = manager.agentBehaviorSettings();
+  behavior.allowCustomActions = true;
+  manager.setAgentBehaviorSettings( behavior );
+  manager.setActiveAgent( u"editor"_s );
+
+  manager.sendUserMessage( u"trigger empty recovery"_s );
+  QTRY_VERIFY_WITH_TIMEOUT( !manager.hasActiveRequest(), 10000 );
+  QCOMPARE( server.requestCount, 3 );
+
+  bool sawRecoveryPrompt = false;
+  bool sawEmptyTerminalAssistant = false;
+  for ( const QgsAiChatMessage &message : manager.history() )
+  {
+    if ( message.role == QgsAiChatRole::User && message.content.contains( u"reply was empty"_s ) )
+      sawRecoveryPrompt = true;
+    if ( message.role == QgsAiChatRole::Assistant && message.content.trimmed().isEmpty() && !message.metadata.contains( u"tool_calls"_s ) )
+      sawEmptyTerminalAssistant = true;
+  }
+  QVERIFY( sawRecoveryPrompt );
+  QVERIFY( !sawEmptyTerminalAssistant );
+  QCOMPARE( manager.history().last().content, u"Recovered after tool failure."_s );
 }
 
 void TestQgsAiAgentSessionManager::agentBehaviorTogglePropagatesToRouter()

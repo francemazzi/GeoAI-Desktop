@@ -117,7 +117,11 @@ class APP_EXPORT QgsAiChatDockWidget : public QgsDockWidget
     void markMessageStatus( const QString &messageId, const QVariantMap &metadata, const QString &key, const QString &value );
     void acceptPlan( const QString &messageId, const QString &planMarkdown, const QVariantMap &metadata );
     QStringList disallowedWorkflowTools( const QString &planMarkdown, const QVariantMap &metadata ) const;
-    bool requestWorkflowRevisionForDisallowedTools( const QString &messageId, const QString &planMarkdown, const QVariantMap &metadata );
+    /**
+     * When the plan references tools the current Agent allowlist cannot run, marks the plan
+     * blocked, posts an actionable notice, and returns true. Keeps Agent mode (no Plan bounce).
+     */
+    bool blockPlanExecutionForDisallowedTools( const QString &messageId, const QString &planMarkdown, const QVariantMap &metadata );
     QString saveWorkflowPlan( const QString &planMarkdown, const QString &messageId, QString *errorMessage = nullptr ) const;
     QString exportWorkflowReport( const QString &planMarkdown, const QString &messageId, QString *errorMessage = nullptr ) const;
     void dryRunWorkflowPlan( const QString &messageId, const QString &planMarkdown );

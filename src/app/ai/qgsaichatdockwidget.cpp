@@ -1476,17 +1476,20 @@ QWidget *QgsAiChatDockWidget::createPlanActionsWidget( const QString &messageId,
 
   const QString status = metadata.value( u"plan_status"_s, u"pending"_s ).toString();
   const bool pending = status == "pending"_L1;
+  const bool revisable = pending || status == "blocked"_L1;
 
   QHBoxLayout *buttons = new QHBoxLayout();
   QPushButton *acceptButton = new QPushButton( tr( "Accept plan" ), planCard );
   acceptButton->setObjectName( u"aiAcceptPlanButton"_s );
-  acceptButton->setEnabled( pending );
+  acceptButton->setProperty( "plan_status", status );
+  acceptButton->setEnabled( pending && !mRequestRunning );
   acceptButton->setStyleSheet(
     u"QPushButton#aiAcceptPlanButton { background: palette(highlight); color: palette(highlighted-text); border: 0; border-radius: 6px; padding: 4px 10px; font-weight: 600; } QPushButton#aiAcceptPlanButton:disabled { background: palette(button); color: palette(mid); }"_s
   );
   QPushButton *reviseButton = new QPushButton( tr( "Reject / revise" ), planCard );
   reviseButton->setObjectName( u"aiRejectPlanButton"_s );
-  reviseButton->setEnabled( pending );
+  reviseButton->setProperty( "plan_status", status );
+  reviseButton->setEnabled( revisable && !mRequestRunning );
   reviseButton->setStyleSheet(
     u"QPushButton#aiRejectPlanButton { background: palette(button); color: palette(window-text); border: 0; border-radius: 6px; padding: 4px 10px; } QPushButton#aiRejectPlanButton:hover:enabled { background: palette(alternate-base); }"_s
   );
@@ -1534,7 +1537,8 @@ QWidget *QgsAiChatDockWidget::createPlanActionsWidget( const QString &messageId,
   QPushButton *sendRevisionButton = new QPushButton( tr( "Send revision" ), planCard );
   sendRevisionButton->setObjectName( u"aiSendPlanRevisionButton"_s );
   sendRevisionButton->setVisible( false );
-  sendRevisionButton->setEnabled( pending );
+  sendRevisionButton->setProperty( "plan_status", status );
+  sendRevisionButton->setEnabled( revisable && !mRequestRunning );
   sendRevisionButton->setStyleSheet(
     u"QPushButton#aiSendPlanRevisionButton { background: palette(highlight); color: palette(highlighted-text); border: 0; border-radius: 6px; padding: 4px 10px; } QPushButton#aiSendPlanRevisionButton:disabled { background: palette(button); color: palette(mid); }"_s
   );
@@ -1768,19 +1772,24 @@ QStringList QgsAiChatDockWidget::disallowedWorkflowTools( const QString &planMar
   return disallowed;
 }
 
-bool QgsAiChatDockWidget::requestWorkflowRevisionForDisallowedTools( const QString &messageId, const QString &planMarkdown, const QVariantMap &metadata )
+bool QgsAiChatDockWidget::blockPlanExecutionForDisallowedTools( const QString &messageId, const QString &planMarkdown, const QVariantMap &metadata )
 {
   const QStringList disallowedTools = disallowedWorkflowTools( planMarkdown, metadata );
   if ( disallowedTools.isEmpty() )
     return false;
 
-  markMessageStatus( messageId, metadata, u"plan_status"_s, u"revision_requested"_s );
-  setModeLabel( u"Plan"_s );
-  mSessionManager->sendUserMessage( tr(
-                                      "Revise this workflow plan before execution. The current Agent allowlist does not permit these tools: %1.\n\nOriginal plan:\n%2\n\nReturn a new fenced "
-                                      "strata_agent_plan JSON block using only available Agent tools, or explain which setting or managed policy must change."
-  )
-                                      .arg( disallowedTools.join( ", "_L1 ), planMarkdown.trimmed() ) );
+  markMessageStatus( messageId, metadata, u"plan_status"_s, u"blocked"_s );
+
+  QString notice = tr( "Plan accepted into Agent mode, but execution is blocked because these tools are not allowed by the current Agent allowlist: %1." ).arg( disallowedTools.join( ", "_L1 ) );
+  if ( !mSessionManager->agentBehaviorSettings().allowCustomActions )
+  {
+    notice += u"\n\n"_s + tr( "Enable \"Allow custom agent actions\" in AI settings, then Accept the plan again or use Reject / revise." );
+  }
+  else
+  {
+    notice += u"\n\n"_s + tr( "Check workspace trust and the managed Strata Plan policy, then Accept again or use Reject / revise to produce a plan that only uses available Agent tools." );
+  }
+  mSessionManager->appendAssistantNotice( notice );
   reloadTranscriptFromHistory();
   return true;
 }
@@ -1791,7 +1800,7 @@ void QgsAiChatDockWidget::acceptPlan( const QString &messageId, const QString &p
     return;
 
   setModeLabel( u"Agent"_s );
-  if ( requestWorkflowRevisionForDisallowedTools( messageId, planMarkdown, metadata ) )
+  if ( blockPlanExecutionForDisallowedTools( messageId, planMarkdown, metadata ) )
     return;
 
   markMessageStatus( messageId, metadata, u"plan_status"_s, u"accepted"_s );
@@ -1920,7 +1929,7 @@ void QgsAiChatDockWidget::runWorkflowPlan( const QString &messageId, const QStri
     return;
 
   setModeLabel( u"Agent"_s );
-  if ( requestWorkflowRevisionForDisallowedTools( messageId, planMarkdown, metadata ) )
+  if ( blockPlanExecutionForDisallowedTools( messageId, planMarkdown, metadata ) )
     return;
 
   QString error;
@@ -2278,6 +2287,17 @@ void QgsAiChatDockWidget::appendStreamChunk( const QString &chunk )
 
 void QgsAiChatDockWidget::closeStreamingAssistantMessage()
 {
+  if ( mStreamingTextEdit )
+  {
+    QWidget *streamingWidget = mStreamingTextEdit->parentWidget();
+    mStreamingTextEdit = nullptr;
+    if ( streamingWidget )
+    {
+      if ( mTranscriptLayout )
+        mTranscriptLayout->removeWidget( streamingWidget );
+      streamingWidget->deleteLater();
+    }
+  }
   mStreamingInProgress = false;
   mStreamingTextEdit = nullptr;
 }
@@ -2341,6 +2361,21 @@ void QgsAiChatDockWidget::setRequestRunning( bool running )
   const QList<QPushButton *> continueButtons = findChildren<QPushButton *>( u"aiContinueToolLimitButton"_s );
   for ( QPushButton *button : continueButtons )
     button->setEnabled( button->property( "tool_limit_status" ).toString() == "pending"_L1 && !running && mSessionManager );
+  const QList<QPushButton *> acceptButtons = findChildren<QPushButton *>( u"aiAcceptPlanButton"_s );
+  for ( QPushButton *button : acceptButtons )
+    button->setEnabled( button->property( "plan_status" ).toString() == "pending"_L1 && !running );
+  const QList<QPushButton *> rejectButtons = findChildren<QPushButton *>( u"aiRejectPlanButton"_s );
+  for ( QPushButton *button : rejectButtons )
+  {
+    const QString status = button->property( "plan_status" ).toString();
+    button->setEnabled( ( status == "pending"_L1 || status == "blocked"_L1 ) && !running );
+  }
+  const QList<QPushButton *> sendRevisionButtons = findChildren<QPushButton *>( u"aiSendPlanRevisionButton"_s );
+  for ( QPushButton *button : sendRevisionButtons )
+  {
+    const QString status = button->property( "plan_status" ).toString();
+    button->setEnabled( ( status == "pending"_L1 || status == "blocked"_L1 ) && !running );
+  }
   if ( !running && mStreamingInProgress )
     closeStreamingAssistantMessage();
 }
