@@ -540,9 +540,7 @@ void QgsAiPlanClient::authenticate( const QString &chatEndpoint, const QString &
   }
 
   connect( healthReply, &QNetworkReply::finished, healthReply, &QObject::deleteLater );
-  connect( healthReply, &QNetworkReply::finished, this, [startCredentialPost]() {
-    startCredentialPost();
-  } );
+  connect( healthReply, &QNetworkReply::finished, this, [startCredentialPost]() { startCredentialPost(); } );
 }
 
 void QgsAiPlanClient::requestDesktopToken( const QString &apiBase, const QString &accessToken )
