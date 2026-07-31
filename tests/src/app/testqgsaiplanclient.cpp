@@ -112,6 +112,7 @@ void TestQgsAiPlanClient::loginMintsDesktopToken()
 {
   QgsAiTestLoopbackServer server;
   server.responses
+    << QgsAiTestLoopbackServer::jsonResponse( 200, "OK", QByteArrayLiteral( "{\"status\":\"ok\"}" ) )
     << QgsAiTestLoopbackServer::jsonResponse( 200, "OK", QByteArrayLiteral( "{\"accessToken\":\"access-123\",\"refreshToken\":\"refresh-123\",\"tokenType\":\"Bearer\",\"expiresIn\":900}" ) )
     << QgsAiTestLoopbackServer::jsonResponse( 201, "Created", QByteArrayLiteral( "{\"id\":\"tok_1\",\"token\":\"strata_dt_123\",\"tokenPrefix\":\"strata\",\"name\":\"Strata Desktop\"}" ) );
   QVERIFY( server.listen( QHostAddress::LocalHost, 0 ) );
@@ -126,11 +127,12 @@ void TestQgsAiPlanClient::loginMintsDesktopToken()
   QCOMPARE( failedSpy.count(), 0 );
   QCOMPARE( tokenSpy.count(), 1 );
   QCOMPARE( tokenSpy.at( 0 ).at( 0 ).toString(), u"strata_dt_123"_s );
-  QCOMPARE( server.requestCount, 2 );
-  QVERIFY( server.rawRequests.at( 0 ).startsWith( "POST /v1/auth/login " ) );
-  QVERIFY( server.rawRequests.at( 1 ).toLower().contains( "authorization: bearer access-123" ) );
+  QCOMPARE( server.requestCount, 3 );
+  QVERIFY( server.rawRequests.at( 0 ).startsWith( "GET /health " ) );
+  QVERIFY( server.rawRequests.at( 1 ).startsWith( "POST /v1/auth/login " ) );
+  QVERIFY( server.rawRequests.at( 2 ).toLower().contains( "authorization: bearer access-123" ) );
 
-  const QJsonObject loginBody = QJsonDocument::fromJson( server.requestBodies.at( 0 ) ).object();
+  const QJsonObject loginBody = QJsonDocument::fromJson( server.requestBodies.at( 1 ) ).object();
   QCOMPARE( loginBody.value( u"email"_s ).toString(), u"user@example.com"_s );
   QCOMPARE( loginBody.value( u"password"_s ).toString(), u"supersecret123"_s );
 }

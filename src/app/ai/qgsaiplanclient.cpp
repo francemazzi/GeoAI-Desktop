@@ -38,6 +38,8 @@ using namespace Qt::StringLiterals;
 namespace
 {
   constexpr int PLAN_FETCH_TIMEOUT_MS = 20000;
+  //! Login/register/token need headroom for Cloud Run cold starts and slow Windows networks.
+  constexpr int PLAN_AUTH_TIMEOUT_MS = 60000;
 
   QUrl apiUrl( const QString &apiBase, const QString &path )
   {
@@ -54,6 +56,13 @@ namespace
     request.setHeader( QNetworkRequest::ContentTypeHeader, u"application/json"_s );
     request.setRawHeader( "Accept", "application/json" );
     request.setTransferTimeout( PLAN_FETCH_TIMEOUT_MS );
+  }
+
+  void setAuthJsonHeaders( QNetworkRequest &request )
+  {
+    request.setHeader( QNetworkRequest::ContentTypeHeader, u"application/json"_s );
+    request.setRawHeader( "Accept", "application/json" );
+    request.setTransferTimeout( PLAN_AUTH_TIMEOUT_MS );
   }
 
   QString responseErrorMessage( QNetworkReply *reply, const QByteArray &body )
@@ -477,36 +486,62 @@ void QgsAiPlanClient::authenticate( const QString &chatEndpoint, const QString &
     return;
   }
 
-  QJsonObject body;
-  body.insert( u"email"_s, email.trimmed() );
-  body.insert( u"password"_s, password );
+  const QString trimmedEmail = email.trimmed();
+  const auto startCredentialPost = [this, apiBase, trimmedEmail, password, createAccount]() {
+    QgsNetworkAccessManager *manager = QgsNetworkAccessManager::instance();
+    if ( !manager )
+    {
+      emit requestFailed( tr( "Network manager is not available." ) );
+      return;
+    }
 
-  QNetworkRequest request( apiUrl( apiBase, createAccount ? u"/v1/auth/register"_s : u"/v1/auth/login"_s ) );
-  setJsonHeaders( request );
-  QNetworkReply *reply = networkManager->post( request, QJsonDocument( body ).toJson( QJsonDocument::Compact ) );
-  if ( !reply )
+    QJsonObject body;
+    body.insert( u"email"_s, trimmedEmail );
+    body.insert( u"password"_s, password );
+
+    QNetworkRequest request( apiUrl( apiBase, createAccount ? u"/v1/auth/register"_s : u"/v1/auth/login"_s ) );
+    setAuthJsonHeaders( request );
+    QNetworkReply *reply = manager->post( request, QJsonDocument( body ).toJson( QJsonDocument::Compact ) );
+    if ( !reply )
+    {
+      emit requestFailed( tr( "Unable to start the Plan login request." ) );
+      return;
+    }
+
+    connect( reply, &QNetworkReply::finished, reply, &QObject::deleteLater );
+    connect( reply, &QNetworkReply::finished, this, [this, reply, apiBase]() {
+      const int httpStatus = reply->attribute( QNetworkRequest::HttpStatusCodeAttribute ).toInt();
+      const QByteArray responseBody = reply->readAll();
+      if ( reply->error() != QNetworkReply::NoError || httpStatus < 200 || httpStatus >= 300 )
+      {
+        emit requestFailed( responseErrorMessage( reply, responseBody ) );
+        return;
+      }
+
+      const QString accessToken = QJsonDocument::fromJson( responseBody ).object().value( u"accessToken"_s ).toString();
+      if ( accessToken.isEmpty() )
+      {
+        emit requestFailed( tr( "Plan login response did not include an access token." ) );
+        return;
+      }
+      requestDesktopToken( apiBase, accessToken );
+    } );
+  };
+
+  // Best-effort warm-up so cold Cloud Run instances are awake before the login POST.
+  QNetworkRequest healthRequest( apiUrl( apiBase, u"/health"_s ) );
+  healthRequest.setRawHeader( "Accept", "application/json" );
+  healthRequest.setTransferTimeout( PLAN_AUTH_TIMEOUT_MS );
+  QNetworkReply *healthReply = networkManager->get( healthRequest );
+  if ( !healthReply )
   {
-    emit requestFailed( tr( "Unable to start the Plan login request." ) );
+    startCredentialPost();
     return;
   }
 
-  connect( reply, &QNetworkReply::finished, reply, &QObject::deleteLater );
-  connect( reply, &QNetworkReply::finished, this, [this, reply, apiBase]() {
-    const int httpStatus = reply->attribute( QNetworkRequest::HttpStatusCodeAttribute ).toInt();
-    const QByteArray body = reply->readAll();
-    if ( reply->error() != QNetworkReply::NoError || httpStatus < 200 || httpStatus >= 300 )
-    {
-      emit requestFailed( responseErrorMessage( reply, body ) );
-      return;
-    }
-
-    const QString accessToken = QJsonDocument::fromJson( body ).object().value( u"accessToken"_s ).toString();
-    if ( accessToken.isEmpty() )
-    {
-      emit requestFailed( tr( "Plan login response did not include an access token." ) );
-      return;
-    }
-    requestDesktopToken( apiBase, accessToken );
+  connect( healthReply, &QNetworkReply::finished, healthReply, &QObject::deleteLater );
+  connect( healthReply, &QNetworkReply::finished, this, [startCredentialPost]() {
+    startCredentialPost();
   } );
 }
 
@@ -522,7 +557,7 @@ void QgsAiPlanClient::requestDesktopToken( const QString &apiBase, const QString
   QJsonObject body;
   body.insert( u"name"_s, u"Strata Desktop"_s );
   QNetworkRequest request( apiUrl( apiBase, u"/v1/auth/token"_s ) );
-  setJsonHeaders( request );
+  setAuthJsonHeaders( request );
   request.setRawHeader( "Authorization", ( u"Bearer %1"_s.arg( accessToken ) ).toUtf8() );
   QNetworkReply *reply = networkManager->post( request, QJsonDocument( body ).toJson( QJsonDocument::Compact ) );
   if ( !reply )

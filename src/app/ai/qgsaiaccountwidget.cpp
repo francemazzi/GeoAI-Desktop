@@ -541,6 +541,10 @@ QString QgsAiAccountWidget::friendlyErrorMessage( const QString &message )
     }
     return tr( "Cannot reach the Strata Cloud backend at %1. Check your network connection or try again later." ).arg( endpoint );
   }
+  if ( message.contains( u"Operation canceled"_s, Qt::CaseInsensitive ) || message.contains( u"Operation cancelled"_s, Qt::CaseInsensitive ) )
+  {
+    return tr( "Timed out reaching Strata Cloud. Check your network, firewall, or proxy, then try logging in again." );
+  }
   return message;
 }
 
