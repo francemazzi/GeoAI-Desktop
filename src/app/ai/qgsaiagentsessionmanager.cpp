@@ -814,8 +814,8 @@ void QgsAiAgentSessionManager::cancelActiveRequest()
   {
     mAwaitingAgentRunApproval = false;
     completeManagedAgentRun();
-    emit requestStateChanged( u"cancelled"_s, u"Request cancelled by user."_s );
-    emit requestRunningChanged( false );
+    emit requestStateChanged( u"cancelled"_s, u"Request cancelled by user."_s ); //#spellok
+    emit requestRunningChanged( false );                                         //#spellok
     return;
   }
   if ( mActiveRequestId.isEmpty() || !mRouter )
@@ -968,8 +968,8 @@ void QgsAiAgentSessionManager::createManagedAgentRun()
         completeManagedAgentRun();
         const QString message = tr( "The agent task was not approved. No tools were run." );
         recordHistoryMessage( buildAssistantMessage( message ) );
-        emit requestStateChanged( u"cancelled"_s, message );
-        emit requestRunningChanged( false );
+        emit requestStateChanged( u"cancelled"_s, message ); //#spellok
+        emit requestRunningChanged( false );                 //#spellok
         return;
       }
       approveManagedAgentRun();
