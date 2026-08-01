@@ -393,7 +393,13 @@ bool QgsAiCloudIndexClient::validateContextItems( const QList<ContextItem> &item
 }
 
 void QgsAiCloudIndexClient::promoteToKnowledgeBase(
-  const QString &chatEndpoint, const QString &sessionToken, const QString &workspaceRoot, const QString &workspaceName, const ContextItem &item, bool contentOptIn, const QString &chatSessionId,
+  const QString &chatEndpoint,
+  const QString &sessionToken,
+  const QString &workspaceRoot,
+  const QString &workspaceName,
+  const ContextItem &item,
+  bool contentOptIn,
+  const QString &chatSessionId,
   const QString &chatMessageId
 )
 {

@@ -78,8 +78,14 @@ class APP_EXPORT QgsAiCloudIndexClient : public QObject
      * The caller must collect per-item consent; this method never runs automatically.
      */
     void promoteToKnowledgeBase(
-      const QString &chatEndpoint, const QString &sessionToken, const QString &workspaceRoot, const QString &workspaceName, const ContextItem &item, bool contentOptIn,
-      const QString &chatSessionId = QString(), const QString &chatMessageId = QString()
+      const QString &chatEndpoint,
+      const QString &sessionToken,
+      const QString &workspaceRoot,
+      const QString &workspaceName,
+      const ContextItem &item,
+      bool contentOptIn,
+      const QString &chatSessionId = QString(),
+      const QString &chatMessageId = QString()
     );
 
   signals:
@@ -91,9 +97,7 @@ class APP_EXPORT QgsAiCloudIndexClient : public QObject
     void postContextBatch(
       const QString &apiBase, const QString &sessionToken, const QString &workspaceId, const QList<ContextItem> &items, int offset, int accumulatedUpserted, int accumulatedQueued, bool contentOptIn
     );
-    void postPromotedFile(
-      const QString &apiBase, const QString &sessionToken, const QString &workspaceId, const ContextItem &item, const QString &chatSessionId, const QString &chatMessageId
-    );
+    void postPromotedFile( const QString &apiBase, const QString &sessionToken, const QString &workspaceId, const ContextItem &item, const QString &chatSessionId, const QString &chatMessageId );
 };
 
 Q_DECLARE_METATYPE( QgsAiCloudIndexClient::ContextItem )

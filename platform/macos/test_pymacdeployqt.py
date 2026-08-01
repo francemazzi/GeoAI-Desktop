@@ -86,10 +86,7 @@ class PythonRuntimePackageValidationTest(unittest.TestCase):
     def test_discovers_homebrew_shared_site_packages_for_required_package(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             framework_version = (
-                Path(temporary_directory)
-                / "Python.framework"
-                / "Versions"
-                / "3.14"
+                Path(temporary_directory) / "Python.framework" / "Versions" / "3.14"
             )
             python_library = framework_version / "Python"
             stdlib_dir = framework_version / "lib" / "python3.14"

@@ -37,6 +37,7 @@
 #include "qgsaivisualcontextutils.h"
 #include "qgsaiworkspacetrust.h"
 #include "qgsapplication.h"
+#include "qgsexception.h"
 #include "qgsfeature.h"
 #include "qgsfeatureiterator.h"
 #include "qgsfeaturerequest.h"
@@ -51,7 +52,6 @@
 #include "qgsrasterlayer.h"
 #include "qgsscrollarea.h"
 #include "qgssettings.h"
-#include "qgsexception.h"
 #include "qgstaskmanager.h"
 #include "qgsvectordataprovider.h"
 #include "qgsvectorlayer.h"
@@ -160,7 +160,7 @@ namespace
       text.chop( 1 );
     return text.trimmed();
   }
-}
+} //namespace
 using QgsAiSettingsUtils::settingValueWithLegacy;
 
 namespace
@@ -2665,10 +2665,8 @@ void QgsAiChatDockWidget::promoteAttachedFile( const QString &path )
     }
   }
 
-  const auto answer = QMessageBox::question(
-    this, tr( "Add to Knowledge Base" ),
-    tr( "Upload the extracted content of “%1” to this workspace Knowledge Base? This consent applies only to this attachment." ).arg( info.fileName() ), QMessageBox::Yes | QMessageBox::No, QMessageBox::No
-  );
+  const auto answer = QMessageBox::
+    question( this, tr( "Add to Knowledge Base" ), tr( "Upload the extracted content of “%1” to this workspace Knowledge Base? This consent applies only to this attachment." ).arg( info.fileName() ), QMessageBox::Yes | QMessageBox::No, QMessageBox::No );
   if ( answer != QMessageBox::Yes )
     return;
 

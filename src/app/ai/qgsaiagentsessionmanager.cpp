@@ -29,12 +29,12 @@
 #include "qgsaivisualcontextutils.h"
 #include "qgsaiworkspacetrust.h"
 #include "qgsapplication.h"
+#include "qgsexception.h"
 #include "qgsmaplayer.h"
 #include "qgsmessagelog.h"
 #include "qgsnetworkaccessmanager.h"
 #include "qgspdfrenderer.h"
 #include "qgsproject.h"
-#include "qgsexception.h"
 #include "qgssettings.h"
 
 #include <QCoreApplication>

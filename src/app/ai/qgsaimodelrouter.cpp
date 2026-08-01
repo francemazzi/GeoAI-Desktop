@@ -28,8 +28,8 @@
 #include "qgsnetworkaccessmanager.h"
 #include "qgssettings.h"
 
-#include <QByteArray>
 #include <QBuffer>
+#include <QByteArray>
 #include <QDateTime>
 #include <QFile>
 #include <QImageReader>

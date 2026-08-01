@@ -20,8 +20,8 @@
 #include "qgssettings.h"
 #include "qgstest.h"
 
-#include <QCoreApplication>
 #include <QColor>
+#include <QCoreApplication>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QEventLoop>

@@ -385,8 +385,7 @@ def python_site_packages_path(
     version = source_stdlib.name.removeprefix("python")
     staged_site_packages = source_stdlib / "site-packages"
     if staged_site_packages.is_dir() and (
-        required_package is None
-        or (staged_site_packages / required_package).is_dir()
+        required_package is None or (staged_site_packages / required_package).is_dir()
     ):
         # CPack may already have staged the embedded runtime below
         # Contents/Frameworks. Do not execute that partially-relocated
@@ -441,8 +440,7 @@ def stage_python_runtime_packages(
 ) -> list[str]:
     """Stage the PyQt runtime required by PyQGIS without development packages."""
     source_package = (
-        python_site_packages_path(python_library, required_package="PyQt6")
-        / "PyQt6"
+        python_site_packages_path(python_library, required_package="PyQt6") / "PyQt6"
     )
     if not source_package.is_dir():
         raise RuntimeError(

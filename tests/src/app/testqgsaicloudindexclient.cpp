@@ -261,9 +261,7 @@ void TestQgsAiCloudIndexClient::promoteAttachmentUsesDedicatedEndpointAndBasenam
   QgsAiCloudIndexClient client;
   QSignalSpy promotedSpy( &client, &QgsAiCloudIndexClient::knowledgePromoted );
   QSignalSpy failedSpy( &client, &QgsAiCloudIndexClient::requestFailed );
-  client.promoteToKnowledgeBase(
-    u"http://127.0.0.1:%1/ai/messages"_s.arg( server.serverPort() ), u"strata_dt_123"_s, dir.path(), u"KB"_s, item, true, u"chat_1"_s, u"message_1"_s
-  );
+  client.promoteToKnowledgeBase( u"http://127.0.0.1:%1/ai/messages"_s.arg( server.serverPort() ), u"strata_dt_123"_s, dir.path(), u"KB"_s, item, true, u"chat_1"_s, u"message_1"_s );
   QVERIFY( waitForSignal( &client, SIGNAL( knowledgePromoted( QgsAiCloudIndexClient::PromotionResult ) ) ) );
 
   QCOMPARE( failedSpy.count(), 0 );
