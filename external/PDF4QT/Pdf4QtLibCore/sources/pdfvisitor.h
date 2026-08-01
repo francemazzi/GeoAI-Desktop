@@ -29,6 +29,7 @@
 
 #include <QMutex>
 
+#include <algorithm>
 #include <map>
 #include <atomic>
 #include <execution>
@@ -167,7 +168,11 @@ struct PDFApplyVisitorImpl<Visitor, PDFAbstractVisitor::Strategy::Parallel>
         const PDFObjectStorage::PDFObjects& objects = storage.getObjects();
         const PDFObject& trailerDictionary = storage.getTrailerDictionary();
 
+#ifdef __APPLE__
+        std::for_each(objects.cbegin(), objects.cend(), [visitor](const PDFObjectStorage::Entry& entry) { entry.object.accept(visitor); });
+#else
         std::for_each(std::execution::par, objects.cbegin(), objects.cend(), [visitor](const PDFObjectStorage::Entry& entry) { entry.object.accept(visitor); });
+#endif
         trailerDictionary.accept(visitor);
     }
 };
@@ -192,7 +197,11 @@ struct PDFApplyVisitorImpl<Visitor, PDFAbstractVisitor::Strategy::Merging>
             visitor->merge(&localVisitor);
         };
 
+#ifdef __APPLE__
+        std::for_each(objects.cbegin(), objects.cend(), process);
+#else
         std::for_each(std::execution::par, objects.cbegin(), objects.cend(), process);
+#endif
         trailerDictionary.accept(visitor);
     }
 };
@@ -206,7 +215,11 @@ struct PDFApplyVisitorImpl<Visitor, PDFAbstractVisitor::Strategy::Sequential>
         const PDFObjectStorage::PDFObjects& objects = storage.getObjects();
         const PDFObject& trailerDictionary = storage.getTrailerDictionary();
 
+#ifdef __APPLE__
+        std::for_each(objects.cbegin(), objects.cend(), [visitor](const PDFObjectStorage::Entry& entry) { entry.object.accept(visitor); });
+#else
         std::for_each(std::execution::seq, objects.cbegin(), objects.cend(), [visitor](const PDFObjectStorage::Entry& entry) { entry.object.accept(visitor); });
+#endif
         trailerDictionary.accept(visitor);
     }
 };

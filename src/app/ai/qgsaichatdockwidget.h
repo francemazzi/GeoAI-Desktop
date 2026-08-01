@@ -150,6 +150,8 @@ class APP_EXPORT QgsAiChatDockWidget : public QgsDockWidget
     void rebuildAttachmentChips();
     QList<QgsAiChatContextFile> contextFilesForCurrentMessage( const QString &text ) const;
     bool addAttachedFile( const QString &path );
+    void promoteAttachedFile( const QString &path );
+    void setAttachmentState( const QString &path, const QString &state );
     void setRequestRunning( bool running );
     void maybeShowWelcomeBanner();
     void sendGisSuggestionToChat( const QgsAiGisSuggestion &suggestion );
@@ -159,6 +161,9 @@ class APP_EXPORT QgsAiChatDockWidget : public QgsDockWidget
     {
         QString filePath;
         bool allowExternal = true;
+        bool chatEligible = true;
+        bool knowledgeEligible = false;
+        QString state;
     };
 
     QPointer<QgsAiAgentSessionManager> mSessionManager;

@@ -83,6 +83,45 @@ class PythonRuntimePackageValidationTest(unittest.TestCase):
                 site_packages.resolve(),
             )
 
+    def test_discovers_homebrew_shared_site_packages_for_required_package(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            framework_version = (
+                Path(temporary_directory)
+                / "Python.framework"
+                / "Versions"
+                / "3.14"
+            )
+            python_library = framework_version / "Python"
+            stdlib_dir = framework_version / "lib" / "python3.14"
+            local_site_packages = stdlib_dir / "site-packages"
+            shared_site_packages = Path(temporary_directory) / "shared-site-packages"
+            python_executable = framework_version / "bin" / "python3.14"
+            python_library.parent.mkdir(parents=True, exist_ok=True)
+            python_library.touch()
+            local_site_packages.mkdir(parents=True)
+            (stdlib_dir / "traceback.py").touch()
+            python_executable.parent.mkdir(parents=True)
+            python_executable.touch()
+            (shared_site_packages / "PyQt6").mkdir(parents=True)
+
+            completed_process = type(
+                "CompletedProcess",
+                (),
+                {"stdout": f"{shared_site_packages}\n"},
+            )()
+            with patch.object(
+                PYMACDEPLOYQT.subprocess,
+                "run",
+                return_value=completed_process,
+            ) as run:
+                self.assertEqual(
+                    PYMACDEPLOYQT.python_site_packages_path(
+                        str(python_library), required_package="PyQt6"
+                    ),
+                    shared_site_packages,
+                )
+                run.assert_called_once()
+
 
 class QtRuntimeDiscoveryTest(unittest.TestCase):
     """Cover flat vcpkg Qt resources and already-staged CPack resources."""

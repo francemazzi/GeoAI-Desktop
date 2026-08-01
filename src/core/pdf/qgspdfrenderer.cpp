@@ -19,6 +19,7 @@
 
 #ifdef HAVE_PDF4QT
 #include "pdfdocumentreader.h"
+#include "pdfdocumenttextflow.h"
 #include "pdfrenderer.h"
 #include "pdffont.h"
 #include "pdfcms.h"
@@ -71,6 +72,31 @@ QgsPdfRenderer::QgsPdfRenderer( const QString &path, Qgis::PdfRenderFlags flags 
 }
 
 QgsPdfRenderer::~QgsPdfRenderer() = default;
+
+#ifdef HAVE_PDF4QT
+QString QgsPdfRenderer::extractText( qint64 maxUtf8Bytes ) const
+{
+  if ( maxUtf8Bytes <= 0 )
+    return QString();
+
+  pdf::PDFDocumentTextFlowFactory factory;
+  QString text = factory.create( &mDocumentContainer->document, pdf::PDFDocumentTextFlowFactory::Algorithm::Auto ).getText().trimmed();
+  QByteArray utf8 = text.toUtf8();
+  if ( utf8.size() <= maxUtf8Bytes )
+    return text;
+
+  utf8.truncate( maxUtf8Bytes );
+  text = QString::fromUtf8( utf8 );
+  while ( text.endsWith( QChar::ReplacementCharacter ) )
+    text.chop( 1 );
+  return text.trimmed();
+}
+#else
+QString QgsPdfRenderer::extractText( qint64 ) const
+{
+  throw QgsNotSupportedException( QObject::tr( "Extracting PDF text requires a QGIS build with PDF4Qt library support" ) );
+}
+#endif
 
 #ifdef HAVE_PDF4QT
 int QgsPdfRenderer::pageCount() const

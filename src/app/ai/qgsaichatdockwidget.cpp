@@ -46,10 +46,12 @@
 #include "qgsmessagebar.h"
 #include "qgsmessagebaritem.h"
 #include "qgsnetworkaccessmanager.h"
+#include "qgspdfrenderer.h"
 #include "qgsproject.h"
 #include "qgsrasterlayer.h"
 #include "qgsscrollarea.h"
 #include "qgssettings.h"
+#include "qgsexception.h"
 #include "qgstaskmanager.h"
 #include "qgsvectordataprovider.h"
 #include "qgsvectorlayer.h"
@@ -81,6 +83,7 @@
 #include <QFormLayout>
 #include <QFrame>
 #include <QHBoxLayout>
+#include <QImageReader>
 #include <QInputDialog>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -128,6 +131,36 @@
 using namespace Qt::StringLiterals;
 
 using QgsAiSettingsUtils::humanBytes;
+
+namespace
+{
+  constexpr qint64 MAX_KNOWLEDGE_ATTACHMENT_BYTES = 256 * 1024;
+
+  QString attachmentStateLabel( const QString &state )
+  {
+    if ( state == "sent"_L1 )
+      return QObject::tr( "inviato" );
+    if ( state == "omitted"_L1 )
+      return QObject::tr( "omesso" );
+    if ( state == "added"_L1 )
+      return QObject::tr( "aggiunto a KB" );
+    return QObject::tr( "richiede consenso" );
+  }
+
+  QString cappedFileText( const QString &path, qint64 maxBytes )
+  {
+    QFile file( path );
+    if ( !file.open( QIODevice::ReadOnly ) )
+      return QString();
+    QByteArray bytes = file.read( maxBytes + 1 );
+    if ( bytes.size() > maxBytes )
+      bytes.truncate( maxBytes );
+    QString text = QString::fromUtf8( bytes );
+    while ( text.endsWith( QChar::ReplacementCharacter ) )
+      text.chop( 1 );
+    return text.trimmed();
+  }
+}
 using QgsAiSettingsUtils::settingValueWithLegacy;
 
 namespace
@@ -2456,7 +2489,14 @@ void QgsAiChatDockWidget::sendMessage()
 
   mInputTextEdit->clear();
   hideMentionPopup();
-  mAttachedFiles.clear();
+  for ( AttachedFile &file : mAttachedFiles )
+  {
+    if ( file.state != "omitted"_L1 && file.state != "added"_L1 )
+      file.state = u"sent"_s;
+    // Keep the chip visible so the user can review the delivery state or explicitly
+    // promote the attachment, but never include it in a later chat turn again.
+    file.chatEligible = false;
+  }
   rebuildAttachmentChips();
 
   QString outgoing = input.isEmpty() ? tr( "Analyze the attached files." ) : input;
@@ -2523,8 +2563,135 @@ bool QgsAiChatDockWidget::addAttachedFile( const QString &path )
   AttachedFile file;
   file.filePath = absolutePath;
   file.allowExternal = true;
+  const QString suffix = info.suffix().toLower();
+  const bool isImage = QgsAiVisualContextUtils::isSupportedImagePath( absolutePath );
+  file.knowledgeEligible = isImage || suffix == "pdf"_L1 || suffix == "txt"_L1 || suffix == "md"_L1 || suffix == "markdown"_L1 || suffix == "csv"_L1;
+  if ( isImage )
+  {
+    int includedImages = 0;
+    for ( const AttachedFile &attached : std::as_const( mAttachedFiles ) )
+    {
+      if ( attached.chatEligible && QgsAiVisualContextUtils::isSupportedImagePath( attached.filePath ) )
+        ++includedImages;
+    }
+    QImageReader reader( absolutePath );
+    file.chatEligible = includedImages < 4 && reader.canRead();
+  }
+  else
+  {
+    file.chatEligible = file.knowledgeEligible;
+  }
+  file.state = file.chatEligible && file.knowledgeEligible ? u"requires_consent"_s : u"omitted"_s;
   mAttachedFiles << file;
   return true;
+}
+
+void QgsAiChatDockWidget::setAttachmentState( const QString &path, const QString &state )
+{
+  for ( AttachedFile &file : mAttachedFiles )
+  {
+    if ( file.filePath == path )
+    {
+      file.state = state;
+      break;
+    }
+  }
+  rebuildAttachmentChips();
+}
+
+void QgsAiChatDockWidget::promoteAttachedFile( const QString &path )
+{
+  if ( !mSessionManager || !mModelRouter )
+    return;
+
+  setAttachmentState( path, u"requires_consent"_s );
+  const QString workspaceRoot = mSessionManager->workspaceRoot();
+  ensureWorkspaceTrustDecision();
+  if ( workspaceRoot.trimmed().isEmpty() || !QgsAiWorkspaceTrust::isTrusted( workspaceRoot ) )
+  {
+    setAttachmentState( path, u"omitted"_s );
+    QMessageBox::warning( this, tr( "Knowledge Base" ), tr( "Trust and configure a workspace before adding attachments to its Knowledge Base." ) );
+    return;
+  }
+
+  const QFileInfo info( path );
+  const QString suffix = info.suffix().toLower();
+  QgsAiCloudIndexClient::ContextItem item;
+  item.path = info.fileName();
+  item.title = info.fileName();
+
+  if ( QgsAiVisualContextUtils::isSupportedImagePath( path ) )
+  {
+    bool accepted = false;
+    const QString caption = QInputDialog::getMultiLineText( this, tr( "Describe image" ), tr( "Add a factual caption before promoting this image:" ), QString(), &accepted ).trimmed();
+    if ( !accepted || caption.isEmpty() )
+      return;
+    item.sourceType = u"image"_s;
+    item.mimeType = QgsAiVisualContextUtils::mimeTypeForImagePath( path );
+    item.caption = caption;
+  }
+  else if ( suffix == "pdf"_L1 )
+  {
+    item.sourceType = u"pdf"_s;
+    item.mimeType = u"application/pdf"_s;
+    try
+    {
+      QgsPdfRenderer renderer( path );
+      item.text = renderer.extractText( MAX_KNOWLEDGE_ATTACHMENT_BYTES );
+    }
+    catch ( const QgsNotSupportedException & )
+    {
+      setAttachmentState( path, u"omitted"_s );
+      QMessageBox::information( this, tr( "Knowledge Base" ), tr( "This build does not include PDF4Qt text extraction, so the PDF was omitted." ) );
+      return;
+    }
+    if ( item.text.isEmpty() )
+    {
+      setAttachmentState( path, u"omitted"_s );
+      QMessageBox::information( this, tr( "Knowledge Base" ), tr( "No selectable text was found. The PDF may be scanned, so it was omitted." ) );
+      return;
+    }
+  }
+  else
+  {
+    item.sourceType = u"file"_s;
+    item.mimeType = suffix == "csv"_L1 ? u"text/csv"_s : suffix == "md"_L1 || suffix == "markdown"_L1 ? u"text/markdown"_s : u"text/plain"_s;
+    item.text = cappedFileText( path, MAX_KNOWLEDGE_ATTACHMENT_BYTES );
+    if ( item.text.isEmpty() )
+    {
+      setAttachmentState( path, u"omitted"_s );
+      QMessageBox::information( this, tr( "Knowledge Base" ), tr( "No readable text was found, so the attachment was omitted." ) );
+      return;
+    }
+  }
+
+  const auto answer = QMessageBox::question(
+    this, tr( "Add to Knowledge Base" ),
+    tr( "Upload the extracted content of “%1” to this workspace Knowledge Base? This consent applies only to this attachment." ).arg( info.fileName() ), QMessageBox::Yes | QMessageBox::No, QMessageBox::No
+  );
+  if ( answer != QMessageBox::Yes )
+    return;
+
+  const QgsAiModelRouter::ProviderSettings plan = mModelRouter->providerSettings( QgsAiModelRouter::Provider::Plan );
+  const QString token = mModelRouter->planSessionToken();
+  if ( !QgsAiModelRouter::isUsablePlanEndpoint( plan.endpoint ) || token.trimmed().isEmpty() )
+  {
+    setAttachmentState( path, u"omitted"_s );
+    QMessageBox::warning( this, tr( "Knowledge Base" ), tr( "Configure and sign in to Plan Account before adding Knowledge Base content." ) );
+    return;
+  }
+
+  QgsAiCloudIndexClient *client = new QgsAiCloudIndexClient( this );
+  connect( client, &QgsAiCloudIndexClient::knowledgePromoted, this, [this, client, path]( const QgsAiCloudIndexClient::PromotionResult & ) {
+    setAttachmentState( path, u"added"_s );
+    client->deleteLater();
+  } );
+  connect( client, &QgsAiCloudIndexClient::requestFailed, this, [this, client, path]( const QString &message ) {
+    setAttachmentState( path, u"omitted"_s );
+    QMessageBox::warning( this, tr( "Knowledge Base" ), message );
+    client->deleteLater();
+  } );
+  client->promoteToKnowledgeBase( plan.endpoint, token, workspaceRoot, QFileInfo( workspaceRoot ).fileName(), item, true, mSessionManager->activeSessionId() );
 }
 
 void QgsAiChatDockWidget::rebuildAttachmentChips()
@@ -2556,6 +2723,25 @@ void QgsAiChatDockWidget::rebuildAttachmentChips()
     label->setToolTip( file.filePath );
     chipLayout->addWidget( label );
 
+    QLabel *stateLabel = new QLabel( attachmentStateLabel( file.state ), chip );
+    stateLabel->setObjectName( u"aiAttachmentStateLabel"_s );
+    stateLabel->setProperty( "attachmentPath", file.filePath );
+    stateLabel->setStyleSheet( u"color: palette(mid); font-size: 10px;"_s );
+    chipLayout->addWidget( stateLabel );
+
+    const QString path = file.filePath;
+    if ( file.knowledgeEligible && file.state != "added"_L1 )
+    {
+      QToolButton *knowledgeButton = new QToolButton( chip );
+      knowledgeButton->setObjectName( u"aiAttachmentKnowledgeButton"_s );
+      knowledgeButton->setProperty( "attachmentPath", path );
+      knowledgeButton->setText( tr( "Add to Knowledge Base" ) );
+      knowledgeButton->setAutoRaise( true );
+      knowledgeButton->setToolTip( tr( "Explicitly promote this attachment; it is never added automatically." ) );
+      chipLayout->addWidget( knowledgeButton );
+      connect( knowledgeButton, &QToolButton::clicked, this, [this, path]() { promoteAttachedFile( path ); } );
+    }
+
     QToolButton *removeButton = new QToolButton( chip );
     removeButton->setText( u"×"_s );
     removeButton->setAutoRaise( true );
@@ -2563,7 +2749,6 @@ void QgsAiChatDockWidget::rebuildAttachmentChips()
     removeButton->setToolTip( tr( "Remove attachment" ) );
     chipLayout->addWidget( removeButton );
 
-    const QString path = file.filePath;
     connect( removeButton, &QToolButton::clicked, this, [this, path]() {
       for ( int i = 0; i < mAttachedFiles.size(); ++i )
       {
@@ -2683,6 +2868,8 @@ QList<QgsAiChatContextFile> QgsAiChatDockWidget::contextFilesForCurrentMessage( 
 
   for ( const AttachedFile &attachedFile : mAttachedFiles )
   {
+    if ( !attachedFile.chatEligible )
+      continue;
     QgsAiChatContextFile contextFile;
     contextFile.filePath = attachedFile.filePath;
     contextFile.allowExternal = attachedFile.allowExternal;

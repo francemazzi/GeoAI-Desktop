@@ -54,6 +54,13 @@ class APP_EXPORT QgsAiCloudIndexClient : public QObject
         int queued = 0;
     };
 
+    struct PromotionResult
+    {
+        QString workspaceId;
+        QString fileId;
+        QString jobId;
+    };
+
     explicit QgsAiCloudIndexClient( QObject *parent = nullptr );
 
     static QString apiBaseForChatEndpoint( const QString &chatEndpoint );
@@ -66,17 +73,31 @@ class APP_EXPORT QgsAiCloudIndexClient : public QObject
 
     void syncWorkspaceContext( const QString &chatEndpoint, const QString &sessionToken, const QString &workspaceRoot, const QString &workspaceName, const QList<ContextItem> &items, bool contentOptIn );
 
+    /**
+     * Explicitly promotes one ephemeral chat attachment to the workspace Knowledge Base.
+     * The caller must collect per-item consent; this method never runs automatically.
+     */
+    void promoteToKnowledgeBase(
+      const QString &chatEndpoint, const QString &sessionToken, const QString &workspaceRoot, const QString &workspaceName, const ContextItem &item, bool contentOptIn,
+      const QString &chatSessionId = QString(), const QString &chatMessageId = QString()
+    );
+
   signals:
     void contextSynced( const QgsAiCloudIndexClient::SyncResult &result );
+    void knowledgePromoted( const QgsAiCloudIndexClient::PromotionResult &result );
     void requestFailed( const QString &message );
 
   private:
     void postContextBatch(
       const QString &apiBase, const QString &sessionToken, const QString &workspaceId, const QList<ContextItem> &items, int offset, int accumulatedUpserted, int accumulatedQueued, bool contentOptIn
     );
+    void postPromotedFile(
+      const QString &apiBase, const QString &sessionToken, const QString &workspaceId, const ContextItem &item, const QString &chatSessionId, const QString &chatMessageId
+    );
 };
 
 Q_DECLARE_METATYPE( QgsAiCloudIndexClient::ContextItem )
 Q_DECLARE_METATYPE( QgsAiCloudIndexClient::SyncResult )
+Q_DECLARE_METATYPE( QgsAiCloudIndexClient::PromotionResult )
 
 #endif // QGSAICLOUDINDEXCLIENT_H

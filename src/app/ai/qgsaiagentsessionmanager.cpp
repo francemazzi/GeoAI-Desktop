@@ -32,7 +32,9 @@
 #include "qgsmaplayer.h"
 #include "qgsmessagelog.h"
 #include "qgsnetworkaccessmanager.h"
+#include "qgspdfrenderer.h"
 #include "qgsproject.h"
+#include "qgsexception.h"
 #include "qgssettings.h"
 
 #include <QCoreApplication>
@@ -1139,7 +1141,7 @@ QString QgsAiAgentSessionManager::buildContextSummary( const QList<QgsAiChatCont
     const QString root = mContextProvider->workspaceRoot();
     const QString relativePath = QDir( root ).relativeFilePath( context.filePath );
     const bool inWorkspace = !root.isEmpty() && ( relativePath == "."_L1 || ( !relativePath.startsWith( "../"_L1 ) && relativePath != ".."_L1 && !QDir::isAbsolutePath( relativePath ) ) );
-    const QString displayPath = inWorkspace ? relativePath : context.filePath;
+    const QString displayPath = inWorkspace ? relativePath : QFileInfo( context.filePath ).fileName();
 
     QString summary;
     summary += u"Context file %1: %2\n"_s.arg( index++ ).arg( displayPath );
@@ -1148,7 +1150,23 @@ QString QgsAiAgentSessionManager::buildContextSummary( const QList<QgsAiChatCont
       summary += u"Selected text:\n%1\n"_s.arg( wrapUntrusted( u"selection:%1"_s.arg( displayPath ), context.selectedText.left( 8192 ) ) );
     if ( context.binary )
     {
-      if ( QgsAiVisualContextUtils::isSupportedImagePath( context.filePath ) )
+      if ( QFileInfo( context.filePath ).suffix().compare( "pdf"_L1, Qt::CaseInsensitive ) == 0 )
+      {
+        try
+        {
+          QgsPdfRenderer renderer( context.filePath );
+          const QString pdfText = renderer.extractText( 16 * 1024 );
+          if ( pdfText.isEmpty() )
+            summary += "PDF attachment omitted: no selectable text was found (the document may be scanned)."_L1;
+          else
+            summary += u"PDF text (capped at 16 KiB):\n%1"_s.arg( wrapUntrusted( u"pdf:%1"_s.arg( displayPath ), pdfText ) );
+        }
+        catch ( const QgsNotSupportedException & )
+        {
+          summary += "PDF attachment omitted: this build does not include PDF4Qt text extraction."_L1;
+        }
+      }
+      else if ( QgsAiVisualContextUtils::isSupportedImagePath( context.filePath ) )
       {
         if ( QgsAiVisualContextUtils::hasVisualConsent() )
         {
@@ -1320,22 +1338,8 @@ void QgsAiAgentSessionManager::sendUserMessage( const QString &text, const QList
     message.content = message.content + u"\n\nContext:\n"_s + contextSummary;
   }
 
-  QStringList attachedImagePaths;
-  QVariantList attachedImageMimeTypes;
-  for ( const QgsAiChatContextFile &contextFile : contextFiles )
-  {
-    if ( !QgsAiVisualContextUtils::isSupportedImagePath( contextFile.filePath ) )
-      continue;
-
-    attachedImagePaths << QDir::cleanPath( QFileInfo( contextFile.filePath ).absoluteFilePath() );
-    attachedImageMimeTypes << QgsAiVisualContextUtils::mimeTypeForImagePath( contextFile.filePath );
-  }
-  if ( !attachedImagePaths.isEmpty() && QgsAiVisualContextUtils::hasVisualConsent() )
-  {
-    message.metadata.insert( u"attached_image_paths"_s, attachedImagePaths );
-    message.metadata.insert( u"attached_image_mime_types"_s, attachedImageMimeTypes );
-  }
-
+  // Attachment paths are request-ephemeral. They must never be persisted in
+  // ChatMessage metadata or copied into backend chat/session events.
   recordHistoryMessage( message );
   mCurrentContextFiles = contextFiles;
   mToolIterations = 0;
@@ -2257,7 +2261,25 @@ QList<QgsAiChatMessage> QgsAiAgentSessionManager::buildOutgoingMessages() const
   systemMessage.timestamp = QDateTime::currentDateTimeUtc();
   result.append( systemMessage );
 
-  result.append( trimHistoryByTokenBudget( HISTORY_TOKEN_BUDGET ) );
+  QList<QgsAiChatMessage> history = trimHistoryByTokenBudget( HISTORY_TOKEN_BUDGET );
+  if ( QgsAiVisualContextUtils::hasVisualConsent() )
+  {
+    QStringList attachedImagePaths;
+    for ( const QgsAiChatContextFile &contextFile : mCurrentContextFiles )
+    {
+      if ( QgsAiVisualContextUtils::isSupportedImagePath( contextFile.filePath ) )
+        attachedImagePaths << QDir::cleanPath( QFileInfo( contextFile.filePath ).absoluteFilePath() );
+    }
+    for ( int i = history.size() - 1; i >= 0 && !attachedImagePaths.isEmpty(); --i )
+    {
+      if ( history.at( i ).role == QgsAiChatRole::User )
+      {
+        history[i].metadata.insert( u"attached_image_paths"_s, attachedImagePaths );
+        break;
+      }
+    }
+  }
+  result.append( history );
   return result;
 }
 

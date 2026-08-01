@@ -49,6 +49,7 @@ class TestQgsAiCloudIndexClient : public QObject
     void validationRejectsSpatialPayloads();
     void syncContextUpsertsWorkspaceAndPostsBearerContext();
     void syncContextBatchesLargePayloads();
+    void promoteAttachmentUsesDedicatedEndpointAndBasename();
 };
 
 void TestQgsAiCloudIndexClient::fingerprintUsesFullWorkspaceSha1()
@@ -237,6 +238,51 @@ void TestQgsAiCloudIndexClient::syncContextBatchesLargePayloads()
   QCOMPARE( result.queued, 129 );
   QCOMPARE( QJsonDocument::fromJson( server.requestBodies.at( 1 ) ).object().value( u"items"_s ).toArray().size(), 128 );
   QCOMPARE( QJsonDocument::fromJson( server.requestBodies.at( 2 ) ).object().value( u"items"_s ).toArray().size(), 1 );
+}
+
+void TestQgsAiCloudIndexClient::promoteAttachmentUsesDedicatedEndpointAndBasename()
+{
+  QTemporaryDir dir;
+  QVERIFY( dir.isValid() );
+
+  QgsAiTestLoopbackServer server;
+  server.responses
+    << QgsAiTestLoopbackServer::jsonResponse( 200, "OK", QByteArrayLiteral( R"({"id":"ws_kb","fingerprint":"fp","name":"KB","role":"owner","createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"})" ) )
+    << QgsAiTestLoopbackServer::jsonResponse( 202, "Accepted", QByteArrayLiteral( R"({"file":{"id":"file_123"},"job":{"id":"job_123"}})" ) );
+  QVERIFY( server.listen( QHostAddress::LocalHost, 0 ) );
+
+  QgsAiCloudIndexClient::ContextItem item;
+  item.sourceType = u"file"_s;
+  item.path = QDir( dir.path() ).filePath( u"private/notes.md"_s );
+  item.title = u"notes.md"_s;
+  item.mimeType = u"text/markdown"_s;
+  item.text = QString( 300 * 1024, 'x'_L1 );
+
+  QgsAiCloudIndexClient client;
+  QSignalSpy promotedSpy( &client, &QgsAiCloudIndexClient::knowledgePromoted );
+  QSignalSpy failedSpy( &client, &QgsAiCloudIndexClient::requestFailed );
+  client.promoteToKnowledgeBase(
+    u"http://127.0.0.1:%1/ai/messages"_s.arg( server.serverPort() ), u"strata_dt_123"_s, dir.path(), u"KB"_s, item, true, u"chat_1"_s, u"message_1"_s
+  );
+  QVERIFY( waitForSignal( &client, SIGNAL( knowledgePromoted( QgsAiCloudIndexClient::PromotionResult ) ) ) );
+
+  QCOMPARE( failedSpy.count(), 0 );
+  QCOMPARE( promotedSpy.count(), 1 );
+  const auto result = qvariant_cast<QgsAiCloudIndexClient::PromotionResult>( promotedSpy.at( 0 ).at( 0 ) );
+  QCOMPARE( result.workspaceId, u"ws_kb"_s );
+  QCOMPARE( result.fileId, u"file_123"_s );
+  QCOMPARE( result.jobId, u"job_123"_s );
+  QCOMPARE( server.requestCount, 2 );
+  QVERIFY( server.rawRequests.at( 1 ).startsWith( "POST /v1/index/ws_kb/files/from-chat " ) );
+
+  const QJsonObject body = QJsonDocument::fromJson( server.requestBodies.at( 1 ) ).object();
+  QCOMPARE( body.value( u"path"_s ).toString(), u"notes.md"_s );
+  QVERIFY( !server.requestBodies.at( 1 ).contains( dir.path().toUtf8() ) );
+  QVERIFY( body.value( u"contentOptIn"_s ).toBool() );
+  QCOMPARE( body.value( u"sourceType"_s ).toString(), u"file"_s );
+  QCOMPARE( body.value( u"chatSessionId"_s ).toString(), u"chat_1"_s );
+  QCOMPARE( body.value( u"chatMessageId"_s ).toString(), u"message_1"_s );
+  QVERIFY( body.value( u"text"_s ).toString().toUtf8().size() <= 256 * 1024 );
 }
 
 QGSTEST_MAIN( TestQgsAiCloudIndexClient )

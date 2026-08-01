@@ -21,6 +21,7 @@
 #include "qgstest.h"
 
 #include <QCoreApplication>
+#include <QColor>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QEventLoop>
@@ -250,6 +251,7 @@ class TestQgsAiModelRouter : public QObject
     void visualContextImageRequiresConsent();
     void visualContextImageIsAddedToCodexPayload();
     void attachedImageIncludedInUserPayload();
+    void attachedImagesAreNormalizedAndCapped();
     void preDispatchFailureIsQueued();
     void resolvedPlanEndpointDefaultsToProduction();
     void dispatchLogDoesNotExposeEndpointQuery();
@@ -1216,6 +1218,57 @@ void TestQgsAiModelRouter::attachedImageIncludedInUserPayload()
 
   settings.remove( u"strata/visual_context/image_send_consent"_s );
   settings.remove( u"geoai/visual_context/image_send_consent"_s );
+}
+
+void TestQgsAiModelRouter::attachedImagesAreNormalizedAndCapped()
+{
+  QgsSettings settings;
+  settings.setValue( u"strata/visual_context/image_send_consent"_s, true );
+  const auto cleanup = qScopeGuard( [&settings]() {
+    settings.remove( u"strata/visual_context/image_send_consent"_s );
+    settings.remove( u"geoai/visual_context/image_send_consent"_s );
+  } );
+
+  QTemporaryDir tempDir;
+  QVERIFY( tempDir.isValid() );
+  QStringList imagePaths;
+  for ( int i = 0; i < 5; ++i )
+  {
+    const QString path = tempDir.filePath( u"large-%1.png"_s.arg( i ) );
+    QImage image( 3000, 1200, QImage::Format_RGB32 );
+    image.fill( QColor::fromHsv( i * 40, 220, 180 ) );
+    QVERIFY( image.save( path, "PNG" ) );
+    imagePaths << path;
+  }
+
+  QgsAiChatMessage message;
+  message.role = QgsAiChatRole::User;
+  message.content = u"Inspect these images"_s;
+  message.metadata.insert( u"attached_image_paths"_s, imagePaths );
+
+  QgsAiModelRouter router;
+  const QJsonObject object = QJsonDocument::fromJson( router.buildRequestPayload( QgsAiModelRouter::Provider::OpenAi, { message }, false ) ).object();
+  const QJsonArray content = object.value( u"input"_s ).toArray().first().toObject().value( u"content"_s ).toArray();
+  int imageCount = 0;
+  qint64 totalBytes = 0;
+  for ( const QJsonValue &value : content )
+  {
+    const QJsonObject block = value.toObject();
+    if ( block.value( u"type"_s ).toString() != "input_image"_L1 )
+      continue;
+    ++imageCount;
+    const QString dataUrl = block.value( u"image_url"_s ).toString();
+    QVERIFY( dataUrl.startsWith( "data:image/jpeg;base64,"_L1 ) );
+    const QByteArray bytes = QByteArray::fromBase64( dataUrl.mid( dataUrl.indexOf( ','_L1 ) + 1 ).toLatin1() );
+    QVERIFY( !bytes.isEmpty() );
+    QVERIFY( bytes.size() <= 1536 * 1024 );
+    totalBytes += bytes.size();
+    const QImage normalized = QImage::fromData( bytes, "JPEG" );
+    QVERIFY( !normalized.isNull() );
+    QVERIFY( std::max( normalized.width(), normalized.height() ) <= 2048 );
+  }
+  QCOMPARE( imageCount, 4 );
+  QVERIFY( totalBytes <= 5 * 1024 * 1024 );
 }
 
 void TestQgsAiModelRouter::preDispatchFailureIsQueued()
