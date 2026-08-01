@@ -28,8 +28,21 @@ jobs:
 
       - name: 🧹 Reclaim disk space
         run: |
+          # vcpkg + Emscripten fills the runner disk during Configure; the previous
+          # cleanup (android + /opt) is not enough and fails with
+          # "No space left on device" writing runner diag logs.
           sudo rm -rf /usr/local/lib/android/
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/node_modules
+          sudo rm -rf /usr/local/share/powershell
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf /usr/local/.ghcup
+          sudo rm -rf /usr/share/swift
+          sudo rm -rf /usr/share/miniconda
+          sudo rm -rf /usr/lib/jvm
           sudo rm -rf /opt/*
+          sudo docker system prune -af --volumes || true
+          sudo apt-get clean || true
 
       - name: ♻️ Check disk space
         run: df . -h
