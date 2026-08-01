@@ -72,6 +72,16 @@ class CORE_EXPORT QgsPdfRenderer
     int pageCount() const SIP_THROW( QgsNotSupportedException );
 
     /**
+     * Extracts document text, capped to \a maxUtf8Bytes encoded bytes.
+     *
+     * An empty result indicates that no selectable text was found (for example,
+     * for a scanned document without a text layer).
+     *
+     * \throws QgsNotSupportedException on QGIS builds without PDF4Qt library support.
+     */
+    QString extractText( qint64 maxUtf8Bytes ) const SIP_THROW( QgsNotSupportedException );
+
+    /**
      * Returns the media box for the specified page. Units are in PDF points.
      *
      * \throws QgsNotSupportedException on QGIS builds without PDF4Qt library support.

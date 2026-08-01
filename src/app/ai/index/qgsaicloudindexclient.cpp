@@ -43,6 +43,7 @@ namespace
   constexpr int FETCH_TIMEOUT_MS = 30000;
   constexpr int MAX_CONTEXT_BATCH = 128;
   constexpr qint64 MAX_RULE_OR_SKILL_BYTES = 16 * 1024;
+  constexpr qint64 MAX_PROMOTED_TEXT_BYTES = 256 * 1024;
 
   QString normalizedRelativePath( const QString &path )
   {
@@ -191,6 +192,18 @@ namespace
     return out;
   }
 
+  QString cappedUtf8Text( const QString &text, qint64 maxBytes )
+  {
+    QByteArray bytes = text.toUtf8();
+    if ( bytes.size() <= maxBytes )
+      return text;
+    bytes.truncate( maxBytes );
+    QString result = QString::fromUtf8( bytes );
+    while ( result.endsWith( QChar::ReplacementCharacter ) )
+      result.chop( 1 );
+    return result.trimmed();
+  }
+
   void appendFolderItems( QList<QgsAiCloudIndexClient::ContextItem> &items, const QString &workspaceRoot, const QString &relativeDir, const QString &sourceType )
   {
     const QString root = workspaceRoot.trimmed().isEmpty() ? QString() : QDir( workspaceRoot ).absolutePath();
@@ -243,6 +256,7 @@ QgsAiCloudIndexClient::QgsAiCloudIndexClient( QObject *parent )
 {
   qRegisterMetaType<QgsAiCloudIndexClient::ContextItem>();
   qRegisterMetaType<QgsAiCloudIndexClient::SyncResult>();
+  qRegisterMetaType<QgsAiCloudIndexClient::PromotionResult>();
 }
 
 QString QgsAiCloudIndexClient::apiBaseForChatEndpoint( const QString &chatEndpoint )
@@ -353,7 +367,7 @@ bool QgsAiCloudIndexClient::validateContextItems( const QList<ContextItem> &item
     return false;
   }
 
-  static const QSet<QString> allowedSources = { u"layer"_s, u"pdf"_s, u"image"_s, u"rule"_s, u"skill"_s };
+  static const QSet<QString> allowedSources = { u"layer"_s, u"pdf"_s, u"image"_s, u"rule"_s, u"skill"_s, u"file"_s };
   for ( const ContextItem &item : items )
   {
     if ( !allowedSources.contains( item.sourceType ) )
@@ -376,6 +390,144 @@ bool QgsAiCloudIndexClient::validateContextItems( const QList<ContextItem> &item
     }
   }
   return true;
+}
+
+void QgsAiCloudIndexClient::promoteToKnowledgeBase(
+  const QString &chatEndpoint,
+  const QString &sessionToken,
+  const QString &workspaceRoot,
+  const QString &workspaceName,
+  const ContextItem &item,
+  bool contentOptIn,
+  const QString &chatSessionId,
+  const QString &chatMessageId
+)
+{
+  const QString apiBase = apiBaseForChatEndpoint( chatEndpoint );
+  if ( apiBase.isEmpty() || sessionToken.trimmed().isEmpty() )
+  {
+    emit requestFailed( tr( "Plan backend endpoint or session token is missing." ) );
+    return;
+  }
+  if ( !contentOptIn )
+  {
+    emit requestFailed( tr( "Adding an attachment to the Knowledge Base requires explicit consent." ) );
+    return;
+  }
+  const QString fingerprint = workspaceFingerprint( workspaceRoot );
+  if ( fingerprint.isEmpty() )
+  {
+    emit requestFailed( tr( "Workspace root is unset; cannot promote the attachment." ) );
+    return;
+  }
+
+  ContextItem safeItem = item;
+  safeItem.path = QFileInfo( safeItem.path ).fileName();
+  safeItem.text = cappedUtf8Text( safeItem.text, MAX_PROMOTED_TEXT_BYTES );
+  safeItem.ocrText = cappedUtf8Text( safeItem.ocrText, MAX_PROMOTED_TEXT_BYTES );
+  safeItem.caption = cappedUtf8Text( safeItem.caption, MAX_PROMOTED_TEXT_BYTES );
+  QString validationError;
+  if ( !validateContextItems( { safeItem }, &validationError ) )
+  {
+    emit requestFailed( validationError );
+    return;
+  }
+  if ( safeItem.sourceType == "image"_L1 && safeItem.caption.trimmed().isEmpty() )
+  {
+    emit requestFailed( tr( "Describe the image before adding it to the Knowledge Base." ) );
+    return;
+  }
+
+  QgsNetworkAccessManager *networkManager = QgsNetworkAccessManager::instance();
+  if ( !networkManager )
+  {
+    emit requestFailed( tr( "Network manager is not available." ) );
+    return;
+  }
+  QString name = workspaceName.trimmed();
+  if ( name.isEmpty() )
+    name = QFileInfo( QDir( workspaceRoot ).absolutePath() ).fileName();
+  if ( name.isEmpty() )
+    name = tr( "Strata workspace" );
+
+  QJsonObject settings;
+  settings.insert( u"client"_s, u"strata-desktop"_s );
+  QJsonObject body;
+  body.insert( u"fingerprint"_s, fingerprint );
+  body.insert( u"name"_s, name );
+  body.insert( u"settings"_s, settings );
+  QNetworkRequest request( apiUrl( apiBase, u"/v1/workspaces"_s ) );
+  setJsonHeaders( request, sessionToken );
+  QNetworkReply *reply = networkManager->post( request, QJsonDocument( body ).toJson( QJsonDocument::Compact ) );
+  if ( !reply )
+  {
+    emit requestFailed( tr( "Unable to start the Strata Cloud workspace request." ) );
+    return;
+  }
+  connect( reply, &QNetworkReply::finished, reply, &QObject::deleteLater );
+  connect( reply, &QNetworkReply::finished, this, [this, reply, apiBase, token = sessionToken.trimmed(), safeItem, chatSessionId, chatMessageId]() {
+    const int httpStatus = reply->attribute( QNetworkRequest::HttpStatusCodeAttribute ).toInt();
+    const QByteArray responseBody = reply->readAll();
+    if ( reply->error() != QNetworkReply::NoError || httpStatus < 200 || httpStatus >= 300 )
+    {
+      emit requestFailed( responseErrorMessage( reply, responseBody ) );
+      return;
+    }
+    const QString workspaceId = QJsonDocument::fromJson( responseBody ).object().value( u"id"_s ).toString();
+    if ( workspaceId.isEmpty() )
+    {
+      emit requestFailed( tr( "Strata Cloud workspace response did not include an id." ) );
+      return;
+    }
+    postPromotedFile( apiBase, token, workspaceId, safeItem, chatSessionId, chatMessageId );
+  } );
+}
+
+void QgsAiCloudIndexClient::postPromotedFile(
+  const QString &apiBase, const QString &sessionToken, const QString &workspaceId, const ContextItem &item, const QString &chatSessionId, const QString &chatMessageId
+)
+{
+  QgsNetworkAccessManager *networkManager = QgsNetworkAccessManager::instance();
+  if ( !networkManager )
+  {
+    emit requestFailed( tr( "Network manager is not available." ) );
+    return;
+  }
+  const QString text = !item.text.trimmed().isEmpty() ? item.text : !item.ocrText.trimmed().isEmpty() ? item.ocrText : item.caption;
+  QJsonObject body;
+  body.insert( u"title"_s, item.title.trimmed().isEmpty() ? QFileInfo( item.path ).fileName() : item.title );
+  if ( !item.path.isEmpty() )
+    body.insert( u"path"_s, QFileInfo( item.path ).fileName() );
+  body.insert( u"mimeType"_s, item.mimeType.trimmed().isEmpty() ? u"text/plain"_s : item.mimeType );
+  body.insert( u"sourceType"_s, item.sourceType );
+  body.insert( u"text"_s, cappedUtf8Text( text, MAX_PROMOTED_TEXT_BYTES ) );
+  body.insert( u"contentOptIn"_s, true );
+  if ( !chatSessionId.isEmpty() )
+    body.insert( u"chatSessionId"_s, chatSessionId );
+  if ( !chatMessageId.isEmpty() )
+    body.insert( u"chatMessageId"_s, chatMessageId );
+
+  const QString encodedWorkspaceId = QString::fromLatin1( QUrl::toPercentEncoding( workspaceId ) );
+  QNetworkRequest request( apiUrl( apiBase, u"/v1/index/%1/files/from-chat"_s.arg( encodedWorkspaceId ) ) );
+  setJsonHeaders( request, sessionToken );
+  QNetworkReply *reply = networkManager->post( request, QJsonDocument( body ).toJson( QJsonDocument::Compact ) );
+  if ( !reply )
+  {
+    emit requestFailed( tr( "Unable to start the Knowledge Base promotion request." ) );
+    return;
+  }
+  connect( reply, &QNetworkReply::finished, reply, &QObject::deleteLater );
+  connect( reply, &QNetworkReply::finished, this, [this, reply, workspaceId]() {
+    const int httpStatus = reply->attribute( QNetworkRequest::HttpStatusCodeAttribute ).toInt();
+    const QByteArray responseBody = reply->readAll();
+    if ( reply->error() != QNetworkReply::NoError || httpStatus < 200 || httpStatus >= 300 )
+    {
+      emit requestFailed( responseErrorMessage( reply, responseBody ) );
+      return;
+    }
+    const QJsonObject root = QJsonDocument::fromJson( responseBody ).object();
+    emit knowledgePromoted( PromotionResult { workspaceId, root.value( u"file"_s ).toObject().value( u"id"_s ).toString(), root.value( u"job"_s ).toObject().value( u"id"_s ).toString() } );
+  } );
 }
 
 void QgsAiCloudIndexClient::syncWorkspaceContext(

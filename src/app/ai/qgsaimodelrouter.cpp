@@ -28,9 +28,12 @@
 #include "qgsnetworkaccessmanager.h"
 #include "qgssettings.h"
 
+#include <QBuffer>
 #include <QByteArray>
 #include <QDateTime>
 #include <QFile>
+#include <QImageReader>
+#include <QImageWriter>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -189,21 +192,57 @@ namespace
   {
       QString mimeType;
       QString base64Data;
+      qint64 decodedBytes = 0;
   };
 
-  bool readImageFileBase64( const QString &imagePath, const QString &preferredMimeType, QString &mimeType, QString &base64Data )
+  constexpr int MAX_VISUAL_IMAGE_COUNT = 4;
+  constexpr int MAX_VISUAL_IMAGE_SIDE = 2048;
+  constexpr qint64 MAX_VISUAL_IMAGE_BYTES = 1536 * 1024;
+  constexpr qint64 MAX_VISUAL_TOTAL_BYTES = 5 * 1024 * 1024;
+
+  QByteArray encodeNormalizedImage( const QImage &image, bool preserveAlpha )
   {
-    QFile file( imagePath );
-    if ( !file.open( QIODevice::ReadOnly ) )
+    QByteArray bytes;
+    QBuffer buffer( &bytes );
+    if ( !buffer.open( QIODevice::WriteOnly ) )
+      return QByteArray();
+
+    QImageWriter writer( &buffer, preserveAlpha ? "PNG" : "JPEG" );
+    if ( preserveAlpha )
+      writer.setCompression( 7 );
+    else
+      writer.setQuality( 82 );
+    return writer.write( image ) ? bytes : QByteArray();
+  }
+
+  bool readImageFileBase64( const QString &imagePath, qint64 maxBytes, VisualContextImagePayload &payload )
+  {
+    QImageReader reader( imagePath );
+    reader.setAutoTransform( true );
+    QImage image = reader.read();
+    if ( image.isNull() )
       return false;
 
-    const QByteArray bytes = file.readAll();
-    if ( bytes.isEmpty() )
-      return false;
+    if ( std::max( image.width(), image.height() ) > MAX_VISUAL_IMAGE_SIDE )
+      image = image.scaled( MAX_VISUAL_IMAGE_SIDE, MAX_VISUAL_IMAGE_SIDE, Qt::KeepAspectRatio, Qt::SmoothTransformation );
 
-    mimeType = preferredMimeType.trimmed().isEmpty() ? u"image/png"_s : preferredMimeType;
-    base64Data = QString::fromLatin1( bytes.toBase64() );
-    return true;
+    const bool preserveAlpha = image.hasAlphaChannel();
+    for ( int attempt = 0; attempt < 16 && !image.isNull(); ++attempt )
+    {
+      const QByteArray bytes = encodeNormalizedImage( image, preserveAlpha );
+      if ( !bytes.isEmpty() && bytes.size() <= maxBytes )
+      {
+        payload.mimeType = preserveAlpha ? u"image/png"_s : u"image/jpeg"_s;
+        payload.base64Data = QString::fromLatin1( bytes.toBase64() );
+        payload.decodedBytes = bytes.size();
+        return true;
+      }
+
+      if ( image.width() <= 128 && image.height() <= 128 )
+        break;
+      image = image.scaled( std::max( 1, image.width() * 4 / 5 ), std::max( 1, image.height() * 4 / 5 ), Qt::KeepAspectRatio, Qt::SmoothTransformation );
+    }
+    return false;
   }
 
   QList<VisualContextImagePayload> readVisualContextImages( const QgsAiChatMessage &message )
@@ -213,32 +252,26 @@ namespace
       return images;
 
     QStringList imagePaths;
-    QStringList mimeTypes;
-
     if ( message.role == QgsAiChatRole::Tool )
     {
       const QString imagePath = message.metadata.value( u"visual_context_image_path"_s ).toString();
       if ( !imagePath.isEmpty() )
-      {
         imagePaths << imagePath;
-        mimeTypes << message.metadata.value( u"visual_context_mime_type"_s, u"image/png"_s ).toString();
-      }
     }
     else if ( message.role == QgsAiChatRole::User )
     {
       imagePaths = message.metadata.value( u"attached_image_paths"_s ).toStringList();
-      const QVariantList storedMimes = message.metadata.value( u"attached_image_mime_types"_s ).toList();
-      mimeTypes.reserve( storedMimes.size() );
-      for ( const QVariant &mime : storedMimes )
-        mimeTypes << mime.toString();
     }
 
-    for ( int i = 0; i < imagePaths.size(); ++i )
+    qint64 totalBytes = 0;
+    for ( int i = 0; i < imagePaths.size() && images.size() < MAX_VISUAL_IMAGE_COUNT; ++i )
     {
       VisualContextImagePayload payload;
-      const QString preferredMime = i < mimeTypes.size() ? mimeTypes.at( i ) : u"image/png"_s;
-      if ( readImageFileBase64( imagePaths.at( i ), preferredMime, payload.mimeType, payload.base64Data ) )
-        images << payload;
+      const qint64 remainingBytes = MAX_VISUAL_TOTAL_BYTES - totalBytes;
+      if ( !readImageFileBase64( imagePaths.at( i ), std::min( MAX_VISUAL_IMAGE_BYTES, remainingBytes ), payload ) )
+        continue;
+      totalBytes += payload.decodedBytes;
+      images << payload;
     }
 
     return images;

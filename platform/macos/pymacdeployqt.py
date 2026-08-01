@@ -371,7 +371,9 @@ def stage_python_stdlib(python_library: str, frameworks_dir: str) -> Path:
     return destination_stdlib
 
 
-def python_site_packages_path(python_library: str) -> Path:
+def python_site_packages_path(
+    python_library: str, required_package: str | None = None
+) -> Path:
     """Locate the runtime site-packages for the embedded Python framework."""
     source_stdlib = python_stdlib_path(python_library)
     if source_stdlib is None:
@@ -382,11 +384,16 @@ def python_site_packages_path(python_library: str) -> Path:
     version_dir = source_stdlib.parent.parent
     version = source_stdlib.name.removeprefix("python")
     staged_site_packages = source_stdlib / "site-packages"
-    if staged_site_packages.is_dir():
+    if staged_site_packages.is_dir() and (
+        required_package is None or (staged_site_packages / required_package).is_dir()
+    ):
         # CPack may already have staged the embedded runtime below
         # Contents/Frameworks. Do not execute that partially-relocated
         # interpreter just to rediscover this deterministic path: it may not
-        # yet have all of its dylib rpaths rewritten.
+        # yet have all of its dylib rpaths rewritten. Homebrew framework
+        # installs can also contain an empty local site-packages directory
+        # while keeping packages in the shared prefix, so require the package
+        # when the caller needs one explicitly.
         return staged_site_packages
 
     candidates = [
@@ -432,7 +439,9 @@ def stage_python_runtime_packages(
     python_library: str, frameworks_dir: str
 ) -> list[str]:
     """Stage the PyQt runtime required by PyQGIS without development packages."""
-    source_package = python_site_packages_path(python_library) / "PyQt6"
+    source_package = (
+        python_site_packages_path(python_library, required_package="PyQt6") / "PyQt6"
+    )
     if not source_package.is_dir():
         raise RuntimeError(
             f"Required PyQt6 runtime package is missing: {source_package}"

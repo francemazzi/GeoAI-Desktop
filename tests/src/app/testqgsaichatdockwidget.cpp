@@ -1440,6 +1440,12 @@ void TestQgsAiChatDockWidget::dropLocalFileCreatesAttachmentChip()
   QVERIFY( chipRow->isVisible() );
   QVERIFY( input->toPlainText().isEmpty() );
   QVERIFY( !dock.findChildren<QWidget *>( u"aiAttachmentChip"_s ).isEmpty() );
+  QLabel *stateLabel = dock.findChild<QLabel *>( u"aiAttachmentStateLabel"_s );
+  QToolButton *knowledgeButton = dock.findChild<QToolButton *>( u"aiAttachmentKnowledgeButton"_s );
+  QVERIFY( stateLabel );
+  QCOMPARE( stateLabel->text(), u"richiede consenso"_s );
+  QVERIFY( knowledgeButton );
+  QCOMPARE( knowledgeButton->text(), u"Add to Knowledge Base"_s );
 }
 
 void TestQgsAiChatDockWidget::dropDoesNotInsertFileUriText()

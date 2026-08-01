@@ -28,6 +28,7 @@
 #include <QSemaphore>
 #include <QThreadPool>
 
+#include <algorithm>
 #include <atomic>
 #include <execution>
 
@@ -138,7 +139,11 @@ public:
         }
         else
         {
+#ifdef __APPLE__
+            std::for_each(first, last, f);
+#else
             std::for_each(std::execution::seq, first, last, f);
+#endif
         }
     }
 
@@ -148,7 +153,11 @@ public:
         Q_UNUSED(scope);
 
         // We always sort by single thread
+#ifdef __APPLE__
+        std::sort(first, last, f);
+#else
         std::sort(std::execution::seq, first, last, f);
+#endif
     }
 
     /// Returns number of active threads for given scope

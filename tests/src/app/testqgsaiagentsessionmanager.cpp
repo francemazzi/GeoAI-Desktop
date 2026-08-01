@@ -24,9 +24,12 @@
 #include <QDir>
 #include <QFile>
 #include <QHostAddress>
+#include <QImage>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QPainter>
+#include <QPdfWriter>
 #include <QScopeGuard>
 #include <QSet>
 #include <QSignalSpy>
@@ -156,6 +159,8 @@ class TestQgsAiAgentSessionManager : public QObject
     void blocksContextOutsideWorkspace();
     void findsWorkspaceFilesForMentions();
     void allowsExplicitExternalAttachmentContext();
+    void attachmentPathsAreNotPersisted();
+    void pdfContextReportsExtractionAvailability();
     void agentBehaviorSettingsRoundTrip();
     void toolCallLimitPausesAndContinues();
     void runPythonSoftFailureMarksToolResultError();
@@ -280,6 +285,67 @@ void TestQgsAiAgentSessionManager::allowsExplicitExternalAttachmentContext()
   QCOMPARE( stateSpy.first().at( 0 ).toString(), u"failed"_s );
   QVERIFY( messageSpy.count() >= 2 );
   QVERIFY( manager.history().last().content.contains( u"No AI provider"_s, Qt::CaseInsensitive ) );
+}
+
+void TestQgsAiAgentSessionManager::attachmentPathsAreNotPersisted()
+{
+  QTemporaryDir workspaceDir;
+  QTemporaryDir externalDir;
+  QVERIFY( workspaceDir.isValid() );
+  QVERIFY( externalDir.isValid() );
+  const QString imagePath = externalDir.filePath( u"private-screenshot.png"_s );
+  QImage image( 32, 32, QImage::Format_ARGB32 );
+  image.fill( Qt::cyan );
+  QVERIFY( image.save( imagePath, "PNG" ) );
+
+  QgsSettings settings;
+  settings.setValue( u"strata/visual_context/image_send_consent"_s, true );
+  const auto cleanup = qScopeGuard( [&settings]() {
+    settings.remove( u"strata/visual_context/image_send_consent"_s );
+    settings.remove( u"geoai/visual_context/image_send_consent"_s );
+  } );
+
+  QgsAiFileContextProvider contextProvider( workspaceDir.path() );
+  QgsAiReviewPatchEngine reviewEngine;
+  QgsAiAgentSessionManager manager( nullptr, &contextProvider, &reviewEngine );
+  QgsAiChatContextFile contextFile;
+  contextFile.filePath = imagePath;
+  contextFile.allowExternal = true;
+  manager.sendUserMessage( u"inspect"_s, QList<QgsAiChatContextFile>() << contextFile );
+
+  QVERIFY( manager.history().size() >= 2 );
+  const QgsAiChatMessage persistedUser = manager.history().first();
+  QVERIFY( !persistedUser.metadata.contains( u"attached_image_paths"_s ) );
+  QVERIFY( !persistedUser.metadata.contains( u"attached_image_mime_types"_s ) );
+  QVERIFY( persistedUser.content.contains( u"private-screenshot.png"_s ) );
+  QVERIFY( !persistedUser.content.contains( externalDir.path() ) );
+}
+
+void TestQgsAiAgentSessionManager::pdfContextReportsExtractionAvailability()
+{
+  QTemporaryDir tempDir;
+  QVERIFY( tempDir.isValid() );
+  const QString pdfPath = tempDir.filePath( u"notes.pdf"_s );
+  {
+    QPdfWriter writer( pdfPath );
+    QPainter painter( &writer );
+    painter.drawText( QPoint( 100, 100 ), u"Selectable Strata PDF text"_s );
+    painter.end();
+  }
+
+  QgsAiFileContextProvider contextProvider( tempDir.path() );
+  QgsAiReviewPatchEngine reviewEngine;
+  QgsAiAgentSessionManager manager( nullptr, &contextProvider, &reviewEngine );
+  QgsAiChatContextFile contextFile;
+  contextFile.filePath = pdfPath;
+  manager.sendUserMessage( u"inspect pdf"_s, QList<QgsAiChatContextFile>() << contextFile );
+
+  QVERIFY( !manager.history().isEmpty() );
+#ifdef HAVE_PDF4QT
+  QVERIFY( manager.history().first().content.contains( u"Selectable Strata PDF text"_s ) );
+#else
+  QVERIFY( manager.history().first().content.contains( u"does not include PDF4Qt"_s ) );
+#endif
 }
 
 void TestQgsAiAgentSessionManager::validatesAgentPlanJson()
