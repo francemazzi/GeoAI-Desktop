@@ -11,7 +11,7 @@
 ## Indice
 
 1. [Stato attuale](#0-stato-attuale-luglio-2026)
-2. [Fase 0 — Fondamenta prodotto e distribuzione — 50%](#fase-0--fondamenta-prodotto-e-distribuzione--50)
+2. [Fase 0 — Fondamenta prodotto e distribuzione — 55%](#fase-0--fondamenta-prodotto-e-distribuzione--55)
 3. [Fase 1 — Assistant operativo MVP — 85%](#fase-1--assistant-operativo-mvp--85)
 4. [Fase 2 — Strata Context Engine — 55%](#fase-2--strata-context-engine--55)
 5. [Fase 3 — GIS Tab — 15%](#fase-3--gis-tab--15)
@@ -21,10 +21,10 @@
 9. [Fase 7 — Team ed Enterprise — 0%](#fase-7--team-ed-enterprise--0)
 10. [Fase 8 — Strata CLI, GIS Workers e automazioni — 0%](#fase-8--strata-cli-gis-workers-e-automazioni--0)
 11. [Fase 9 — GIS Review — 0%](#fase-9--gis-review--0)
-12. [Fase 10 — Marketplace, SDK e community — 0%](#fase-10--marketplace-sdk-e-community--0)
+12. [Fase 10 — Marketplace, SDK e community — 10%](#fase-10--marketplace-sdk-e-community--10)
 13. [Sezione 13 — AI-GAP: chiusura gap tool GIS core — 100%](#sezione-13--ai-gap-chiusura-gap-tool-gis-core--100)
 14. [Sezione 14 — AI-MAP: Map Context Engine + 3D — 0%](#sezione-14--ai-map-map-context-engine--3d--0)
-15. [Sezione 15 — AI-VKP: Knowledge pack verticali e ricerca scientifica — 0%](#sezione-15--ai-vkp-knowledge-pack-verticali-e-ricerca-scientifica--0)
+15. [Sezione 15 — AI-VKP: Knowledge pack verticali e ricerca scientifica — 5%](#sezione-15--ai-vkp-knowledge-pack-verticali-e-ricerca-scientifica--5)
 16. [Metriche](#metriche)
 17. [Sequenza sprint](#sequenza-sprint)
 
@@ -46,7 +46,7 @@
 
 | Fase                           | %    | Gap principale                                                             |
 | ------------------------------ | ---- | -------------------------------------------------------------------------- |
-| 0 — Fondamenta                 | 50%  | demo project, telemetria, auto-update in-app, wizard AI                    |
+| 0 — Fondamenta                 | 55%  | demo project, telemetria, auto-update in-app, wizard AI                     |
 | 1 — Assistant MVP              | 85%  | execution log JSON, risk policy, Expert, tool raster, atlanti, modello locale |
 | 2 — Context Engine             | 55%  | project graph completo, summarizer stili/layout, context packs, ingestione PDF |
 | 3 — GIS Tab                    | 15%  | tab UI dedicata, shortcut Tab/Esc, ranking, chat contestuale in-tool       |
@@ -56,10 +56,10 @@
 | 7 — Team/Enterprise            | 0%   | tutto                                                                      |
 | 8 — CLI e GIS Workers          | 0%   | tutto                                                                      |
 | 9 — GIS Review                 | 0%   | tutto                                                                      |
-| 10 — Marketplace/SDK           | 0%   | tutto                                                                      |
+| 10 — Marketplace/SDK           | 10%  | SDK/tool/workflow/report packs e pubblicazione community                   |
 | 13 — AI-GAP tool GIS core      | 100% | chiusa                                                                     |
 | 14 — AI-MAP (Map Context + 3D) | 0%   | tutto                                                                      |
-| 15 — AI-VKP (pack + research)  | 0%   | tutto; prerequisito deterministico AI-VKP-1/2/3                            |
+| 15 — AI-VKP (pack + research)  | 5%   | metadata/verifier deterministici AI-VKP-1/2/3 e research B10               |
 | B8 — Data Hub (backend)        | 0%   | fase **B8** in `strata-be/ROADMAP.md` — bisogno n.1 utenti (need: 15)      |
 
 
@@ -104,7 +104,7 @@ Cosa evitare:
 
 ---
 
-# Fase 0 — Fondamenta prodotto e distribuzione — 50%
+# Fase 0 — Fondamenta prodotto e distribuzione — 55%
 
 > Rendere Strata provabile senza attrito, stabile per early adopter e misurabile.
 
@@ -133,7 +133,9 @@ Cosa evitare:
 - [x] Strata Cloud desktop (login/registrazione, session token, `qgsaiaccountwidget`, model picker Lite/Standard/Pro, prepaid balance warnings, BYO provider con account attivo)
 - [ ] Pricing UX Strata Cloud: conversione token→euro nel dock, esempi "col pacchetto X fai N operazioni", alert crediti esauriti in chat con link diretto alla ricarica (need: 9)
 - [x] Landing page redesign (`docs/`) + README con setup AI
+- [x] Skill & Rules gallery pubblica v0 (`docs/skills.html`): catalogo statico copy-paste da file `.md` reali (formato AI-VKP-4), ricerca + filtro per verticale + deep-link per skill/rule, zero backend; manifest/hash deterministico e catalogo iniziale `urban-green-nbs` + `safe-raster-workflows` — backend curato in **B11** (`strata-be/ROADMAP.md`)
 - [x] Rules/skills editor markdown in AI settings (`qgsairulesskillsstore`)
+- [x] Copy/upsert cloud esplicito per Rules & Skills: Push con match remoto `slug`→ID e PATCH senza slug; Import con preview Remote-only/Equivalent/Conflict, default Keep local, workspace trust e normalizzazione legacy ([semantica v1](docs/rules-skills-cloud.md))
 - [ ] Documentazione operativa
   - [x] README + landing
   - [ ] Guida "5 task in 5 minuti" + pagina "Try Strata in 10 minutes" + video demo 60–90 s
@@ -387,12 +389,12 @@ Cosa evitare:
 
 ---
 
-# Fase 10 — Marketplace, SDK e community — 0%
+# Fase 10 — Marketplace, SDK e community — 10%
 
 > Strata estendibile da terzi. Il workspace rules/skills locale (Fasi 0–1) è la base del formato skill.
 
 - [ ] Tool SDK Python (`@tool` con risk level, permissions, `ToolContext`)
-- [ ] Skill format pubblicabile (sopra `.strata/skills` esistente)
+- [x] Skill format pubblicabile (sopra `.strata/skills` esistente): frontmatter curato, manifest SHA-256, gallery statica v0 (Fase 0) e catalogo **B11** (`strata-be/ROADMAP.md`); import in desktop via `qgsairulesskillscloudclient`
 - [ ] Rules packs distribuibili
 - [ ] Workflow packs distribuibili
 - [ ] Report template marketplace
@@ -445,7 +447,7 @@ Note: workaround stopgap possibile via skill `.strata/skills/3d.md` + `run_pytho
 
 ---
 
-# Sezione 15 — AI-VKP: Knowledge pack verticali e ricerca scientifica — 0%
+# Sezione 15 — AI-VKP: Knowledge pack verticali e ricerca scientifica — 5%
 
 > Origine: test NBS Gottolengo/Brescia di Massimo (lug 2026, cartella `nbs` — 2 conversazioni Claude Code, 22 script PyQGIS, 8 PDF di letteratura distillati a mano). Lezione appresa: gli errori "bande sbagliate / offset non sottratto" hanno due nature distinte — un gap **deterministico** (l'AI oggi non vede scale/offset/NoData: `describe_layer` espone solo width/height/bands e il chunker RAG salta esplicitamente le statistiche di banda, `qgsailayerchunker.cpp:86`) e un gap **metodologico** (soglie, indici, fonti di dominio — dove il metodo "letteratura prima, codice dopo" ha funzionato: costanti Landsat C2L2 corrette al primo colpo perché scritte nella metodologia prima del codice). Principio guida: **il deterministico prima del RAG; il pack curato prima della ricerca automatica; sempre review-first**.
 
@@ -458,7 +460,7 @@ Note: workaround stopgap possibile via skill `.strata/skills/3d.md` + `run_pytho
 
 **Blocco B — Knowledge pack verticali curati**
 
-- [ ] AI-VKP-4 — Formato knowledge pack sopra `.strata/skills` esistente (progressive disclosure già supportata): bande/formule/soglie **con citazione e range di validità**, vincoli ambiente Strata (no pandas, no GDAL CLI, `native:rastercalc`, `fixgeometries` prima di ogni cutline), nomenclatura fonti dati regionali
+- [x] AI-VKP-4 — Formato knowledge pack sopra `.strata/skills` esistente (progressive disclosure già supportata): bande/formule/soglie **con citazione e range di validità**, vincoli ambiente Strata (no pandas, no GDAL CLI, `native:rastercalc`, `fixgeometries` prima di ogni cutline), nomenclatura fonti dati regionali — distribuito via gallery pubblica (Fase 0 + B11); frontmatter esteso con `category`/`tags`/`source`/`license`/`attribution` e fonti aggiuntive in `references`
 - [ ] AI-VKP-5 — Primo pack **Verde urbano / NBS** seedato dal materiale Gottolengo: Landsat C2L2 (LST/NDVI/NDBI), regola 3-30-300 metodo Ferrara (DOI 10.3390/ijgi15060256), DBGT (`_SUP` = geometrie), PGRA (TRITORNO basso = pericolosità alta, tipi RP/RSP), ISTAT P26–P29, Meta/WRI canopy via `/vsicurl/` — contenuto del pack Verde urbano di Fase 6 (need: 8)
 - [ ] AI-VKP-6 — Golden-set eval dagli errori reali del caso NBS (clamp NDVI, CRS vuoto, SR_B6 mancante, LEVEL1 vs LEVEL2) → alimenta l'eval harness promptfoo (Fase 4)
 

@@ -16,6 +16,7 @@
         "Strata: il GIS con AI nativa. Scarica gratis per macOS, Windows e Linux.",
 
       "nav.download": "Download",
+      "nav.gallery": "Skill gallery",
       "nav.login": "ACCEDI",
 
       "hero.title": "L'agente AI nativo per il GIS.",
@@ -108,6 +109,7 @@
         "Strata: the AI-native GIS. Download free for macOS, Windows, and Linux.",
 
       "nav.download": "Download",
+      "nav.gallery": "Skill gallery",
       "nav.login": "SIGN IN",
 
       "hero.title": "The native AI agent for GIS.",

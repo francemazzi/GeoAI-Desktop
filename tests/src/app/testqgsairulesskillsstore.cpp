@@ -5,12 +5,14 @@
 ***************************************************************************/
 
 #include "ai/qgsaifilecontextprovider.h"
+#include "ai/qgsairulesskillscloudclient.h"
 #include "ai/qgsairulesskillsstore.h"
 #include "qgsapplication.h"
 #include "qgstest.h"
 
 #include <QDir>
 #include <QFile>
+#include <QJsonDocument>
 #include <QString>
 #include <QTemporaryDir>
 
@@ -43,6 +45,9 @@ class TestQgsAiRulesSkillsStore : public QObject
 
     void invalidPathIsRejectedForWrites();
     void missingWorkspaceIsRejected();
+    void cloudLegacyMarkdownNormalization();
+    void cloudImportClassificationAndDefaults();
+    void cloudPatchPayloadOmitsSlug();
 
   private:
     QTemporaryDir *mWorkspaceDir = nullptr;
@@ -84,6 +89,57 @@ void TestQgsAiRulesSkillsStore::slugify()
   QCOMPARE( QgsAiRulesSkillsStore::slugify( u"  --Weird__Name!! "_s ), u"weird-name"_s );
   QCOMPARE( QgsAiRulesSkillsStore::slugify( QString() ), u"untitled"_s );
   QCOMPARE( QgsAiRulesSkillsStore::slugify( u"Ω invalid Ω"_s ), u"invalid"_s );
+}
+
+void TestQgsAiRulesSkillsStore::cloudLegacyMarkdownNormalization()
+{
+  QgsAiRulesSkillsCloudClient::RemoteSkill skill;
+  skill.slug = u"legacy-skill"_s;
+  skill.name = u"Legacy Skill"_s;
+  skill.description = u"Legacy body from the cloud"_s;
+  skill.content = u"# Body\n\nKeep this content."_s;
+  const QString markdown = QgsAiRulesSkillsCloudClient::markdownForRemoteSkill( skill );
+  const QgsAiMarkdownDocument parsed = QgsAiRulesSkillsStore::parseMarkdownDocument( markdown );
+  QVERIFY( parsed.hasFrontmatter );
+  QCOMPARE( parsed.value( u"name"_s ), skill.name );
+  QCOMPARE( parsed.value( u"description"_s ), skill.description );
+  QCOMPARE( parsed.body, skill.content );
+
+  const QString canonical = u"---\nname: Already complete\ndescription: Preserve bytes\n---\nBody\n"_s;
+  skill.content = canonical;
+  QCOMPARE( QgsAiRulesSkillsCloudClient::markdownForRemoteSkill( skill ), canonical );
+}
+
+void TestQgsAiRulesSkillsStore::cloudImportClassificationAndDefaults()
+{
+  using Comparison = QgsAiRulesSkillsCloudClient::RemoteComparison;
+  using Action = QgsAiRulesSkillsCloudClient::ImportAction;
+  QCOMPARE( QgsAiRulesSkillsCloudClient::classifyRemote( false, QString(), u"remote"_s ), Comparison::RemoteOnly );
+  QCOMPARE( QgsAiRulesSkillsCloudClient::defaultImportAction( Comparison::RemoteOnly ), Action::Import );
+  QCOMPARE( QgsAiRulesSkillsCloudClient::classifyRemote( true, u"same\r\n"_s, u"same\n\n"_s ), Comparison::Equivalent );
+  QCOMPARE( QgsAiRulesSkillsCloudClient::defaultImportAction( Comparison::Equivalent ), Action::Skip );
+  QCOMPARE( QgsAiRulesSkillsCloudClient::classifyRemote( true, u"local"_s, u"remote"_s ), Comparison::Conflict );
+  QCOMPARE( QgsAiRulesSkillsCloudClient::defaultImportAction( Comparison::Conflict ), Action::KeepLocal );
+}
+
+void TestQgsAiRulesSkillsStore::cloudPatchPayloadOmitsSlug()
+{
+  QgsAiRulesSkillsCloudClient::RemoteRule rule;
+  rule.slug = u"safe-raster"_s;
+  rule.name = u"Safe raster"_s;
+  rule.content = u"Body"_s;
+  QVERIFY( QJsonDocument::fromJson( QgsAiRulesSkillsCloudClient::serializedRulePayload( rule ) ).object().contains( u"slug"_s ) );
+  rule.id = u"remote-id"_s;
+  QVERIFY( !QJsonDocument::fromJson( QgsAiRulesSkillsCloudClient::serializedRulePayload( rule ) ).object().contains( u"slug"_s ) );
+
+  QgsAiRulesSkillsCloudClient::RemoteSkill skill;
+  skill.slug = u"urban-green"_s;
+  skill.name = u"Urban green"_s;
+  skill.description = u"Description"_s;
+  skill.content = u"Body"_s;
+  QVERIFY( QJsonDocument::fromJson( QgsAiRulesSkillsCloudClient::serializedSkillPayload( skill ) ).object().contains( u"slug"_s ) );
+  skill.id = u"remote-id"_s;
+  QVERIFY( !QJsonDocument::fromJson( QgsAiRulesSkillsCloudClient::serializedSkillPayload( skill ) ).object().contains( u"slug"_s ) );
 }
 
 void TestQgsAiRulesSkillsStore::listRulesParsesFrontmatter()

@@ -150,6 +150,19 @@ video {
   transition: color var(--transition);
 }
 
+.nav-gallery-link {
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  transition: color var(--transition);
+}
+
+.nav-gallery-link:hover,
+.nav-gallery-link[aria-current="page"] {
+  color: var(--accent);
+}
+
 .nav-login-link:hover {
   color: var(--text);
 }
@@ -614,6 +627,9 @@ video {
 }
 
 @media (max-width: 480px) {
+  .nav-gallery-link {
+    display: none;
+  }
   .hero-cta .btn-lg {
     width: 100%;
   }

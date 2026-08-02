@@ -20,6 +20,7 @@
 #include "qgsairulesskillsstore.h"
 
 #include <QList>
+#include <QByteArray>
 #include <QObject>
 #include <QString>
 #include <QStringList>
@@ -40,6 +41,21 @@ class APP_EXPORT QgsAiRulesSkillsCloudClient : public QObject
     Q_OBJECT
 
   public:
+    enum class RemoteComparison
+    {
+      RemoteOnly,
+      Equivalent,
+      Conflict
+    };
+
+    enum class ImportAction
+    {
+      Import,
+      Skip,
+      KeepLocal,
+      ReplaceLocal
+    };
+
     struct RemoteRule
     {
         //! Empty for a rule not yet pushed to the cloud.
@@ -70,6 +86,20 @@ class APP_EXPORT QgsAiRulesSkillsCloudClient : public QObject
     static RemoteRule toRemoteRule( const QgsAiRuleInfo &info, const QString &content );
     //! Builds a RemoteSkill payload from a local skill's metadata and body, ready for pushSkill().
     static RemoteSkill toRemoteSkill( const QgsAiSkillInfo &info, const QString &content );
+
+    //! Returns complete Markdown, rebuilding frontmatter for legacy cloud rules that only store a body.
+    static QString markdownForRemoteRule( const RemoteRule &rule );
+    //! Returns complete Markdown, rebuilding frontmatter for legacy cloud skills that only store a body.
+    static QString markdownForRemoteSkill( const RemoteSkill &skill );
+    //! Compares Markdown after normalizing line endings and the final newline.
+    static bool markdownEquivalent( const QString &left, const QString &right );
+    //! Classifies an incoming item and returns the safe v1 default action for it.
+    static RemoteComparison classifyRemote( bool localExists, const QString &localMarkdown, const QString &remoteMarkdown );
+    static ImportAction defaultImportAction( RemoteComparison comparison );
+    //! Serializes a create/update rule payload; update payloads deliberately omit immutable slug.
+    static QByteArray serializedRulePayload( const RemoteRule &rule );
+    //! Serializes a create/update skill payload; update payloads deliberately omit immutable slug.
+    static QByteArray serializedSkillPayload( const RemoteSkill &skill );
 
     /**
      * Upserts the desktop workspace (identified by \a workspaceRoot's fingerprint,

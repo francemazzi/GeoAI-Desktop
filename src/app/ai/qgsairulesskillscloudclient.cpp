@@ -64,10 +64,11 @@ namespace
     return QString::fromLatin1( QUrl::toPercentEncoding( id ) );
   }
 
-  QJsonObject ruleJson( const QgsAiRulesSkillsCloudClient::RemoteRule &rule )
+  QJsonObject ruleJson( const QgsAiRulesSkillsCloudClient::RemoteRule &rule, bool includeSlug )
   {
     QJsonObject out;
-    out.insert( u"slug"_s, rule.slug );
+    if ( includeSlug )
+      out.insert( u"slug"_s, rule.slug );
     out.insert( u"name"_s, rule.name );
     if ( !rule.description.isEmpty() )
       out.insert( u"description"_s, rule.description );
@@ -94,10 +95,11 @@ namespace
     return rule;
   }
 
-  QJsonObject skillJson( const QgsAiRulesSkillsCloudClient::RemoteSkill &skill )
+  QJsonObject skillJson( const QgsAiRulesSkillsCloudClient::RemoteSkill &skill, bool includeSlug )
   {
     QJsonObject out;
-    out.insert( u"slug"_s, skill.slug );
+    if ( includeSlug )
+      out.insert( u"slug"_s, skill.slug );
     out.insert( u"name"_s, skill.name );
     out.insert( u"description"_s, skill.description );
     out.insert( u"enabled"_s, skill.enabled );
@@ -147,6 +149,78 @@ QgsAiRulesSkillsCloudClient::RemoteSkill QgsAiRulesSkillsCloudClient::toRemoteSk
   skill.enabled = info.enabled;
   skill.content = content;
   return skill;
+}
+
+QString QgsAiRulesSkillsCloudClient::markdownForRemoteRule( const RemoteRule &rule )
+{
+  if ( QgsAiRulesSkillsStore::parseMarkdownDocument( rule.content ).hasFrontmatter )
+    return rule.content;
+  QgsAiMarkdownDocument document;
+  document.hasFrontmatter = true;
+  document.body = rule.content;
+  document.properties << QgsAiFrontmatterProperty{ u"name"_s, { rule.name }, false };
+  if ( !rule.description.isEmpty() )
+    document.properties << QgsAiFrontmatterProperty{ u"description"_s, { rule.description }, false };
+  document.properties << QgsAiFrontmatterProperty{ u"globs"_s, rule.globs, true }
+                      << QgsAiFrontmatterProperty{ u"alwaysApply"_s, { rule.alwaysApply ? u"true"_s : u"false"_s }, false }
+                      << QgsAiFrontmatterProperty{ u"enabled"_s, { rule.enabled ? u"true"_s : u"false"_s }, false };
+  return QgsAiRulesSkillsStore::serializeMarkdownDocument( document );
+}
+
+QString QgsAiRulesSkillsCloudClient::markdownForRemoteSkill( const RemoteSkill &skill )
+{
+  if ( QgsAiRulesSkillsStore::parseMarkdownDocument( skill.content ).hasFrontmatter )
+    return skill.content;
+  QgsAiMarkdownDocument document;
+  document.hasFrontmatter = true;
+  document.body = skill.content;
+  document.properties << QgsAiFrontmatterProperty{ u"name"_s, { skill.name }, false }
+                      << QgsAiFrontmatterProperty{ u"description"_s, { skill.description }, false }
+                      << QgsAiFrontmatterProperty{ u"enabled"_s, { skill.enabled ? u"true"_s : u"false"_s }, false };
+  return QgsAiRulesSkillsStore::serializeMarkdownDocument( document );
+}
+
+bool QgsAiRulesSkillsCloudClient::markdownEquivalent( const QString &left, const QString &right )
+{
+  const auto normalize = []( QString value ) {
+    value.replace( u"\r\n"_s, u"\n"_s );
+    value.replace( u'\r', u'\n' );
+    while ( value.endsWith( u'\n' ) )
+      value.chop( 1 );
+    return value;
+  };
+  return normalize( left ) == normalize( right );
+}
+
+QgsAiRulesSkillsCloudClient::RemoteComparison QgsAiRulesSkillsCloudClient::classifyRemote( bool localExists, const QString &localMarkdown, const QString &remoteMarkdown )
+{
+  if ( !localExists )
+    return RemoteComparison::RemoteOnly;
+  return markdownEquivalent( localMarkdown, remoteMarkdown ) ? RemoteComparison::Equivalent : RemoteComparison::Conflict;
+}
+
+QgsAiRulesSkillsCloudClient::ImportAction QgsAiRulesSkillsCloudClient::defaultImportAction( RemoteComparison comparison )
+{
+  switch ( comparison )
+  {
+    case RemoteComparison::RemoteOnly:
+      return ImportAction::Import;
+    case RemoteComparison::Equivalent:
+      return ImportAction::Skip;
+    case RemoteComparison::Conflict:
+      return ImportAction::KeepLocal;
+  }
+  return ImportAction::KeepLocal;
+}
+
+QByteArray QgsAiRulesSkillsCloudClient::serializedRulePayload( const RemoteRule &rule )
+{
+  return QJsonDocument( ruleJson( rule, rule.id.isEmpty() ) ).toJson( QJsonDocument::Compact );
+}
+
+QByteArray QgsAiRulesSkillsCloudClient::serializedSkillPayload( const RemoteSkill &skill )
+{
+  return QJsonDocument( skillJson( skill, skill.id.isEmpty() ) ).toJson( QJsonDocument::Compact );
 }
 
 void QgsAiRulesSkillsCloudClient::ensureWorkspace( const QString &apiBase, const QString &sessionToken, const QString &workspaceRoot, const QString &workspaceName )
@@ -284,7 +358,7 @@ void QgsAiRulesSkillsCloudClient::pushRule( const QString &apiBase, const QStrin
   const QString path = isUpdate ? u"/v1/workspaces/%1/rules/%2"_s.arg( encodedId( workspaceId ), encodedId( rule.id ) ) : u"/v1/workspaces/%1/rules"_s.arg( encodedId( workspaceId ) );
   QNetworkRequest request( apiUrl( apiBase, path ) );
   setJsonHeaders( request, sessionToken );
-  const QByteArray payload = QJsonDocument( ruleJson( rule ) ).toJson( QJsonDocument::Compact );
+  const QByteArray payload = serializedRulePayload( rule );
   QNetworkReply *reply = isUpdate ? networkManager->sendCustomRequest( request, "PATCH", payload ) : networkManager->post( request, payload );
   if ( !reply )
   {
@@ -318,7 +392,7 @@ void QgsAiRulesSkillsCloudClient::pushSkill( const QString &apiBase, const QStri
   const QString path = isUpdate ? u"/v1/workspaces/%1/skills/%2"_s.arg( encodedId( workspaceId ), encodedId( skill.id ) ) : u"/v1/workspaces/%1/skills"_s.arg( encodedId( workspaceId ) );
   QNetworkRequest request( apiUrl( apiBase, path ) );
   setJsonHeaders( request, sessionToken );
-  const QByteArray payload = QJsonDocument( skillJson( skill ) ).toJson( QJsonDocument::Compact );
+  const QByteArray payload = serializedSkillPayload( skill );
   QNetworkReply *reply = isUpdate ? networkManager->sendCustomRequest( request, "PATCH", payload ) : networkManager->post( request, payload );
   if ( !reply )
   {

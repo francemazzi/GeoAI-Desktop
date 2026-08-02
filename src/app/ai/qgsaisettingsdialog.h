@@ -109,8 +109,10 @@ class APP_EXPORT QgsAiSettingsDialog : public QDialog
     void deleteSelectedSkill();
     void saveCurrentSkill();
 
-    //! Pushes every enabled local rule/skill to Strata Cloud (opt-in, one-way local -> cloud).
+    //! Explicitly upserts every local rule/skill to Strata Cloud without deleting cloud-only records.
     void syncRulesSkillsToCloud();
+    //! Downloads cloud rules/skills and previews every local write before applying it.
+    void importRulesSkillsFromCloud();
     void refreshEmbeddingStatusLabel();
     void refreshRemoteEmbeddingModelField();
     void refreshIndexStatusLabel();
@@ -193,6 +195,7 @@ class APP_EXPORT QgsAiSettingsDialog : public QDialog
     QList<SkillPropertyRow> mSkillPropertyRows;
 
     QPushButton *mSyncRulesSkillsCloudButton = nullptr;
+    QPushButton *mImportRulesSkillsCloudButton = nullptr;
     QLabel *mRulesSkillsCloudStatusLabel = nullptr;
 
     QComboBox *mEmbeddingProvider = nullptr;

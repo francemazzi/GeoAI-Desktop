@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Skill e rules curate per Strata: apri, verifica e copia il Markdown nel tuo workspace.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://getstrata.org/skills.html">
+  <meta property="og:title" content="Strata — Skill & Rules Gallery">
+  <meta property="og:description" content="Playbook GIS curati, trasparenti e pronti da copiare.">
+  <meta property="og:image" content="https://getstrata.org/assets/og-share.jpg?v=20260713">
+  <title>Strata — Skill & Rules Gallery</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./css/style.css?v=20260713b">
+  <link rel="stylesheet" href="./css/skills.css?v=20260802">
+  <link rel="icon" href="./assets/app-icon.png" type="image/png">
+</head>
+<body class="gallery-page">
+  <nav class="navbar" aria-label="Main navigation">
+    <div class="container navbar-inner">
+      <a href="./" class="nav-brand" aria-label="Strata home">
+        <img src="./assets/app-icon.png" alt="" width="28" height="28" aria-hidden="true">
+        <span class="nav-brand-wordmark">Strata</span>
+      </a>
+      <div class="nav-actions">
+        <a href="./skills.html" class="nav-gallery-link" aria-current="page" data-i18n="nav.gallery">Skill gallery</a>
+        <div class="lang-toggle" role="group" aria-label="Language">
+          <button type="button" data-lang="it" aria-pressed="true">IT</button>
+          <button type="button" data-lang="en" aria-pressed="false">EN</button>
+        </div>
+        <a href="https://app.getstrata.org/gallery" class="nav-login-link" data-i18n="nav.login">ACCEDI</a>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    <header class="gallery-hero">
+      <div class="container gallery-hero-grid">
+        <div>
+          <p class="gallery-kicker" data-gallery-i18n="hero.kicker">FIELD NOTES / 001</p>
+          <h1 data-gallery-i18n="hero.title">Conoscenza GIS<br>che mostra le fonti.</h1>
+        </div>
+        <div class="gallery-intro">
+          <p data-gallery-i18n="hero.desc">Skill e regole curate come documenti, non come scatole nere. Leggi il metodo, controlla la provenienza, copia il Markdown.</p>
+          <a href="https://app.getstrata.org/gallery" class="gallery-cloud-link" data-gallery-i18n="hero.cloud">Copia direttamente in Strata Cloud →</a>
+        </div>
+      </div>
+    </header>
+
+    <section class="container gallery-workbench" aria-label="Skill and rules catalog">
+      <aside class="gallery-controls">
+        <div class="gallery-index-mark" aria-hidden="true">
+          <span>CURATED</span><strong data-gallery-count>—</strong><small>documents</small>
+        </div>
+        <label>
+          <span data-gallery-i18n="filter.search">Cerca nel catalogo</span>
+          <input type="search" data-gallery-search placeholder="Landsat, NBS, raster…" autocomplete="off">
+        </label>
+        <label>
+          <span data-gallery-i18n="filter.type">Tipo</span>
+          <select data-gallery-type>
+            <option value="all" data-gallery-i18n="type.all">Tutti</option>
+            <option value="skill">Skill</option>
+            <option value="rule">Rule</option>
+          </select>
+        </label>
+        <label>
+          <span data-gallery-i18n="filter.category">Verticale</span>
+          <select data-gallery-category><option value="all" data-gallery-i18n="category.all">Tutte</option></select>
+        </label>
+        <p class="gallery-zero-backend"><span aria-hidden>●</span> <span data-gallery-i18n="filter.static">Static catalog · zero backend</span></p>
+      </aside>
+
+      <div class="gallery-results">
+        <div class="gallery-list-heading">
+          <p data-gallery-status data-gallery-i18n="status.loading">Caricamento catalogo…</p>
+          <span>AI-VKP-4 / B11</span>
+        </div>
+        <div class="gallery-list" data-gallery-list></div>
+      </div>
+
+      <article class="gallery-detail" data-gallery-detail aria-live="polite">
+        <div class="gallery-detail-empty">
+          <span aria-hidden>↳</span>
+          <p data-gallery-i18n="detail.empty">Seleziona un documento per leggere metodo, fonte e Markdown completo.</p>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <footer class="footer gallery-footer">
+    <div class="container footer-minimal">
+      <nav class="footer-links" aria-label="Footer">
+        <a href="./" data-gallery-i18n="footer.home">Home</a>
+        <a href="https://github.com/francemazzi/strata" data-i18n="footer.github">GitHub</a>
+        <a href="https://app.getstrata.org/gallery" data-gallery-i18n="footer.cloud">Gallery Cloud</a>
+      </nav>
+      <p class="footer-disclaimer" data-i18n="footer.disclaimer">Strata is an independent commercial service based on QGIS. It is not endorsed by or affiliated with QGIS.ORG or the QGIS project.</p>
+    </div>
+  </footer>
+
+  <script src="./js/i18n.js?v=20260802"></script>
+  <script src="./js/skills-gallery.js?v=20260802"></script>
+</body>
+</html>

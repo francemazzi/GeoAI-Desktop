@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "items": [
+    {
+      "type": "rule",
+      "slug": "safe-raster-workflows",
+      "name": "Workflow raster verificabili",
+      "description": "Regole di sicurezza per evitare bande, scale, NoData e output raster plausibili solo in apparenza.",
+      "category": "urban-green",
+      "tags": [
+        "raster",
+        "landsat",
+        "safety",
+        "validation"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/francemazzi/strata",
+        "title": "Strata GIS repository",
+        "author": "Strata GIS team",
+        "year": 2026
+      },
+      "license": "CC-BY-4.0",
+      "attribution": "Regola originale del progetto Strata; costanti Landsat verificate sulla documentazione U.S. Geological Survey.",
+      "trustLevel": "VERIFIED",
+      "enabled": true,
+      "path": "rules/safe-raster-workflows.md",
+      "sha256": "05ea0b1d4e7c7ae1e338811258824959cf8deec37a896016bdef065d2caab295",
+      "globs": [
+        "*.tif",
+        "*.tiff",
+        "*.qgz"
+      ],
+      "alwaysApply": true
+    },
+    {
+      "type": "skill",
+      "slug": "urban-green-nbs",
+      "name": "Verde urbano e Nature-Based Solutions",
+      "description": "Usa questa skill per impostare analisi riproducibili di verde urbano, copertura arborea, indici Landsat e accessibilità alle aree verdi.",
+      "category": "urban-green",
+      "tags": [
+        "nbs",
+        "urban-forestry",
+        "landsat",
+        "ndvi",
+        "ndbi",
+        "surface-temperature"
+      ],
+      "source": {
+        "kind": "paper",
+        "url": "https://doi.org/10.3390/ijgi15060256",
+        "doi": "10.3390/ijgi15060256",
+        "title": "Beyond the 3-30-300 Rule: Construction of a Scalable Composite Index for the Evaluation of Urban Green—The Ferrara Case Study",
+        "author": "Giovanna Galeota Lanza et al.",
+        "year": 2026
+      },
+      "license": "CC-BY-4.0",
+      "attribution": "Metodo 3-30-300 composito adattato da Galeota Lanza et al. (2026); fattori Landsat da U.S. Geological Survey.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/urban-green-nbs/SKILL.md",
+      "sha256": "c5fb8f7ad53aed2a788a4feccdd409ae2d4ed74a3cc5967ad6ed7d30743551ed"
+    }
+  ]
+}
