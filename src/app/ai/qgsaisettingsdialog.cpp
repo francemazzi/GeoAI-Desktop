@@ -1858,7 +1858,7 @@ void QgsAiSettingsDialog::importRulesSkillsFromCloud()
         QComboBox *action = nullptr;
     };
     QList<PreviewRow> rows;
-    auto addRow = [table, &rows, this]( int row, bool skill, int remoteIndex, const QString &slug, QgsAiRulesSkillsCloudClient::RemoteComparison comparison ) {
+    auto addRow = [table, &rows]( int row, bool skill, int remoteIndex, const QString &slug, QgsAiRulesSkillsCloudClient::RemoteComparison comparison ) {
       auto fixedItem = []( const QString &value ) {
         QTableWidgetItem *item = new QTableWidgetItem( value );
         item->setFlags( item->flags() & ~Qt::ItemIsEditable );
