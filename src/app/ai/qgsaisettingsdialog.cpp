@@ -1756,7 +1756,7 @@ void QgsAiSettingsDialog::syncRulesSkillsToCloud()
     maybeFinish();
   } );
   connect( client, &QgsAiRulesSkillsCloudClient::requestFailed, this, [this, client, progress, failures, requestsStarted, cancelled, totalExpected, maybeFinish]( const QString &message ) { //#spellok
-    if ( *cancelled ) //#spellok
+    if ( *cancelled )                                                                                                                                                                        //#spellok
       return;
     if ( !*requestsStarted )
     {
