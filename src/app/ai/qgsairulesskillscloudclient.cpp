@@ -158,12 +158,13 @@ QString QgsAiRulesSkillsCloudClient::markdownForRemoteRule( const RemoteRule &ru
   QgsAiMarkdownDocument document;
   document.hasFrontmatter = true;
   document.body = rule.content;
-  document.properties << QgsAiFrontmatterProperty{ u"name"_s, { rule.name }, false };
+  document.properties << QgsAiFrontmatterProperty { u"name"_s, { rule.name }, false };
   if ( !rule.description.isEmpty() )
-    document.properties << QgsAiFrontmatterProperty{ u"description"_s, { rule.description }, false };
-  document.properties << QgsAiFrontmatterProperty{ u"globs"_s, rule.globs, true }
-                      << QgsAiFrontmatterProperty{ u"alwaysApply"_s, { rule.alwaysApply ? u"true"_s : u"false"_s }, false }
-                      << QgsAiFrontmatterProperty{ u"enabled"_s, { rule.enabled ? u"true"_s : u"false"_s }, false };
+    document.properties << QgsAiFrontmatterProperty { u"description"_s, { rule.description }, false };
+  document.properties
+    << QgsAiFrontmatterProperty { u"globs"_s, rule.globs, true }
+    << QgsAiFrontmatterProperty { u"alwaysApply"_s, { rule.alwaysApply ? u"true"_s : u"false"_s }, false }
+    << QgsAiFrontmatterProperty { u"enabled"_s, { rule.enabled ? u"true"_s : u"false"_s }, false };
   return QgsAiRulesSkillsStore::serializeMarkdownDocument( document );
 }
 
@@ -174,16 +175,17 @@ QString QgsAiRulesSkillsCloudClient::markdownForRemoteSkill( const RemoteSkill &
   QgsAiMarkdownDocument document;
   document.hasFrontmatter = true;
   document.body = skill.content;
-  document.properties << QgsAiFrontmatterProperty{ u"name"_s, { skill.name }, false }
-                      << QgsAiFrontmatterProperty{ u"description"_s, { skill.description }, false }
-                      << QgsAiFrontmatterProperty{ u"enabled"_s, { skill.enabled ? u"true"_s : u"false"_s }, false };
+  document.properties
+    << QgsAiFrontmatterProperty { u"name"_s, { skill.name }, false }
+    << QgsAiFrontmatterProperty { u"description"_s, { skill.description }, false }
+    << QgsAiFrontmatterProperty { u"enabled"_s, { skill.enabled ? u"true"_s : u"false"_s }, false };
   return QgsAiRulesSkillsStore::serializeMarkdownDocument( document );
 }
 
 bool QgsAiRulesSkillsCloudClient::markdownEquivalent( const QString &left, const QString &right )
 {
   const auto normalize = []( QString value ) {
-    value.replace( u"\r\n"_s, u"\n"_s );
+    value.replace( "\r\n"_L1, "\n"_L1 );
     value.replace( u'\r', u'\n' );
     while ( value.endsWith( u'\n' ) )
       value.chop( 1 );

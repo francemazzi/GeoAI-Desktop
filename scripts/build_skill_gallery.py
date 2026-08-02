@@ -6,11 +6,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import yaml
-
 
 REQUIRED = {
     "name",
@@ -34,7 +33,9 @@ def parse_document(path: Path) -> tuple[dict, str]:
     if not lines or lines[0].strip() != "---":
         raise ValueError(f"{path}: YAML frontmatter is required")
     try:
-        end = next(index for index, line in enumerate(lines[1:], 1) if line.strip() == "---")
+        end = next(
+            index for index, line in enumerate(lines[1:], 1) if line.strip() == "---"
+        )
     except StopIteration as error:
         raise ValueError(f"{path}: frontmatter is not closed") from error
     metadata = yaml.safe_load("\n".join(lines[1:end]))
@@ -51,12 +52,16 @@ def validate(path: Path, kind: str, metadata: dict) -> None:
         raise ValueError(f"{path}: missing {', '.join(sorted(missing))}")
     if kind == "rule" and not {"globs", "alwaysApply"} <= metadata.keys():
         raise ValueError(f"{path}: public rules require globs and alwaysApply")
-    if not isinstance(metadata["tags"], list) or not all(isinstance(tag, str) and tag for tag in metadata["tags"]):
+    if not isinstance(metadata["tags"], list) or not all(
+        isinstance(tag, str) and tag for tag in metadata["tags"]
+    ):
         raise ValueError(f"{path}: tags must be a non-empty string list")
     source = metadata["source"]
     if not isinstance(source, dict) or not SOURCE_REQUIRED <= source.keys():
         raise ValueError(f"{path}: source must contain kind, url and title")
-    if source["kind"] not in VALID_SOURCE_KINDS or not str(source["url"]).startswith("https://"):
+    if source["kind"] not in VALID_SOURCE_KINDS or not str(source["url"]).startswith(
+        "https://"
+    ):
         raise ValueError(f"{path}: source kind or HTTPS URL is invalid")
     if metadata["license"] != "CC-BY-4.0":
         raise ValueError(f"{path}: license is not in the v0 allowlist")
@@ -84,7 +89,9 @@ def item_for(root: Path, path: Path, kind: str) -> dict:
         "sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
     }
     if kind == "rule":
-        item.update({"globs": metadata["globs"], "alwaysApply": metadata["alwaysApply"]})
+        item.update(
+            {"globs": metadata["globs"], "alwaysApply": metadata["alwaysApply"]}
+        )
     return item
 
 
@@ -93,19 +100,28 @@ def build(root: Path) -> bytes:
     paths += [(path, "rule") for path in root.glob("rules/*.md")]
     items = [item_for(root, path, kind) for path, kind in paths]
     items.sort(key=lambda item: (item["type"], item["slug"]))
-    return (json.dumps({"version": 1, "items": items}, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    return (
+        json.dumps({"version": 1, "items": items}, ensure_ascii=False, indent=2) + "\n"
+    ).encode("utf-8")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1] / "docs" / "gallery")
+    parser.add_argument(
+        "--root",
+        type=Path,
+        default=Path(__file__).resolve().parents[1] / "docs" / "gallery",
+    )
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
     expected = build(args.root)
     manifest = args.root / "manifest.json"
     if args.check:
         if not manifest.exists() or manifest.read_bytes() != expected:
-            print(f"{manifest} is stale; run scripts/build_skill_gallery.py", file=sys.stderr)
+            print(
+                f"{manifest} is stale; run scripts/build_skill_gallery.py",
+                file=sys.stderr,
+            )
             return 1
         print(f"gallery manifest valid: {manifest}")
         return 0

@@ -19,8 +19,8 @@
 #include "qgis_app.h"
 #include "qgsairulesskillsstore.h"
 
-#include <QList>
 #include <QByteArray>
+#include <QList>
 #include <QObject>
 #include <QString>
 #include <QStringList>

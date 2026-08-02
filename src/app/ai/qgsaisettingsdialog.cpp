@@ -65,9 +65,9 @@
 #include <QFileInfo>
 #include <QFormLayout>
 #include <QFrame>
-#include <QHeaderView>
-#include <QHash>
 #include <QHBoxLayout>
+#include <QHash>
+#include <QHeaderView>
 #include <QInputDialog>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -1088,9 +1088,7 @@ QWidget *QgsAiSettingsDialog::buildRulesSkillsPage()
   mImportRulesSkillsCloudButton->setEnabled( mModelRouter && !mModelRouter->planSessionToken().trimmed().isEmpty() );
   cloudButtonsLayout->addWidget( mSyncRulesSkillsCloudButton );
   cloudButtonsLayout->addWidget( mImportRulesSkillsCloudButton );
-  contentLayout->addWidget(
-    settingRow( tr( "Cloud copy (opt-in)" ), tr( "Explicit copy/upsert only: no automatic merge, tombstones, or deletion of local/cloud-only items." ), cloudButtons, page )
-  );
+  contentLayout->addWidget( settingRow( tr( "Cloud copy (opt-in)" ), tr( "Explicit copy/upsert only: no automatic merge, tombstones, or deletion of local/cloud-only items." ), cloudButtons, page ) );
   mRulesSkillsCloudStatusLabel = new QLabel( page );
   mRulesSkillsCloudStatusLabel->setWordWrap( true );
   mRulesSkillsCloudStatusLabel->setProperty( "aiRole", u"rowDescription"_s );
@@ -1716,35 +1714,38 @@ void QgsAiSettingsDialog::syncRulesSkillsToCloud()
     *cancelled = true;
     mSyncRulesSkillsCloudButton->setEnabled( true );
     mImportRulesSkillsCloudButton->setEnabled( true );
-    mRulesSkillsCloudStatusLabel->setText( *failures == 0 ? tr( "Pushed %1 item(s) to Strata Cloud." ).arg( totalExpected ) : tr( "Push completed with %1 error(s); see the warning dialog." ).arg( *failures ) );
+    mRulesSkillsCloudStatusLabel->setText(
+      *failures == 0 ? tr( "Pushed %1 item(s) to Strata Cloud." ).arg( totalExpected ) : tr( "Push completed with %1 error(s); see the warning dialog." ).arg( *failures )
+    );
     client->deleteLater();
   };
 
   auto maybeStartPush = std::make_shared<std::function<void()>>();
-  *maybeStartPush = [client, localRules, localSkills, cloudRules, cloudSkills, rulesFetched, skillsFetched, requestsStarted, cancelled, apiBase = mAccountWidget->planEndpoint(), token, maybeFinish, this]() {
-    if ( *cancelled || !*rulesFetched || !*skillsFetched )
-      return;
-    for ( QgsAiRulesSkillsCloudClient::RemoteRule &local : *localRules )
-    {
-      const auto match = std::find_if( cloudRules->cbegin(), cloudRules->cend(), [&local]( const auto &remote ) { return remote.slug == local.slug; } );
-      if ( match != cloudRules->cend() )
-        local.id = match->id;
-    }
-    for ( QgsAiRulesSkillsCloudClient::RemoteSkill &local : *localSkills )
-    {
-      const auto match = std::find_if( cloudSkills->cbegin(), cloudSkills->cend(), [&local]( const auto &remote ) { return remote.slug == local.slug; } );
-      if ( match != cloudSkills->cend() )
-        local.id = match->id;
-    }
-    *requestsStarted = true;
-    mRulesSkillsCloudStatusLabel->setText( tr( "Pushing local copies; cloud-only items will remain untouched…" ) );
-    for ( const auto &rule : *localRules )
-      client->pushRule( apiBase, token, client->property( "workspaceId" ).toString(), rule );
-    for ( const auto &skill : *localSkills )
-      client->pushSkill( apiBase, token, client->property( "workspaceId" ).toString(), skill );
-    if ( localRules->isEmpty() && localSkills->isEmpty() )
-      maybeFinish();
-  };
+  *maybeStartPush =
+    [client, localRules, localSkills, cloudRules, cloudSkills, rulesFetched, skillsFetched, requestsStarted, cancelled, apiBase = mAccountWidget->planEndpoint(), token, maybeFinish, this]() {
+      if ( *cancelled || !*rulesFetched || !*skillsFetched )
+        return;
+      for ( QgsAiRulesSkillsCloudClient::RemoteRule &local : *localRules )
+      {
+        const auto match = std::find_if( cloudRules->cbegin(), cloudRules->cend(), [&local]( const auto &remote ) { return remote.slug == local.slug; } );
+        if ( match != cloudRules->cend() )
+          local.id = match->id;
+      }
+      for ( QgsAiRulesSkillsCloudClient::RemoteSkill &local : *localSkills )
+      {
+        const auto match = std::find_if( cloudSkills->cbegin(), cloudSkills->cend(), [&local]( const auto &remote ) { return remote.slug == local.slug; } );
+        if ( match != cloudSkills->cend() )
+          local.id = match->id;
+      }
+      *requestsStarted = true;
+      mRulesSkillsCloudStatusLabel->setText( tr( "Pushing local copies; cloud-only items will remain untouched…" ) );
+      for ( const auto &rule : *localRules )
+        client->pushRule( apiBase, token, client->property( "workspaceId" ).toString(), rule );
+      for ( const auto &skill : *localSkills )
+        client->pushSkill( apiBase, token, client->property( "workspaceId" ).toString(), skill );
+      if ( localRules->isEmpty() && localSkills->isEmpty() )
+        maybeFinish();
+    };
 
   connect( client, &QgsAiRulesSkillsCloudClient::ruleSynced, this, [progress, maybeFinish]( const QgsAiRulesSkillsCloudClient::RemoteRule & ) {
     ++( *progress );
@@ -1852,9 +1853,9 @@ void QgsAiSettingsDialog::importRulesSkillsFromCloud()
 
     struct PreviewRow
     {
-      bool skill = false;
-      int remoteIndex = -1;
-      QComboBox *action = nullptr;
+        bool skill = false;
+        int remoteIndex = -1;
+        QComboBox *action = nullptr;
     };
     QList<PreviewRow> rows;
     auto addRow = [table, &rows, this]( int row, bool skill, int remoteIndex, const QString &slug, QgsAiRulesSkillsCloudClient::RemoteComparison comparison ) {
@@ -1865,7 +1866,9 @@ void QgsAiSettingsDialog::importRulesSkillsFromCloud()
       };
       table->setItem( row, 0, fixedItem( skill ? tr( "Skill" ) : tr( "Rule" ) ) );
       table->setItem( row, 1, fixedItem( slug ) );
-      const QString state = comparison == QgsAiRulesSkillsCloudClient::RemoteComparison::RemoteOnly ? tr( "Remote only" ) : comparison == QgsAiRulesSkillsCloudClient::RemoteComparison::Equivalent ? tr( "Equivalent" ) : tr( "Conflict" );
+      const QString state = comparison == QgsAiRulesSkillsCloudClient::RemoteComparison::RemoteOnly   ? tr( "Remote only" )
+                            : comparison == QgsAiRulesSkillsCloudClient::RemoteComparison::Equivalent ? tr( "Equivalent" )
+                                                                                                      : tr( "Conflict" );
       table->setItem( row, 2, fixedItem( state ) );
       QComboBox *action = new QComboBox( table );
       if ( comparison == QgsAiRulesSkillsCloudClient::RemoteComparison::RemoteOnly )
@@ -1884,7 +1887,7 @@ void QgsAiSettingsDialog::importRulesSkillsFromCloud()
         action->addItem( tr( "Replace local" ), u"replace"_s );
       }
       table->setCellWidget( row, 3, action );
-      rows << PreviewRow{ skill, remoteIndex, action };
+      rows << PreviewRow { skill, remoteIndex, action };
     };
 
     int row = 0;
@@ -1921,7 +1924,7 @@ void QgsAiSettingsDialog::importRulesSkillsFromCloud()
         for ( const PreviewRow &previewRow : rows )
         {
           const QString action = previewRow.action->currentData().toString();
-          if ( action != u"import"_s && action != u"replace"_s )
+          if ( action != "import"_L1 && action != "replace"_L1 )
             continue;
           QString error;
           bool ok = false;
@@ -1947,9 +1950,12 @@ void QgsAiSettingsDialog::importRulesSkillsFromCloud()
     mSyncRulesSkillsCloudButton->setEnabled( true );
     mImportRulesSkillsCloudButton->setEnabled( true );
     if ( errors.isEmpty() )
-      mRulesSkillsCloudStatusLabel->setText( preview.result() == QDialog::Accepted ? tr( "Imported %1 item(s); skipped items and local-only files were left untouched." ).arg( imported ) : tr( "Cloud import cancelled; no local files were changed." ) );
+      mRulesSkillsCloudStatusLabel->setText(
+        preview.result() == QDialog::Accepted ? tr( "Imported %1 item(s); skipped items and local-only files were left untouched." ).arg( imported )
+                                              : tr( "Cloud import cancelled; no local files were changed." )
+      );
     else
-      QMessageBox::warning( this, tr( "Strata Cloud import" ), errors.join( u"\n"_s ) );
+      QMessageBox::warning( this, tr( "Strata Cloud import" ), errors.join( '\n'_L1 ) );
     client->deleteLater();
   };
 
