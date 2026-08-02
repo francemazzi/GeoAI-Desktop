@@ -3,10 +3,6 @@
     it: {
       "meta.title": "Strata — Gallery di Skill & Rules",
       "meta.description": "Skill e rules GIS curate: apri, verifica la provenienza e copia il Markdown.",
-      "hero.kicker": "FIELD NOTES / 001",
-      "hero.title": "Conoscenza GIS<br>che mostra le fonti.",
-      "hero.desc": "Skill e regole curate come documenti, non come scatole nere. Leggi il metodo, controlla la provenienza, copia il Markdown.",
-      "hero.cloud": "Copia direttamente in Strata Cloud →",
       "filter.search": "Cerca nel catalogo",
       "filter.placeholder": "Landsat, NBS, raster…",
       "filter.type": "Tipo",
@@ -31,10 +27,6 @@
     en: {
       "meta.title": "Strata — Skill & Rules Gallery",
       "meta.description": "Curated GIS skills and rules: inspect provenance and copy the Markdown.",
-      "hero.kicker": "FIELD NOTES / 001",
-      "hero.title": "GIS knowledge<br>that shows its sources.",
-      "hero.desc": "Curated skills and rules as documents, not black boxes. Read the method, inspect provenance, copy the Markdown.",
-      "hero.cloud": "Copy directly to Strata Cloud →",
       "filter.search": "Search the catalog",
       "filter.placeholder": "Landsat, NBS, raster…",
       "filter.type": "Type",
@@ -76,9 +68,7 @@
   function applyLanguage() {
     state.lang = document.documentElement.lang === "en" ? "en" : "it";
     document.querySelectorAll("[data-gallery-i18n]").forEach((element) => {
-      const value = text(element.getAttribute("data-gallery-i18n"));
-      if (element.getAttribute("data-gallery-i18n") === "hero.title") element.innerHTML = value;
-      else element.textContent = value;
+      element.textContent = text(element.getAttribute("data-gallery-i18n"));
     });
     document.title = text("meta.title");
     document.querySelector('meta[name="description"]')?.setAttribute("content", text("meta.description"));

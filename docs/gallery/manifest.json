@@ -35,6 +35,1637 @@
     },
     {
       "type": "skill",
+      "slug": "accessibility-design",
+      "name": "Accessibility Design",
+      "description": "Comprehensive accessibility and universal design expertise covering ADA/ABA Accessibility Standards, universal design principles (Ron Mace's 7 principles), inclusive environment design, accessible route requirements, dimensional standards for wheelchair access, ramps, stairs, elevators, sanitary facilities, sensory accessibility (visual and hearing impairment), neurodiversity-informed design, aging in place, and international code comparison across ADA (US), Equality Act/BS 8300 (UK), DIN 18040 (Germany), AS 1428 (Australia), and NBC (India).",
+      "category": "architecture",
+      "tags": [
+        "architecture",
+        "accessibility",
+        "design"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Skills-Architects",
+        "title": "Architect Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/accessibility-design/SKILL.md",
+      "sha256": "3e9afc9176811df28ac871064d606f3a3a4709558aa07e8f76e2f20422b199c4"
+    },
+    {
+      "type": "skill",
+      "slug": "acoustic-design",
+      "name": "Acoustic Design",
+      "description": "Acoustic design for buildings: sound insulation between spaces (airborne and impact), room acoustics and reverberation control, environmental noise intrusion, noise and vibration from building services, and acoustic design strategies for residential, commercial, educational, healthcare, performance, and worship building types.",
+      "category": "architecture",
+      "tags": [
+        "architecture",
+        "acoustic",
+        "design"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Skills-Architects",
+        "title": "Architect Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/acoustic-design/SKILL.md",
+      "sha256": "730b684111202acba09858b0e006ce081cc258c6cc9a8abf05959ae2289f4092"
+    },
+    {
+      "type": "skill",
+      "slug": "algorithmic-patterns",
+      "name": "Algorithmic Patterns for AEC Design",
+      "description": "L-systems, cellular automata, agent-based modeling, swarm intelligence, reaction-diffusion, growth algorithms, packing algorithms, and nature-inspired computation for AEC design",
+      "category": "computational-design",
+      "tags": [
+        "computational-design",
+        "algorithmic",
+        "patterns"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Claude-skills-for-Computational-Designers",
+        "title": "Computational Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/algorithmic-patterns/SKILL.md",
+      "sha256": "e84ec26d9dc4b305a92409428bfd1af6cdfa2a77292aea3bce04e40bf9b68b5b"
+    },
+    {
+      "type": "skill",
+      "slug": "architect-calculator",
+      "name": "Architect Calculator",
+      "description": "Seven Python-based architectural calculators for common design computations: area and density calculations (GFA, NGA, unit count, population, parking), thermal U-value analysis for multi-layer constructions, daylight factor estimation using BRE methodology, egress compliance checking (occupant load, exit width, travel distance), structural gravity load and tributary area calculations, annual energy demand estimation via degree-day method, and construction cost estimation by building type, quality, and region.",
+      "category": "architecture",
+      "tags": [
+        "architecture",
+        "architect",
+        "calculator"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Skills-Architects",
+        "title": "Architect Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/architect-calculator/SKILL.md",
+      "sha256": "873ca827e38b1d7becc5442e9fcf8626550ba77c107ae1157822c0ab75d198ab"
+    },
+    {
+      "type": "skill",
+      "slug": "architect-foundations",
+      "name": "Architect Foundations",
+      "description": "Auto-activated foundation layer for the Architect Skills plugin providing practitioner-grade reference across 50+ architects and theorists (Vitruvius through Kere), 100+ quantitative rules of thumb sourced from IBC, ASHRAE 90.1, ADA/ABA, NFPA 101, BS EN 1991-1995, Neufert Architects' Data, and Architectural Graphic Standards. Covers all major building typologies (residential, commercial, institutional, industrial, special), design quality frameworks (RIBA Plan of Work 2020, AIA Framework for Design Excellence, CABE Building for Life 12), sustainability rating systems (LEED BD+C v4.1, BREEAM New Construction 2024, Passive House Classic/Plus/Premium, WELL v2, Living Building Challenge 4.0, Fitwel), fire and life safety codes (NFPA 101, IBC Ch. 7-10, BS 9999, Approved Document B), accessibility standards (ADA 2010, BS 8300, EN 17210, DDA), acoustic performance (ASTM E90 STC, ASTM E492 IIC, BB93, DIN 4109), structural systems, envelope performance, daylighting metrics, and an anti-pattern catalog of common design failures. Routes to 17 specialized downstream skills based on user query context.",
+      "category": "architecture",
+      "tags": [
+        "architecture",
+        "architect",
+        "foundations"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Skills-Architects",
+        "title": "Architect Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/architect-foundations/SKILL.md",
+      "sha256": "9cab67def6cfd8f96eb6199f8fcfc80b9e244f4c31991e1981e1ec72d6c5ceb2"
+    },
+    {
+      "type": "skill",
+      "slug": "bim-scripting",
+      "name": "BIM Scripting",
+      "description": "Revit API fundamentals, Dynamo for Revit, pyRevit framework, IFC schema and openBIM, model checking, automated documentation, clash detection, and BIM interoperability tools for AEC computational design",
+      "category": "computational-design",
+      "tags": [
+        "computational-design",
+        "bim",
+        "scripting"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Claude-skills-for-Computational-Designers",
+        "title": "Computational Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/bim-scripting/SKILL.md",
+      "sha256": "0c489d9e8e570fb7e66981043f9ac7766913c68e2d8c1e13b6134b578212dd16"
+    },
+    {
+      "type": "skill",
+      "slug": "block-and-density",
+      "name": "Block and Density",
+      "description": ">-",
+      "category": "urban-design",
+      "tags": [
+        "urban-design",
+        "block",
+        "and",
+        "density"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Urban-Design-Skills-Claude",
+        "title": "Urban Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/block-and-density/SKILL.md",
+      "sha256": "04241acd699beb8a20485bb0b886523e682145e3d749d42d6cc2da16f3bf89d4"
+    },
+    {
+      "type": "skill",
+      "slug": "building-codes",
+      "name": "Building Codes",
+      "description": "Comprehensive building code expertise covering IBC (International Building Code) occupancy classification, construction types I through V, height and area limitations, means of egress design, fire separation and protection requirements, plumbing fixture calculations, and international code comparison across IBC, Building Regulations (England & Wales), Eurocodes, NCC (Australia), and NBC (Canada). Provides specific code references, dimensional requirements, fire resistance ratings, and calculation methods for architectural compliance.",
+      "category": "architecture",
+      "tags": [
+        "architecture",
+        "building",
+        "codes"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Skills-Architects",
+        "title": "Architect Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/building-codes/SKILL.md",
+      "sha256": "514d8c915910067c5ad550f5d84cfc85a611936130f580e94c9f535f8f6493e7"
+    },
+    {
+      "type": "skill",
+      "slug": "building-envelope",
+      "name": "Building Envelope",
+      "description": "Building envelope design: wall systems (masonry, timber, steel, CLT, curtain wall, rainscreen, precast, SIPs, ICF), glazing systems (single to triple, low-e coatings, gas fills, framing types), roofing (flat, pitched, green, membrane), thermal performance (U-value, R-value, SHGC, air permeability), moisture management (vapor barriers, condensation risk, Glaser method), air barriers, cladding, and thermal bridge prevention.",
+      "category": "architecture",
+      "tags": [
+        "architecture",
+        "building",
+        "envelope"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Skills-Architects",
+        "title": "Architect Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/building-envelope/SKILL.md",
+      "sha256": "e1cb4562441809691ec44cbe0f78290dcba7192a6ac5c514754e9f9e5465cfd4"
+    },
+    {
+      "type": "skill",
+      "slug": "building-programming",
+      "name": "Building Programming Skill",
+      "description": ">-",
+      "category": "architecture",
+      "tags": [
+        "architecture",
+        "building",
+        "programming"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Skills-Architects",
+        "title": "Architect Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/building-programming/SKILL.md",
+      "sha256": "b442ac334c201a03d53472e982f3a0de4a809f9a9c6ef17821ec1b5b1780ca80"
+    },
+    {
+      "type": "skill",
+      "slug": "building-services",
+      "name": "Building Services for Architects",
+      "description": "Comprehensive building services knowledge for architects covering HVAC system selection and spatial impact, plumbing and drainage design, electrical systems and power distribution, vertical transportation (elevators and escalators), fire protection systems (sprinklers, detection, smoke control), and MEP coordination strategies including ceiling void allocation, riser sizing, plant room planning, and BIM integration.",
+      "category": "architecture",
+      "tags": [
+        "architecture",
+        "building",
+        "services"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Skills-Architects",
+        "title": "Architect Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/building-services/SKILL.md",
+      "sha256": "568b581ad6fcabd1f7859bc094da5f9d0ca349e0d096843575f1a72f086d36fa"
+    },
+    {
+      "type": "skill",
+      "slug": "building-sustainability",
+      "name": "Building Sustainability",
+      "description": "Building sustainability frameworks and certification systems: LEED BD+C v4.1, BREEAM New Construction, Passive House (PHI/PHIUS), WELL Building Standard v2, DGNB, Living Building Challenge, Net Zero Carbon strategies, whole-life carbon assessment, embodied carbon reduction, operational energy targets, circular economy in architecture, and design for disassembly.",
+      "category": "architecture",
+      "tags": [
+        "architecture",
+        "building",
+        "sustainability"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Skills-Architects",
+        "title": "Architect Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/building-sustainability/SKILL.md",
+      "sha256": "1a7a895f52a1e19f7a03a792cdef0cce0183ec891fd4c0f7768a3695bac22c0e"
+    },
+    {
+      "type": "skill",
+      "slug": "building-typology",
+      "name": "Building Typology Skill",
+      "description": ">-",
+      "category": "architecture",
+      "tags": [
+        "architecture",
+        "building",
+        "typology"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Skills-Architects",
+        "title": "Architect Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/building-typology/SKILL.md",
+      "sha256": "2dfc03f58949f873f7fad81cb7a373f3b04a87d2e708ffa66a556c19cad8c294"
+    },
+    {
+      "type": "skill",
+      "slug": "cd-calculator",
+      "name": "Computational Design Calculator",
+      "description": "Python calculators for geometry analysis, structural checking, solar calculations, panel optimization, mesh analysis, material estimation, and fabrication cost estimation for AEC computational design",
+      "category": "computational-design",
+      "tags": [
+        "computational-design",
+        "calculator"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Claude-skills-for-Computational-Designers",
+        "title": "Computational Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/cd-calculator/SKILL.md",
+      "sha256": "7361e868b7b75ba28f54289fd20b901a3d1afaefdcef4b9d587f2cd4a372ba46"
+    },
+    {
+      "type": "skill",
+      "slug": "cd-foundations",
+      "name": "Computational Design Foundations",
+      "description": "Auto-activating foundation layer providing computational design paradigms, key pioneers, tools landscape, core concepts, and skill routing for all AEC computational design tasks",
+      "category": "computational-design",
+      "tags": [
+        "computational-design",
+        "foundations"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Claude-skills-for-Computational-Designers",
+        "title": "Computational Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/cd-foundations/SKILL.md",
+      "sha256": "33cd3c80650f872186b52e9a71ff0bfb4ead4e63c832cc5a486b3d7f431b0da9"
+    },
+    {
+      "type": "skill",
+      "slug": "climate-responsive-design",
+      "name": "Climate-Responsive Urban Design Skill",
+      "description": ">-",
+      "category": "urban-design",
+      "tags": [
+        "urban-design",
+        "climate",
+        "responsive",
+        "design"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Urban-Design-Skills-Claude",
+        "title": "Urban Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/climate-responsive-design/SKILL.md",
+      "sha256": "7e470bfa00aea6a0d5ffdabce61631244c72ede84e73a838443ec00e675767da"
+    },
+    {
+      "type": "skill",
+      "slug": "computational-geometry",
+      "name": "Computational Geometry for AEC",
+      "description": "NURBS curves and surfaces, mesh geometry, boolean operations, subdivision surfaces, tessellation methods, surface analysis, and point cloud processing for AEC computational design",
+      "category": "computational-design",
+      "tags": [
+        "computational-design",
+        "computational",
+        "geometry"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Claude-skills-for-Computational-Designers",
+        "title": "Computational Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/computational-geometry/SKILL.md",
+      "sha256": "eeecdc5769ca0df305395ab8ea67403478cfdd952340a76571250894cd49333f"
+    },
+    {
+      "type": "skill",
+      "slug": "concept-design",
+      "name": "Concept Design",
+      "description": "Parti development, massing studies, spatial organization strategies, design concept generation, and concept-to-form translation methodologies",
+      "category": "architecture",
+      "tags": [
+        "architecture",
+        "concept",
+        "design"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Skills-Architects",
+        "title": "Architect Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/concept-design/SKILL.md",
+      "sha256": "ccfd082c8714b6c484a10f4312406e4c6c6a66ab776036bd5fb0d306254e3e4e"
+    },
+    {
+      "type": "skill",
+      "slug": "construction-documentation",
+      "name": "Construction Documentation",
+      "description": "Comprehensive construction documentation skill covering architectural drawing sets, sheet organization and numbering, drawing standards (line weights, text, hatching, dimensions), BIM Level of Development (LOD) requirements, specification writing using CSI MasterFormat, schedule production (door, window, finish, fixture), and construction administration workflows including RFI processing, submittal review, change orders, site observations, punch lists, and warranty period management.",
+      "category": "architecture",
+      "tags": [
+        "architecture",
+        "construction",
+        "documentation"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Skills-Architects",
+        "title": "Architect Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/construction-documentation/SKILL.md",
+      "sha256": "61e22ee3e002f24cbd8fd6195900343acf973fafda16e78901753295ab413c2c"
+    },
+    {
+      "type": "skill",
+      "slug": "cost-estimation",
+      "name": "Cost Estimation Skill",
+      "description": ">-",
+      "category": "urban-design",
+      "tags": [
+        "urban-design",
+        "cost",
+        "estimation"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Urban-Design-Skills-Claude",
+        "title": "Urban Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/cost-estimation/SKILL.md",
+      "sha256": "0fb5fd87ecc6ca21dd1703daf492ca10dd6b0595be9be3e35e1afe30eb772763"
+    },
+    {
+      "type": "skill",
+      "slug": "country-australia",
+      "name": "Country: Australia",
+      "description": "Australia architectural code and regulatory reference. Covers the National Construction Code 2022 (NCC 2022, published by Australian Building Codes Board ABCB) -- Volume One (Class 2-9 Building Code of Australia), Volume Two (Class 1 + 10 -- Housing Provisions), Volume Three (Plumbing Code of Australia); Australian Standards including AS/NZS 1170.0-2002 + 1170.1-2002 + 1170.2-2021 wind + 1170.3-2003 snow + 1170.4-2007 seismic, AS 3600-2018 concrete, AS 4100-2020 steel, AS 1684-2010 residential timber, AS 1170.4 seismic, AS 1530.1/.2/.3/.4/.8 fire test methods, AS 4072 service penetration sealing, AS 1428.1-2021 accessibility, AS 1428.4 tactile, AS/NZS 4586 slip resistance, AS 1668 ventilation, AS 1680 lighting; the Disability (Access to Premises -- Buildings) Standards 2010 + Disability Discrimination Act 1992; the 7-star NatHERS (Nationwide House Energy Rating Scheme) mandatory for new Class 1 housing from 2022; state-specific overlays (NSW Planning + Environmental Planning Instruments, Victoria Plumbing Regulations, Queensland Sustainable Building Code, WA Building Code, SA Planning + Building Code, ACT + NT); BCA performance + DTS pathways; the BASIX (NSW) sustainability assessment; Green Building Council of Australia Green Star ratings; and the Australian climate zones (8 zones) with cyclonic wind regions (A0, A1-5, B, C, D).",
+      "category": "architecture",
+      "tags": [
+        "architecture",
+        "country",
+        "australia"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Skills-Architects",
+        "title": "Architect Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/country-australia/SKILL.md",
+      "sha256": "433ab8dd52c2fe7ec4b028ef1ba25002517defe0ebab0c8f1afb7bf1cc3694b4"
+    },
+    {
+      "type": "skill",
+      "slug": "country-china",
+      "name": "Country: People's Republic of China",
+      "description": "People's Republic of China architectural code and regulatory reference. Covers the GB (Guojia Biaozhun -- National Standard) series of mandatory codes including GB 50352-2019 Civil Buildings Unified Design Standard (replaces 2005), GB 50016-2014 (2018 ed.) Fire Protection Design of Buildings, GB 51251-2017 Smoke Control + Prevention, GB 50045 (legacy high-rise fire), GB 50011-2010 Seismic Design (with 2016 amendments), GB 50009-2012 Building Structural Loads, GB 55015-2021 General Code for Building Energy + Renewable Energy, GB 50189-2015 Public Building Energy Design, JGJ 26-2018 + JGJ 75-2012 + JGJ 134-2010 Residential Energy Design (by climate zone), GB 50763-2012 Code for Design Accessibility, GB 50352 civil building, plus the supplementary JGJ (Industry Standard) codes. Includes the five thermal climate zones per GB 50176-2016 (Severe Cold, Cold, Hot Summer Cold Winter, Hot Summer Warm Winter, Temperate), the eight seismic intensity zones (degree 6-9), the sunlight rights (Rizhao) regulation governing residential setbacks, DB local supplements (DB11 Beijing, DGJ08 Shanghai, DBJ Guangdong + Guangxi etc.), Hong Kong SAR distinct regulation (Buildings Department BD HK BO Cap 123 + PNAPs + ATCs), Macao separately, and the China Sponge City Program, Green Building Label (3-star China Green Building Evaluation Standard), and the Construction Engineering Quality Management Regulations.",
+      "category": "architecture",
+      "tags": [
+        "architecture",
+        "country",
+        "china"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Skills-Architects",
+        "title": "Architect Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/country-china/SKILL.md",
+      "sha256": "ac48d29e458e19b93a2dca351a28386f8a4dbfe85e7373f41dc3bbe2a37d47e2"
+    },
+    {
+      "type": "skill",
+      "slug": "country-germany",
+      "name": "Country: Germany",
+      "description": "Germany architectural code and regulatory reference. Covers the Musterbauordnung (MBO 2002, last amended 2019) federal model plus the 16 binding Landesbauordnungen (LBO) for each Bundesland (BayBO Bavaria, BauO NRW North Rhine-Westphalia, BauO Bln Berlin, HBauO Hamburg, BauO Bbg Brandenburg, NBauO Lower Saxony, HBO Hesse, BauO LSA Saxony-Anhalt, SaechsBO Saxony, ThuerBO Thuringia, LBauO Rheinland-Pfalz, LBO BW Baden-Wuerttemberg, BauO SH Schleswig-Holstein, BauO M-V Mecklenburg-Vorpommern, LBO Saarland, BauO Bremen), the federal Gebaeudeenergiegesetz GEG 2023, the German Eurocode national annexes (DIN EN 1990-1999/NA), the DIN 18040 series for accessibility (Part 1 public buildings, Part 2 dwellings, Part 3 public space), DIN 4109 for sound insulation, DIN 4108 thermal insulation, DIN 4102/EN 13501 for fire classification, Musterhochhausrichtlinie + Sonderbauordnungen for special buildings, Versammlungsstaettenverordnung for assembly buildings, Industriebaurichtlinie for industrial, KrPflVO/HHRRL for hospitals, Brandschutznachweis methodology, BAFA/KfW incentive certification schemes, DGNB certification, Effizienzhaus 40/55/70 standards, Heizungsgesetz 2024 (Heizung Replacement Act), Bauwerksbuch (building documentation), TGA/HKLS engineering disciplines, and the BIM Deutschland federal mandate timeline.",
+      "category": "architecture",
+      "tags": [
+        "architecture",
+        "country",
+        "germany"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Skills-Architects",
+        "title": "Architect Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/country-germany/SKILL.md",
+      "sha256": "33ed6875e665e60a8012de32adbfb1fb799e35a81e9c86d83200442f95ea398f"
+    },
+    {
+      "type": "skill",
+      "slug": "country-india",
+      "name": "Country: India",
+      "description": "India-specific architectural code and regulatory reference. Covers the National Building Code of India (NBC 2016), Energy Conservation Building Code (ECBC 2017) and ECBC for Residential Buildings (ECBC-R 2018, also called Eco-Niwas Samhita), Indian Standards for structural design (IS 456:2000 concrete, IS 800:2007 steel, IS 875 Parts 1-5 loads, IS 1893:2016 seismic, IS 13920:2016 ductile detailing, IS 1904 foundations), the Rights of Persons with Disabilities Act 2016 and Harmonised Guidelines & Space Standards for Universal Accessibility 2021 (MoHUA), state-level Development Control Regulations (Mumbai DCPR 2034, Delhi MPD 2041, Bangalore BBMP, Chennai CMDA, Hyderabad GHMC, Kolkata KMC, Pune PMC, Ahmedabad AUDA), municipal building bye-laws, GRIHA and IGBC green rating systems, RERA (Real Estate Regulatory Authority) under the RERA Act 2016, fire safety per NBC Part 4 and state fire services rules, and the approval workflow involving Municipal Corporations, Development Authorities, State Fire Services NOC, and aviation/environmental clearances. Practitioner-grade clause-level reference for design teams working on projects in any Indian state or Union Territory.",
+      "category": "architecture",
+      "tags": [
+        "architecture",
+        "country",
+        "india"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Skills-Architects",
+        "title": "Architect Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/country-india/SKILL.md",
+      "sha256": "e2f7deca5ff53055cf6b8b86c05d9c2c4137abe3bad5ec47332c04daf8a07f0b"
+    },
+    {
+      "type": "skill",
+      "slug": "country-italy",
+      "name": "Country: Italia",
+      "description": "Quadro normativo e regolamentare italiano per l'architettura e l'urbanistica. Copre il Testo Unico dell'Edilizia (DPR 380/2001, aggiornato con Decreto Salva Casa - L. 105/2024), la Legge Urbanistica 1150/1942, il Codice dei Beni Culturali e del Paesaggio (D.Lgs 42/2004), le Norme Tecniche per le Costruzioni (NTC 2018 + Circolare 7/2019), il Codice di Prevenzione Incendi (D.M. 3/8/2015 e s.m.i.), la normativa sull'accessibilità (D.M. 236/1989, DPR 503/1996, L. 13/1989, L. 104/1992), la normativa energetica (D.Lgs 192/2005, D.Lgs 48/2020, Decreto Requisiti Minimi, APE, Superbonus/Ecobonus), gli standard urbanistici (D.M. 1444/1968), le distanze tra edifici (artt. 873-907 c.c. e relativa giurisprudenza costituzionale e di legittimità), i titoli abilitativi edilizi (CIL, CILA, SCIA, Permesso di Costruire), la pianificazione regionale (PGT, PSC, PUC, PS a seconda della regione), e le fonti per il reperimento di norme, decreti, sentenze e pareri aggiornati (Normattiva, Gazzetta Ufficiale, Giustizia Amministrativa, Corte Costituzionale, CNAPPC).",
+      "category": "italy-planning",
+      "tags": [
+        "italy",
+        "country",
+        "regulatory"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/francemazzi/strata",
+        "title": "Strata GIS — country-italy",
+        "author": "Strata GIS team",
+        "year": 2026
+      },
+      "license": "CC-BY-4.0",
+      "attribution": "Skill originale del progetto Strata; verificare sempre le fonti ufficiali citate nel corpo della skill.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/country-italy/SKILL.md",
+      "sha256": "eb849988cdc8d6e330ab597a5ddb4bc9bfbb61475c5c3ff58673c23b46b5164c"
+    },
+    {
+      "type": "skill",
+      "slug": "country-japan",
+      "name": "Country: Japan",
+      "description": "Japan architectural code and regulatory reference. Covers the Building Standards Act (Kenchiku Kijun Ho, 1950, fundamentally revised 1998 toward performance-based regulation and 2007 strengthening post-Aneha incident), Building Standards Law Enforcement Order (Kenchiku Kijun Ho Shiko Rei) and MLIT Notifications (Kokuji); the parallel Fire Service Act and Fire Service Law Enforcement Order administered by Fire Department (Shobosho); Energy Conservation Act 1979 superseded by Act on the Improvement of Energy Consumption Performance of Buildings (Kenchikubutsu Sho-Energy Ho) 2015 + amendment 2022; Heart Building Law 2006 (Barrier-Free Law) and JIS S 0026 accessibility standards; City Planning Act with 12 use districts and ratio-based regulation (Yoseki-ritsu volumetric, Kenpei-ritsu coverage, daylighting + setback ratios); the unique two-level seismic design philosophy (Level 1 475-year + Level 2 2475-year), 1981 New Seismic Standard (Shintaishin), Energy Absorption Member design + base isolation + damper systems; AIJ Recommendations for Loads on Buildings 2015; CASBEE (Comprehensive Assessment System for Built Environment Efficiency); BCJ (Building Center of Japan) structural performance evaluation; Architect Law and Class 1/2/ Mokuzo (timber) architect designations; Land + Building Lease Act; and the prefecture + Designated City (Seirei Shitei Toshi) + Core City (Chukaku Shi) administrative tiers.",
+      "category": "architecture",
+      "tags": [
+        "architecture",
+        "country",
+        "japan"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Skills-Architects",
+        "title": "Architect Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/country-japan/SKILL.md",
+      "sha256": "a700462389700b984f61d0799b2dffd03dfdc953d50a6f2de6a6554e3befa9ac"
+    },
+    {
+      "type": "skill",
+      "slug": "country-saudi-arabia",
+      "name": "Country: Kingdom of Saudi Arabia",
+      "description": "Kingdom of Saudi Arabia architectural code and regulatory reference. Covers the Saudi Building Code (SBC) nine-part series issued by the Saudi Building Code National Committee (SBCNC): SBC 201 General Building, SBC 301 Structural Loads (ASCE 7-derived), SBC 302 Concrete (ACI 318-derived), SBC 304 Soil and Foundations, SBC 305 Masonry, SBC 306 Steel (AISC-derived), SBC 401 Electrical, SBC 501 Mechanical, SBC 601 Energy Conservation, SBC 701 Plumbing, SBC 801 Fire (NFPA-aligned), SBC 901 Existing Buildings, SBC 1001 Green Buildings. Also covers the General Directorate of Civil Defence regulations, Saudi Universal Accessibility Code, Mostadamah (Saudi Green Building Program), the Vision 2030 giga-projects (NEOM, Qiddiya, Red Sea, Diriyah, ROSHN), Amana (Municipality) approval workflows, Saudi Energy Efficiency Center (SEEC) programs, and Royal Commission jurisdictions (Jubail/Yanbu/AlUla). Includes Mecca/Medina special restrictions (Hajj building regulations), Aramco housing standards reference, and the hot-arid + coastal-humid + highland design overlays for the three national climate zones.",
+      "category": "architecture",
+      "tags": [
+        "architecture",
+        "country",
+        "saudi",
+        "arabia"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Skills-Architects",
+        "title": "Architect Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/country-saudi-arabia/SKILL.md",
+      "sha256": "013fea14d6831ccd953ec3d4864ac41ec03efb25f71e395d4b56ebb9c210cc54"
+    },
+    {
+      "type": "skill",
+      "slug": "country-singapore",
+      "name": "Country: Singapore",
+      "description": "Singapore architectural code and regulatory reference. Covers the Building Control Act 1989 (BCA) and Building Control Regulations 2003 (with periodic amendments through 2024), the Singapore Civil Defence Force (SCDF) Fire Code 2018 (Fire Safety Act 1993 + Fire Safety (Building Fire Safety) Regulations), the URA (Urban Redevelopment Authority) Planning Act with Master Plan 2019 and Development Control Handbooks, BCA Green Mark scheme 2021 with mandatory Green Mark Certified Building requirement for all new buildings since 2008, BCA Code on Accessibility 2019 (3rd revision; Universal Design Mark), Code on Environmental Sustainability of Buildings 2018, Singapore Standards SS 530 energy efficiency, SS 553 air-conditioning, SS 568 natural lighting, SS 593 acoustic, SS 632 emergency power, plus Singapore-adopted Eurocodes (SS EN suite with Singapore National Annexes), Code of Practice on Buildability (BCA), Code on Buildable Design and Constructability, Workplace Safety and Health Act, NEA noise regulations, PUB water/drainage codes, and the Land Transport Authority's Code of Practice on Vehicle Parking. Includes HDB (public housing) standards and the developer-led private residential design quality protocols.",
+      "category": "architecture",
+      "tags": [
+        "architecture",
+        "country",
+        "singapore"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Skills-Architects",
+        "title": "Architect Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/country-singapore/SKILL.md",
+      "sha256": "4cfd1d576ba1c30e93100598ebac8f96f25d2759420351c61704b746fb7262cf"
+    },
+    {
+      "type": "skill",
+      "slug": "country-uae",
+      "name": "Country: United Arab Emirates",
+      "description": "United Arab Emirates architectural code and regulatory reference. Covers the federal regulatory framework (UAE Fire and Life Safety Code of Practice 2018 by General Civil Defence, Federal Law 29/2006 + 2/2014 + 1/2020 for People of Determination, ESMA standards) plus the seven Emirates' independent codes: Dubai Building Code 2021 (DBC), Dubai Civil Defence regulations, Trakhees regulations for free zones, Dubai Green Building Regulations & Specifications 2011 + Al Sa'fat 2016, Dubai Universal Design Code 2017; Abu Dhabi International Building Code 2013 (ADIBC, IBC-derived), Estidama Pearl Building Rating System 2010, DMA Accessibility Code; Sharjah Department of Planning and Survey rules; northern emirates' deferral patterns to Abu Dhabi or Dubai codes. Includes climate zone hot-arid design overlays, sandstorm/ thermal expansion loads, ADM/DM approval workflows, RERA Dubai project registration, developer-master-developer-end-customer hierarchies (Emaar, Aldar, Nakheel masterplan compliance), DEWA/ADDC utility coordination, and the cross-walk between IBC, ASCE 7, NFPA, and UAE national amendments. Practitioner-grade clause-level reference for design teams working in any of the seven Emirates.",
+      "category": "architecture",
+      "tags": [
+        "architecture",
+        "country",
+        "uae"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Skills-Architects",
+        "title": "Architect Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/country-uae/SKILL.md",
+      "sha256": "be19678bcbc8fc01d02ac291e5616844dc02ebe7ee8c62c48822d36c4a580d02"
+    },
+    {
+      "type": "skill",
+      "slug": "country-uk",
+      "name": "Country: United Kingdom",
+      "description": "United Kingdom architectural code and regulatory reference. Covers the Building Regulations 2010 for England with Approved Documents A through S (current 2010-2025 amendments), the parallel regimes for Wales (Welsh Approved Documents), Scotland (Building (Scotland) Regulations 2004 + Scottish Technical Handbooks), and Northern Ireland (Building Regulations (NI) 2012 + Technical Booklets). Post-Grenfell amendments to AD-B (2018-2023), the Building Safety Act 2022 with Building Safety Regulator (BSR) regime for Higher-Risk Buildings (HRB), Future Homes Standard 2025 and Future Buildings Standard 2025 (next AD-L), British Standards (BS 9991 fire safety dwellings, BS 9999 fire safety non-domestic, BS 8300-1/-2 accessibility, BS 5950 legacy steel, BS EN Eurocodes with UK National Annexes, BS 8500 concrete), London Plan 2021 + Mayor's Energy Hierarchy, Local Plans + NPPF (National Planning Policy Framework 2024), LABC vs Approved Inspector, EPC + SAP 10.2 + SBEM, Energy Act 2011 MEES minimum energy efficiency standards, BREEAM, and the post-Grenfell Building Safety regime including Gateway 1-3, Resident Engagement, Golden Thread, Safety Case Report, Mandatory Occurrence Reporting, and the Construction Products regulatory regime.",
+      "category": "architecture",
+      "tags": [
+        "architecture",
+        "country"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Skills-Architects",
+        "title": "Architect Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/country-uk/SKILL.md",
+      "sha256": "145672d2bf021492e0bd090f5f448e84fe592fd6eb217beabd05542096b7fd35"
+    },
+    {
+      "type": "skill",
+      "slug": "country-usa",
+      "name": "Country: United States of America",
+      "description": "United States architectural code and regulatory reference. Covers the International Code Council (ICC) family of model codes adopted across most US jurisdictions (IBC 2024, IRC 2024, IECC 2024, IFC 2024, IMC 2024, IPC 2024, IFGC 2024, IEBC 2024), the National Fire Protection Association suite (NFPA 101 Life Safety Code 2024, NFPA 70 NEC 2023, NFPA 13 sprinklers, NFPA 72 detection, NFPA 285 wall assemblies, NFPA 5000), structural standards (ASCE 7-22 loads, ASCE 41-23 existing, ACI 318-19 concrete, AISC 360-22 steel, ANSI/AWC NDS 2024 wood, TMS 402/602 masonry), accessibility (ADA 2010 Standards, ANSI A117.1-2017, Fair Housing Act + HUD design manual, ABA Standards), energy (ASHRAE 90.1-2022, ASHRAE 62.1-2022, ASHRAE 55-2020, ENERGY STAR), and the major state amendments (California Title 24 Parts 1-12 with Part 6 Energy and Part 11 CalGreen, NYC Building Code 2022 + 1968 grandfathered + 2014 commercial, Florida Building Code 2023, Texas through state-by-jurisdiction adoption, Chicago Construction Codes, Massachusetts 9th Edition, Washington State Energy Code) plus zoning/planning realities (R/C/M zones, FAR, setback, height bonuses, LEED programs, AHJ -- Authority Having Jurisdiction).",
+      "category": "architecture",
+      "tags": [
+        "architecture",
+        "country",
+        "usa"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Skills-Architects",
+        "title": "Architect Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/country-usa/SKILL.md",
+      "sha256": "32170972240672bcffb182d0534a2910bc89e4bdc9786bd7dc203ec2785e6e71"
+    },
+    {
+      "type": "skill",
+      "slug": "data-driven-design",
+      "name": "Data-Driven Design",
+      "description": "GIS integration, sensor data, occupancy analytics, space syntax analysis, urban data analytics, climate data processing, and API data sources for evidence-based AEC computational design",
+      "category": "computational-design",
+      "tags": [
+        "computational-design",
+        "data",
+        "driven",
+        "design"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Claude-skills-for-Computational-Designers",
+        "title": "Computational Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/data-driven-design/SKILL.md",
+      "sha256": "3505192cd70a22bd2b32d6a2c97874880753b5b052241cff8278fbb0f746408a"
+    },
+    {
+      "type": "skill",
+      "slug": "daylighting-design",
+      "name": "Daylighting Design",
+      "description": "Natural daylighting strategies, solar geometry, glare control, artificial lighting integration, and visual comfort for architectural design",
+      "category": "architecture",
+      "tags": [
+        "architecture",
+        "daylighting",
+        "design"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Skills-Architects",
+        "title": "Architect Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/daylighting-design/SKILL.md",
+      "sha256": "3951bd5b365dd017295c0712bb3ed9ff58e0c02fb3cd088bfc80d51cb2b4a6aa"
+    },
+    {
+      "type": "skill",
+      "slug": "design-automation",
+      "name": "Design Automation for AEC",
+      "description": "Rule-based design systems, constraint satisfaction, space planning algorithms, automated layout generation, drawing automation, code compliance checking, and computational workflows for AEC design automation",
+      "category": "computational-design",
+      "tags": [
+        "computational-design",
+        "design",
+        "automation"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Claude-skills-for-Computational-Designers",
+        "title": "Computational Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/design-automation/SKILL.md",
+      "sha256": "b9f27b7b62fd960185f1704d2b39f239df66327f3297c2319be8fdabe2014b77"
+    },
+    {
+      "type": "skill",
+      "slug": "design-brief",
+      "name": "Design Brief Skill",
+      "description": ">-",
+      "category": "urban-design",
+      "tags": [
+        "urban-design",
+        "design",
+        "brief"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Urban-Design-Skills-Claude",
+        "title": "Urban Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/design-brief/SKILL.md",
+      "sha256": "c92fc91996c43bbec615f3e34f08bb446bd41a0b6dadd64da5005f779a7882e0"
+    },
+    {
+      "type": "skill",
+      "slug": "design-evaluation",
+      "name": "Design Evaluation Skill",
+      "description": ">-",
+      "category": "urban-design",
+      "tags": [
+        "urban-design",
+        "design",
+        "evaluation"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Urban-Design-Skills-Claude",
+        "title": "Urban Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/design-evaluation/SKILL.md",
+      "sha256": "edd5cf3bdbe558aaae8130c9111020ec02459b2d088a8c8fcbf9c42b2f80122f"
+    },
+    {
+      "type": "skill",
+      "slug": "design-theory",
+      "name": "Design Theory",
+      "description": "Architectural movements, design philosophy, critical theory, precedent analysis, and compositional principles for informed design reasoning",
+      "category": "architecture",
+      "tags": [
+        "architecture",
+        "design",
+        "theory"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Skills-Architects",
+        "title": "Architect Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/design-theory/SKILL.md",
+      "sha256": "30546c4e5c2b30572312f1a4c3c340a98ca707e191856668ef6cfbb346ac4c5f"
+    },
+    {
+      "type": "skill",
+      "slug": "digital-fabrication",
+      "name": "Digital Fabrication in AEC",
+      "description": "CNC milling, robotic fabrication, additive manufacturing, laser cutting, timber joinery, formwork design, assembly sequencing, and file preparation for digitally-fabricated AEC components",
+      "category": "computational-design",
+      "tags": [
+        "computational-design",
+        "digital",
+        "fabrication"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Claude-skills-for-Computational-Designers",
+        "title": "Computational Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/digital-fabrication/SKILL.md",
+      "sha256": "159bfd1db68ad9962dacd176c3c737e3d28da39b6e48a347de28db8a7b904a0e"
+    },
+    {
+      "type": "skill",
+      "slug": "environmental-simulation",
+      "name": "Environmental Simulation for AEC Computational Design",
+      "description": "Daylight analysis, solar radiation, energy simulation, CFD wind analysis, thermal comfort, acoustic simulation, and the Ladybug Tools ecosystem for performance-driven AEC computational design",
+      "category": "computational-design",
+      "tags": [
+        "computational-design",
+        "environmental",
+        "simulation"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Claude-skills-for-Computational-Designers",
+        "title": "Computational Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/environmental-simulation/SKILL.md",
+      "sha256": "73545cbb64de00c8e9f41103a75bc1b95d6f9126badfc095f4b56b78606b7d88"
+    },
+    {
+      "type": "skill",
+      "slug": "facade-computation",
+      "name": "Facade Computation",
+      "description": "Panelization strategies, surface rationalization, attractor-based patterning, double-skin facades, kinetic and responsive facades, environmental performance facades, and fabrication-aware facade design for AEC",
+      "category": "computational-design",
+      "tags": [
+        "computational-design",
+        "facade",
+        "computation"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Claude-skills-for-Computational-Designers",
+        "title": "Computational Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/facade-computation/SKILL.md",
+      "sha256": "2355d10a4f169555050d1a549fe7c2fb826655d6af12a275ad58cec934c7d572"
+    },
+    {
+      "type": "skill",
+      "slug": "fire-life-safety",
+      "name": "Fire and Life Safety Design",
+      "description": "Comprehensive fire and life safety design expertise covering fire strategy development, compartmentation and fire barrier design, means of egress design including travel distances and stair sizing, fire resistance ratings and structural fire protection methods, smoke control systems (natural and mechanical), active fire protection systems (sprinklers, detection, alarm, emergency lighting), fire door specifications, and fire strategy coordination between architect and fire engineer.",
+      "category": "architecture",
+      "tags": [
+        "architecture",
+        "fire",
+        "life",
+        "safety"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Skills-Architects",
+        "title": "Architect Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/fire-life-safety/SKILL.md",
+      "sha256": "4c149588d66904ee0cabdcfec748ad8957771a839aea0a73586cd8975e74e9f7"
+    },
+    {
+      "type": "skill",
+      "slug": "generative-design",
+      "name": "Generative Design for AEC Computational Design",
+      "description": "Evolutionary algorithms, multi-objective optimization, design space exploration, fitness function design, population-based methods, and generative workflows for AEC computational design",
+      "category": "computational-design",
+      "tags": [
+        "computational-design",
+        "generative",
+        "design"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Claude-skills-for-Computational-Designers",
+        "title": "Computational Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/generative-design/SKILL.md",
+      "sha256": "5d5b4b19b79f2df32860fe7d4238f4f7f186499540d56b45d37353930a123d3a"
+    },
+    {
+      "type": "skill",
+      "slug": "geographic-foundations",
+      "name": "Geographic Foundations",
+      "description": "Auto-activated geographic context router for the Architect Skills plugin. Detects the country or jurisdiction of any architectural query and routes to the correct country-specific dossier (India, UAE, Saudi Arabia, USA, UK, Germany, Singapore, Japan, China, Australia). Encodes the global regulatory landscape: which authority issues which code, the hierarchy between national/state/municipal regulation, code adoption status by version year, the dominant energy/seismic/fire/accessibility codes per jurisdiction, and the cross-walk between national codes and the international reference systems (IBC, NFPA, Eurocodes, ISO, ASCE). Maintains a precise inventory of which country uses which Eurocode National Annex, which states/emirates/ Lander/prefectures publish their own modifications, and where international standards apply by reference. Triggers country-specific skills when geographic context is detected in user query (city name, project location, language cues, code reference) and supplies global framework comparisons when no specific jurisdiction is declared.",
+      "category": "architecture",
+      "tags": [
+        "architecture",
+        "geographic",
+        "foundations"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Skills-Architects",
+        "title": "Architect Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/geographic-foundations/SKILL.md",
+      "sha256": "7d54f85c3332aee60f04caae00121a166fbc747a5195075d495a03eef3b6fcfd"
+    },
+    {
+      "type": "skill",
+      "slug": "interoperability",
+      "name": "Interoperability for AEC Computational Design",
+      "description": "File format encyclopedia, data exchange strategies, API integration patterns, Grasshopper-to-Revit pipelines, Rhino.Inside workflows, Speckle data streams, and schema mapping for AEC computational design",
+      "category": "computational-design",
+      "tags": [
+        "computational-design",
+        "interoperability"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Claude-skills-for-Computational-Designers",
+        "title": "Computational Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/interoperability/SKILL.md",
+      "sha256": "ef8d1cc481a79ef5a819e15fea3b41df0e8c814d54adb356b333a8262447d78d"
+    },
+    {
+      "type": "skill",
+      "slug": "masterplan-design",
+      "name": "Masterplan Design Skill",
+      "description": ">-",
+      "category": "urban-design",
+      "tags": [
+        "urban-design",
+        "masterplan",
+        "design"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Urban-Design-Skills-Claude",
+        "title": "Urban Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/masterplan-design/SKILL.md",
+      "sha256": "4e4f3b360e3b8c1076faf4ca10ae0be341f1cff8538adba4244bb13f31938852"
+    },
+    {
+      "type": "skill",
+      "slug": "material-selection",
+      "name": "Material Selection",
+      "description": "Architectural material properties, durability, sustainability, specification, detailing, life-cycle assessment, and material palettes for building design",
+      "category": "architecture",
+      "tags": [
+        "architecture",
+        "material",
+        "selection"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Skills-Architects",
+        "title": "Architect Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/material-selection/SKILL.md",
+      "sha256": "f9fd5de53bd823271c4a6405403003f92d50614ce3cd4691efdcc8117c4c172f"
+    },
+    {
+      "type": "skill",
+      "slug": "mesh-processing",
+      "name": "Mesh Processing",
+      "description": "Mesh data structures, mesh operations, mesh analysis, mesh repair, UV mapping and unfolding, quad meshing, mesh-to-NURBS conversion, and mesh quality assessment for AEC computational design",
+      "category": "computational-design",
+      "tags": [
+        "computational-design",
+        "mesh",
+        "processing"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Claude-skills-for-Computational-Designers",
+        "title": "Computational Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/mesh-processing/SKILL.md",
+      "sha256": "e23d0a6890268e035bc0bc11957ba958ede38363edba59c13d4c0d770ab272a7"
+    },
+    {
+      "type": "skill",
+      "slug": "mixed-use-programming",
+      "name": "Mixed-Use Programming Skill",
+      "description": ">-",
+      "category": "urban-design",
+      "tags": [
+        "urban-design",
+        "mixed",
+        "use",
+        "programming"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Urban-Design-Skills-Claude",
+        "title": "Urban Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/mixed-use-programming/SKILL.md",
+      "sha256": "8ef1fe17263c6e2bc5f8805a72d17197b7a8646d2d2d845833b9d090e1dbe6db"
+    },
+    {
+      "type": "skill",
+      "slug": "ml-for-aec",
+      "name": "Machine Learning for AEC",
+      "description": "Computer vision for buildings, image-to-floorplan, generative ML models, performance prediction, structural analysis ML, energy prediction, natural language to design, and point cloud ML for AEC computational design",
+      "category": "computational-design",
+      "tags": [
+        "computational-design",
+        "for",
+        "aec"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Claude-skills-for-Computational-Designers",
+        "title": "Computational Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/ml-for-aec/SKILL.md",
+      "sha256": "a482c233945f1f4719835d7908c0b733985eb5c0ae9e6a731c666ffc248e6f38"
+    },
+    {
+      "type": "skill",
+      "slug": "mobility-and-transport",
+      "name": "Mobility and Transport Planning Skill",
+      "description": ">-",
+      "category": "urban-design",
+      "tags": [
+        "urban-design",
+        "mobility",
+        "and",
+        "transport"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Urban-Design-Skills-Claude",
+        "title": "Urban Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/mobility-and-transport/SKILL.md",
+      "sha256": "2764c31e48d7da0ac944774b8fab3ea4b3a41fbe1fe1ced2e52c9f9d874d07fc"
+    },
+    {
+      "type": "skill",
+      "slug": "optimization-methods",
+      "name": "Optimization Methods for AEC Computational Design",
+      "description": "Genetic algorithms, simulated annealing, particle swarm optimization, gradient-based methods, topology optimization, shape optimization, size optimization, and benchmark problems for AEC computational design",
+      "category": "computational-design",
+      "tags": [
+        "computational-design",
+        "optimization",
+        "methods"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Claude-skills-for-Computational-Designers",
+        "title": "Computational Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/optimization-methods/SKILL.md",
+      "sha256": "03456b457349ee97185a784780262dd3f0e8bdbcdc472269fe82060d66c33033"
+    },
+    {
+      "type": "skill",
+      "slug": "parametric-modeling",
+      "name": "Parametric Modeling for AEC Computational Design",
+      "description": "Parametric design methodology, data structures, constraint systems, Grasshopper and Dynamo patterns, parameter space exploration, and associative geometry for AEC computational design",
+      "category": "computational-design",
+      "tags": [
+        "computational-design",
+        "parametric",
+        "modeling"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Claude-skills-for-Computational-Designers",
+        "title": "Computational Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/parametric-modeling/SKILL.md",
+      "sha256": "c691f8766d8fe6e45bfc428a05609438bb04f1621a24d38f8f7668030c10d872"
+    },
+    {
+      "type": "skill",
+      "slug": "precedent-study",
+      "name": "Precedent Study Skill",
+      "description": ">-",
+      "category": "urban-design",
+      "tags": [
+        "urban-design",
+        "precedent",
+        "study"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Urban-Design-Skills-Claude",
+        "title": "Urban Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/precedent-study/SKILL.md",
+      "sha256": "4f8a95c171de10954bf3e4ae61c51f13ae84a58fc88110e876040fffba33faf5"
+    },
+    {
+      "type": "skill",
+      "slug": "public-space-design",
+      "name": "Public Space Design Skill",
+      "description": ">-",
+      "category": "urban-design",
+      "tags": [
+        "urban-design",
+        "public",
+        "space",
+        "design"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Urban-Design-Skills-Claude",
+        "title": "Urban Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/public-space-design/SKILL.md",
+      "sha256": "f6ca4c000e0de02e609e774375dfa4f060a0018ecb82505a6382befd1b224034"
+    },
+    {
+      "type": "skill",
+      "slug": "region-lombardia",
+      "name": "Regione: Lombardia",
+      "description": "Livello regionale (Regione Lombardia) della gerarchia normativa Stato/Regione/Comune per architettura e urbanistica in Italia -- si applica in aggiunta a `country-italy`, che resta il riferimento per la normativa statale. Copre la LR 12/2005 (Legge per il governo del territorio) e il PGT tripartito (Documento di Piano, Piano dei Servizi, Piano delle Regole), la LR 31/2014 sul consumo di suolo, la LR 18/2019 sulla rigenerazione urbana, il Piano Casa lombardo (LR 13/2009 e proroghe), il PTR e il PPR (Piano Paesaggistico Regionale) con Rete Ecologica Regionale, il PTM della Città Metropolitana di Milano, la componente geologica idrogeologica e sismica obbligatoria del PGT (art. 57 LR 12/2005), la classificazione sismica dei comuni lombardi, il reticolo idrico e la polizia idraulica, il Regolamento Regionale 6/2017 sulla prestazione energetica e il portale CENED+2.0, e le fonti ufficiali regionali (BURL, geoportale SIT Lombardia, TAR Lombardia) per norme, delibere, sentenze e pareri aggiornati.",
+      "category": "italy-planning",
+      "tags": [
+        "italy",
+        "lombardia",
+        "region",
+        "regulatory"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/francemazzi/strata",
+        "title": "Strata GIS — region-lombardia",
+        "author": "Strata GIS team",
+        "year": 2026
+      },
+      "license": "CC-BY-4.0",
+      "attribution": "Skill originale del progetto Strata; verificare sempre le fonti ufficiali regionali citate nel corpo della skill.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/region-lombardia/SKILL.md",
+      "sha256": "3edde36a009b1be0ccbe3883b79e639753ca70878879f222a1f1187833ee2651"
+    },
+    {
+      "type": "skill",
+      "slug": "scripting-reference",
+      "name": "Scripting Reference for AEC Computational Design",
+      "description": "Python for Rhino and Grasshopper (RhinoCommon, rhinoscriptsyntax, ghpythonlib), C# for Grasshopper components, Python for Revit (pyRevit, RevitPythonShell), JavaScript for web 3D (Three.js), and code patterns for AEC computational design",
+      "category": "computational-design",
+      "tags": [
+        "computational-design",
+        "scripting",
+        "reference"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Claude-skills-for-Computational-Designers",
+        "title": "Computational Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/scripting-reference/SKILL.md",
+      "sha256": "511a0d79e2e85c50a16efd7af9de538db5a6ae8f1037998e377db88db7ab9f52"
+    },
+    {
+      "type": "skill",
+      "slug": "site-analysis",
+      "name": "Site Analysis Skill",
+      "description": ">-",
+      "category": "urban-design",
+      "tags": [
+        "urban-design",
+        "site",
+        "analysis"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Urban-Design-Skills-Claude",
+        "title": "Urban Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/site-analysis/SKILL.md",
+      "sha256": "b348cc80701cd2170e0b79b25eca057e896ea2fa279083356cc2147843ec38d6"
+    },
+    {
+      "type": "skill",
+      "slug": "spatial-planning",
+      "name": "Spatial Planning",
+      "description": "Spatial planning for buildings: floor plan layout and archetypes, circulation design (corridors, stairs, elevators, escalators), core design and vertical service distribution, vertical stacking strategy, net-to-gross optimization, space efficiency metrics, wayfinding, and spatial legibility.",
+      "category": "architecture",
+      "tags": [
+        "architecture",
+        "spatial",
+        "planning"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Skills-Architects",
+        "title": "Architect Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/spatial-planning/SKILL.md",
+      "sha256": "ed41a80bfe210361133eaa11c9ce80144b3a446bee53917bec827dce56b46580"
+    },
+    {
+      "type": "skill",
+      "slug": "street-design",
+      "name": "Street Design Skill",
+      "description": ">-",
+      "category": "urban-design",
+      "tags": [
+        "urban-design",
+        "street",
+        "design"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Urban-Design-Skills-Claude",
+        "title": "Urban Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/street-design/SKILL.md",
+      "sha256": "ef1469e04b7aa4327748924952796f12da899572e4820532317636ec92f0cdcd"
+    },
+    {
+      "type": "skill",
+      "slug": "structural-computation",
+      "name": "Structural Computation",
+      "description": "Finite element analysis fundamentals, form-finding methods, shell and gridshell structures, topology optimization, structural optimization, material-aware computation, and computational structural tools for AEC",
+      "category": "computational-design",
+      "tags": [
+        "computational-design",
+        "structural",
+        "computation"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Claude-skills-for-Computational-Designers",
+        "title": "Computational Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/structural-computation/SKILL.md",
+      "sha256": "ca38839e0efcb1e05600c39eac5f075002f0876c7e0d4b22401c932ef50b34fe"
+    },
+    {
+      "type": "skill",
+      "slug": "structural-systems",
+      "name": "Structural Systems for Architects",
+      "description": "Comprehensive structural systems knowledge for architects covering structural typology selection, grid design and spacing, lateral stability systems, foundation types, span-to-depth ratio tables, load path narratives, and architect-engineer coordination strategies. Provides decision frameworks for selecting structural systems based on span, height, program, cost, construction speed, and sustainability targets.",
+      "category": "architecture",
+      "tags": [
+        "architecture",
+        "structural",
+        "systems"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Skills-Architects",
+        "title": "Architect Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/structural-systems/SKILL.md",
+      "sha256": "95c1dff964ce4242fb465eed0f8c8bb0aaa5b5ac70f9d04e97014eb9864d1f2d"
+    },
+    {
+      "type": "skill",
+      "slug": "sustainability-scoring",
+      "name": "Sustainability Scoring Skill",
+      "description": ">-",
+      "category": "urban-design",
+      "tags": [
+        "urban-design",
+        "sustainability",
+        "scoring"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Urban-Design-Skills-Claude",
+        "title": "Urban Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/sustainability-scoring/SKILL.md",
+      "sha256": "e38ad353835d75c185c98bc696ad5b137346c5ef1304b1c2b711d3c5e4f1df92"
+    },
+    {
+      "type": "skill",
+      "slug": "tod-design",
+      "name": "Transit-Oriented Development (TOD) Design Skill",
+      "description": ">-",
+      "category": "urban-design",
+      "tags": [
+        "urban-design",
+        "tod",
+        "design"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Urban-Design-Skills-Claude",
+        "title": "Urban Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/tod-design/SKILL.md",
+      "sha256": "bc61400c0e5e48b55116eff79ba9bcbbee4ec3e4e28813a6c2a3ec1be92766a1"
+    },
+    {
+      "type": "skill",
+      "slug": "urban-calculator",
+      "name": "Urban Calculator",
+      "description": ">-",
+      "category": "urban-design",
+      "tags": [
+        "urban-design",
+        "urban",
+        "calculator"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Urban-Design-Skills-Claude",
+        "title": "Urban Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/urban-calculator/SKILL.md",
+      "sha256": "c1d9795d2b57be29ca885427557e9f494e54814b14cfcb42e8b777666607f502"
+    },
+    {
+      "type": "skill",
+      "slug": "urban-design-foundations",
+      "name": "Urban Design Foundations",
+      "description": ">-",
+      "category": "urban-design",
+      "tags": [
+        "urban-design",
+        "urban",
+        "design",
+        "foundations"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Urban-Design-Skills-Claude",
+        "title": "Urban Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/urban-design-foundations/SKILL.md",
+      "sha256": "5f1732d948f701743fc2df17f67f3c509189e590c32e005b6204e3164024fee8"
+    },
+    {
+      "type": "skill",
       "slug": "urban-green-nbs",
       "name": "Verde urbano e Nature-Based Solutions",
       "description": "Usa questa skill per impostare analisi riproducibili di verde urbano, copertura arborea, indici Landsat e accessibilità alle aree verdi.",
@@ -61,6 +1692,57 @@
       "enabled": true,
       "path": "skills/urban-green-nbs/SKILL.md",
       "sha256": "c5fb8f7ad53aed2a788a4feccdd409ae2d4ed74a3cc5967ad6ed7d30743551ed"
+    },
+    {
+      "type": "skill",
+      "slug": "urban-regeneration",
+      "name": "Urban Regeneration Skill",
+      "description": ">-",
+      "category": "urban-design",
+      "tags": [
+        "urban-design",
+        "urban",
+        "regeneration"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Urban-Design-Skills-Claude",
+        "title": "Urban Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/urban-regeneration/SKILL.md",
+      "sha256": "28d395eec736e6be6edcd61271044cfda4e85d95de0fac6ad3719a7f03603a32"
+    },
+    {
+      "type": "skill",
+      "slug": "zoning-and-codes",
+      "name": "Zoning and Codes Skill",
+      "description": ">-",
+      "category": "urban-design",
+      "tags": [
+        "urban-design",
+        "zoning",
+        "and",
+        "codes"
+      ],
+      "source": {
+        "kind": "github",
+        "url": "https://github.com/Abhinavbwj/Urban-Design-Skills-Claude",
+        "title": "Urban Design Skills (Abhinav Bhardwaj)",
+        "author": "Abhinav Bhardwaj",
+        "year": 2026
+      },
+      "license": "MIT",
+      "attribution": "Copyright (c) 2026 Abhinav Bhardwaj. Released under the MIT License. Full plugin (references and scripts) available at the linked GitHub repository.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/zoning-and-codes/SKILL.md",
+      "sha256": "23aba477681ea7d8915d83727c91b61d2275a75fb58dd31805a595d783bd6fa4"
     }
   ]
 }

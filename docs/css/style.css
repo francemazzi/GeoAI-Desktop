@@ -627,9 +627,6 @@ video {
 }
 
 @media (max-width: 480px) {
-  .nav-gallery-link {
-    display: none;
-  }
   .hero-cta .btn-lg {
     width: 100%;
   }
