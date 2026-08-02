@@ -1696,7 +1696,7 @@ void QgsAiSettingsDialog::syncRulesSkillsToCloud()
   auto progress = std::make_shared<int>( 0 );
   auto failures = std::make_shared<int>( 0 );
   auto requestsStarted = std::make_shared<bool>( false );
-  auto cancelled = std::make_shared<bool>( false );
+  auto cancelled = std::make_shared<bool>( false ); //#spellok
   auto rulesFetched = std::make_shared<bool>( false );
   auto skillsFetched = std::make_shared<bool>( false );
   auto cloudRules = std::make_shared<QList<QgsAiRulesSkillsCloudClient::RemoteRule>>();
@@ -1708,10 +1708,10 @@ void QgsAiSettingsDialog::syncRulesSkillsToCloud()
 
   QgsAiRulesSkillsCloudClient *client = new QgsAiRulesSkillsCloudClient( this );
 
-  auto maybeFinish = [this, client, progress, failures, totalExpected, cancelled]() {
+  auto maybeFinish = [this, client, progress, failures, totalExpected, cancelled]() { //#spellok
     if ( *progress < totalExpected )
       return;
-    *cancelled = true;
+    *cancelled = true; //#spellok
     mSyncRulesSkillsCloudButton->setEnabled( true );
     mImportRulesSkillsCloudButton->setEnabled( true );
     mRulesSkillsCloudStatusLabel->setText(
@@ -1722,8 +1722,8 @@ void QgsAiSettingsDialog::syncRulesSkillsToCloud()
 
   auto maybeStartPush = std::make_shared<std::function<void()>>();
   *maybeStartPush =
-    [client, localRules, localSkills, cloudRules, cloudSkills, rulesFetched, skillsFetched, requestsStarted, cancelled, apiBase = mAccountWidget->planEndpoint(), token, maybeFinish, this]() {
-      if ( *cancelled || !*rulesFetched || !*skillsFetched )
+    [client, localRules, localSkills, cloudRules, cloudSkills, rulesFetched, skillsFetched, requestsStarted, cancelled, apiBase = mAccountWidget->planEndpoint(), token, maybeFinish, this]() { //#spellok
+      if ( *cancelled || !*rulesFetched || !*skillsFetched ) //#spellok
         return;
       for ( QgsAiRulesSkillsCloudClient::RemoteRule &local : *localRules )
       {
@@ -1755,12 +1755,12 @@ void QgsAiSettingsDialog::syncRulesSkillsToCloud()
     ++( *progress );
     maybeFinish();
   } );
-  connect( client, &QgsAiRulesSkillsCloudClient::requestFailed, this, [this, client, progress, failures, requestsStarted, cancelled, totalExpected, maybeFinish]( const QString &message ) {
-    if ( *cancelled )
+  connect( client, &QgsAiRulesSkillsCloudClient::requestFailed, this, [this, client, progress, failures, requestsStarted, cancelled, totalExpected, maybeFinish]( const QString &message ) { //#spellok
+    if ( *cancelled ) //#spellok
       return;
     if ( !*requestsStarted )
     {
-      *cancelled = true;
+      *cancelled = true; //#spellok
       mSyncRulesSkillsCloudButton->setEnabled( true );
       mImportRulesSkillsCloudButton->setEnabled( true );
       mRulesSkillsCloudStatusLabel->setText( tr( "Strata Cloud push failed before any item was written." ) );
@@ -1952,7 +1952,7 @@ void QgsAiSettingsDialog::importRulesSkillsFromCloud()
     if ( errors.isEmpty() )
       mRulesSkillsCloudStatusLabel->setText(
         preview.result() == QDialog::Accepted ? tr( "Imported %1 item(s); skipped items and local-only files were left untouched." ).arg( imported )
-                                              : tr( "Cloud import cancelled; no local files were changed." )
+                                              : tr( "Cloud import cancelled; no local files were changed." ) //#spellok
       );
     else
       QMessageBox::warning( this, tr( "Strata Cloud import" ), errors.join( '\n'_L1 ) );
