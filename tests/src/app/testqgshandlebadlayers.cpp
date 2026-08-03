@@ -12,6 +12,7 @@
 #include <QDir>
 #include <QDomDocument>
 #include <QFile>
+#include <QString>
 #include <QTableWidget>
 #include <QTemporaryDir>
 

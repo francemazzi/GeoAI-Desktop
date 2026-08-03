@@ -32,6 +32,7 @@
 
 #include <QCoreApplication>
 #include <QPushButton>
+#include <QString>
 
 #include "moc_qgsbatchedlayeraddcontroller.cpp"
 
@@ -41,8 +42,14 @@ const QgsSettingsEntryInteger *QgsBatchedLayerAddController::settingsBatchSize
   = new QgsSettingsEntryInteger( u"bulk-import-batch-size"_s, QgsSettingsTree::sTreeApp, 5, u"Number of layers added per main-thread batch during a bulk import"_s, Qgis::SettingsOption(), 1 );
 const QgsSettingsEntryInteger *QgsBatchedLayerAddController::settingsBatchThreshold
   = new QgsSettingsEntryInteger( u"bulk-import-threshold"_s, QgsSettingsTree::sTreeApp, 10, u"Minimum number of layers for the batched bulk import to engage instead of the synchronous path"_s, Qgis::SettingsOption(), 0 );
-const QgsSettingsEntryInteger64 *QgsBatchedLayerAddController::settingsHeavyLayerFeatureCount
-  = new QgsSettingsEntryInteger64( u"bulk-import-heavy-feature-count"_s, QgsSettingsTree::sTreeApp, 50000, u"Layers with at least this many features are added unchecked after a bulk import, to keep the first render responsive. 0 disables."_s, Qgis::SettingsOption(), 0 );
+const QgsSettingsEntryInteger64 *QgsBatchedLayerAddController::settingsHeavyLayerFeatureCount = new QgsSettingsEntryInteger64(
+  u"bulk-import-heavy-feature-count"_s,
+  QgsSettingsTree::sTreeApp,
+  50000,
+  u"Layers with at least this many features are added unchecked after a bulk import, to keep the first render responsive. 0 disables."_s,
+  Qgis::SettingsOption(),
+  0
+);
 
 QgsBatchedLayerAddController::QgsBatchedLayerAddController( QObject *parent )
   : QObject( parent )
@@ -219,9 +226,10 @@ void QgsBatchedLayerAddController::uncheckHeavyLayers()
   if ( heavyLayerNames.isEmpty() || !QgisApp::instance() )
     return;
 
-  QgsMessageBarItem *messageWidget = QgsMessageBar::createMessage( tr( "Layer import" ), tr( "%n large layer(s) were added unchecked to keep the map responsive. Tick them in the Layers panel to display.", nullptr, heavyLayerNames.size() ) );
+  QgsMessageBarItem *messageWidget = QgsMessageBar::
+    createMessage( tr( "Layer import" ), tr( "%n large layer(s) were added unchecked to keep the map responsive. Tick them in the Layers panel to display.", nullptr, heavyLayerNames.size() ) );
   QPushButton *detailsButton = new QPushButton( tr( "Details" ) );
-  const QString detailsText = heavyLayerNames.join( u"<br>"_s );
+  const QString detailsText = heavyLayerNames.join( "<br>"_L1 );
   QObject::connect( detailsButton, &QPushButton::clicked, QgisApp::instance(), [detailsText] {
     if ( QgsMessageViewer *dialog = dynamic_cast<QgsMessageViewer *>( QgsMessageOutput::createMessageOutput() ) )
     {
@@ -236,5 +244,12 @@ void QgsBatchedLayerAddController::uncheckHeavyLayers()
 
 void QgsBatchedLayerAddController::logImportSummary( bool cancelled ) const
 {
-  QgsMessageLog::logMessage( u"{\"event\": \"bulk-import\", \"layersRequested\": %1, \"layersAdded\": %2, \"durationMs\": %3, \"cancelled\": %4}"_s.arg( mTotal ).arg( mAdded.size() ).arg( mElapsed.elapsed() ).arg( cancelled ? u"true"_s : u"false"_s ), QObject::tr( "Layer Import" ), Qgis::MessageLevel::Info );
+  QgsMessageLog::logMessage(
+    u"{\"event\": \"bulk-import\", \"layersRequested\": %1, \"layersAdded\": %2, \"durationMs\": %3, \"cancelled\": %4}"_s.arg( mTotal )
+      .arg( mAdded.size() )
+      .arg( mElapsed.elapsed() )
+      .arg( cancelled ? u"true"_s : u"false"_s ),
+    QObject::tr( "Layer Import" ),
+    Qgis::MessageLevel::Info
+  );
 }

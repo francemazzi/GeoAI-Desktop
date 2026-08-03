@@ -1945,17 +1945,11 @@ void TestQgsAiAgentSessionManager::systemPromptContainsUnavailableToolReasons()
 
 void TestQgsAiAgentSessionManager::unresolvedPlanToolsNormalizesNearMissNames()
 {
-  const QStringList allowed {
-    u"add_layer_from_file"_s, u"add_layer_from_service"_s, u"run_processing_algorithm"_s,
-    u"style_layer"_s, u"style_layer_advanced"_s, u"describe_layer"_s, u"list_files"_s
-  };
+  const QStringList allowed { u"add_layer_from_file"_s, u"add_layer_from_service"_s, u"run_processing_algorithm"_s, u"style_layer"_s, u"style_layer_advanced"_s, u"describe_layer"_s, u"list_files"_s };
 
   // near-miss planner names resolve to real tools; user-interaction pseudo-tools are
   // ignored; only genuinely unknown tools remain and block
-  const QStringList requested {
-    u"add_layer"_s, u"optional_user_input"_s, u"run_processing"_s, u"set_layer_style"_s,
-    u"describe_layer"_s, u"totally_bogus_tool"_s
-  };
+  const QStringList requested { u"add_layer"_s, u"optional_user_input"_s, u"run_processing"_s, u"set_layer_style"_s, u"describe_layer"_s, u"totally_bogus_tool"_s };
   QCOMPARE( QgsAiAgentSessionManager::unresolvedPlanTools( requested, allowed ), QStringList { u"totally_bogus_tool"_s } );
 
   // exact matches and empty requests resolve trivially

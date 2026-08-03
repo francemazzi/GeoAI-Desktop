@@ -22,6 +22,7 @@
 #include <QDir>
 #include <QDirIterator>
 #include <QFileInfo>
+#include <QString>
 
 #include "moc_qgsfolderscantask.cpp"
 
@@ -33,11 +34,8 @@ namespace
   // are excluded implicitly by not being listed here.
   const QSet<QString> &candidateFileExtensions()
   {
-    static const QSet<QString> sExtensions {
-      u"shp"_s, u"gpkg"_s, u"geojson"_s, u"json"_s, u"kml"_s, u"kmz"_s,
-      u"tab"_s, u"mif"_s, u"gml"_s, u"sqlite"_s, u"fgb"_s,
-      u"tif"_s, u"tiff"_s, u"asc"_s, u"img"_s, u"jp2"_s, u"vrt"_s
-    };
+    static const QSet<QString>
+      sExtensions { u"shp"_s, u"gpkg"_s, u"geojson"_s, u"json"_s, u"kml"_s, u"kmz"_s, u"tab"_s, u"mif"_s, u"gml"_s, u"sqlite"_s, u"fgb"_s, u"tif"_s, u"tiff"_s, u"asc"_s, u"img"_s, u"jp2"_s, u"vrt"_s };
     return sExtensions;
   }
 
@@ -64,14 +62,12 @@ QgsFolderScanTask::QgsFolderScanTask( const QString &directory, int maxFiles )
   : QgsTask( tr( "Scanning folder %1" ).arg( QDir::toNativeSeparators( directory ) ), QgsTask::CanCancel | QgsTask::CancelWithoutPrompt )
   , mDirectory( directory )
   , mMaxFiles( maxFiles )
-{
-}
+{}
 
 QgsFolderScanTask::QgsFolderScanTask( const QStringList &files )
   : QgsTask( tr( "Scanning %n file(s)", nullptr, files.size() ), QgsTask::CanCancel | QgsTask::CancelWithoutPrompt )
   , mFiles( files )
-{
-}
+{}
 
 void QgsFolderScanTask::cancel()
 {

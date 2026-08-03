@@ -41,7 +41,9 @@ class APP_EXPORT QgsFolderCatalogDialog : public QDialog
     Q_OBJECT
 
   public:
-    QgsFolderCatalogDialog( const QString &folderPath, const QList<QgsProviderSublayerDetails> &details, const QList<QgsProviderSublayerModel::NonLayerItem> &projectItems, bool truncated, QWidget *parent = nullptr );
+    QgsFolderCatalogDialog(
+      const QString &folderPath, const QList<QgsProviderSublayerDetails> &details, const QList<QgsProviderSublayerModel::NonLayerItem> &projectItems, bool truncated, QWidget *parent = nullptr
+    );
     ~QgsFolderCatalogDialog() override;
 
     //! Returns the layers selected by the user.

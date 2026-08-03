@@ -72,7 +72,9 @@ void QgsHandleBadLayersHandler::handleBadLayers( const QList<QDomNode> &layers )
     // already — no dialog loop needed in that case
     if ( dialog->unrepairedLayerCount() == 0 )
     {
-      QgisApp::instance()->messageBar()->pushMessage( tr( "Handle unavailable layers" ), tr( "%n layer path(s) were repaired automatically from a neighboring folder.", nullptr, dialog->layerCount() ), Qgis::MessageLevel::Success );
+      QgisApp::instance()
+        ->messageBar()
+        ->pushMessage( tr( "Handle unavailable layers" ), tr( "%n layer path(s) were repaired automatically from a neighboring folder.", nullptr, dialog->layerCount() ), Qgis::MessageLevel::Success );
       emit layersChanged();
     }
     else

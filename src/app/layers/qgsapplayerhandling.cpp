@@ -93,8 +93,14 @@ using namespace Qt::StringLiterals;
 #include <QFileDialog>
 #include <QUrlQuery>
 
-const QgsSettingsEntryInteger *QgsAppLayerHandling::settingsSublayerPromptThreshold
-  = new QgsSettingsEntryInteger( u"sublayer-prompt-threshold"_s, QgsSettingsTree::sTreeApp, 20, u"Maximum number of sublayers loaded without asking for a selection, even when the sublayer prompt is set to load all. 0 disables the guardrail."_s, Qgis::SettingsOption(), 0 );
+const QgsSettingsEntryInteger *QgsAppLayerHandling::settingsSublayerPromptThreshold = new QgsSettingsEntryInteger(
+  u"sublayer-prompt-threshold"_s,
+  QgsSettingsTree::sTreeApp,
+  20,
+  u"Maximum number of sublayers loaded without asking for a selection, even when the sublayer prompt is set to load all. 0 disables the guardrail."_s,
+  Qgis::SettingsOption(),
+  0
+);
 
 void QgsAppLayerHandling::postProcessAddedLayer( QgsMapLayer *layer )
 {
@@ -722,7 +728,8 @@ QgsAppLayerHandling::SublayerHandling QgsAppLayerHandling::shouldAskUserForSubla
     const int threshold = settingsSublayerPromptThreshold->value();
     if ( threshold > 0 && layers.size() > threshold )
     {
-      QgsMessageLog::logMessage( QObject::tr( "Source contains %1 layers, above the sublayer prompt threshold (%2) — asking for a selection instead of loading all" ).arg( layers.size() ).arg( threshold ), QObject::tr( "Layer Import" ), Qgis::MessageLevel::Info );
+      QgsMessageLog::
+        logMessage( QObject::tr( "Source contains %1 layers, above the sublayer prompt threshold (%2) — asking for a selection instead of loading all" ).arg( layers.size() ).arg( threshold ), QObject::tr( "Layer Import" ), Qgis::MessageLevel::Info );
       return SublayerHandling::AskUser;
     }
     return SublayerHandling::LoadAll;
@@ -811,7 +818,9 @@ QList<QgsMapLayer *> QgsAppLayerHandling::addSublayers( const QList<QgsProviderS
   return addSublayers( layers, baseName, groupName, addToLegend, SublayerAddOptions() );
 }
 
-QList<QgsMapLayer *> QgsAppLayerHandling::addSublayers( const QList<QgsProviderSublayerDetails> &layers, const QString &baseName, const QString &groupName, bool addToLegend, const SublayerAddOptions &sublayerAddOptions )
+QList<QgsMapLayer *> QgsAppLayerHandling::addSublayers(
+  const QList<QgsProviderSublayerDetails> &layers, const QString &baseName, const QString &groupName, bool addToLegend, const SublayerAddOptions &sublayerAddOptions
+)
 {
   QgsLayerTreeGroup *group = sublayerAddOptions.existingGroup;
   if ( !group && !groupName.isEmpty() )
@@ -1028,7 +1037,8 @@ QList<QgsMapLayer *> QgsAppLayerHandling::openLayer( const QString &fileName, bo
       // Strata: detect when the selection dialog is shown only because of the sublayer guardrail,
       // so the override of the user's "load all" preference can be explained afterwards
       const int promptThreshold = settingsSublayerPromptThreshold->value();
-      const bool guardrailForced = promptThreshold > 0 && sublayers.size() > promptThreshold
+      const bool guardrailForced = promptThreshold > 0
+                                   && sublayers.size() > promptThreshold
                                    && QgsSettings().enumValue( u"qgis/promptForSublayers"_s, Qgis::SublayerPromptMode::AlwaysAsk ) == Qgis::SublayerPromptMode::NeverAskLoadAll;
 
       // ask user for sublayers (unless user settings dictate otherwise!)
@@ -1053,7 +1063,9 @@ QList<QgsMapLayer *> QgsAppLayerHandling::openLayer( const QString &fileName, bo
           groupName = dlg.groupName();
 
           if ( guardrailForced )
-            QgisApp::instance()->visibleMessageBar()->pushInfo( QObject::tr( "Layer selection" ), QObject::tr( "A selection was requested because this source contains more than %1 layers. This threshold can be changed in Settings." ).arg( promptThreshold ) );
+            QgisApp::instance()
+              ->visibleMessageBar()
+              ->pushInfo( QObject::tr( "Layer selection" ), QObject::tr( "A selection was requested because this source contains more than %1 layers. This threshold can be changed in Settings." ).arg( promptThreshold ) );
           break;
         }
 

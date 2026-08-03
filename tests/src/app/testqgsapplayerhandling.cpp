@@ -10,6 +10,8 @@
 #include "qgssettingsentryimpl.h"
 #include "qgstest.h"
 
+#include <QString>
+
 using namespace Qt::StringLiterals;
 
 class TestQgsAppLayerHandling : public QObject

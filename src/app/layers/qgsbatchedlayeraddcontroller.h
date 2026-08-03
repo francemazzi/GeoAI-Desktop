@@ -16,6 +16,8 @@
 #ifndef QGSBATCHEDLAYERADDCONTROLLER_H
 #define QGSBATCHEDLAYERADDCONTROLLER_H
 
+#include <memory>
+
 #include "qgis_app.h"
 #include "qgsprovidersublayerdetails.h"
 
@@ -23,7 +25,6 @@
 #include <QObject>
 #include <QPointer>
 #include <QTimer>
-#include <memory>
 
 class QgsCanvasRefreshBlocker;
 class QgsLayerTreeGroup;

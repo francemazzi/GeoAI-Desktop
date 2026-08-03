@@ -62,10 +62,10 @@ class APP_EXPORT QgsAppLayerHandling
     // Strata: options controlling bulk sublayer addition
     struct SublayerAddOptions
     {
-      //! Skip the per-layer datum transform prompt; the caller asks once at the end of the bulk add
-      bool deferDatumTransformPrompts = false;
-      //! Add layers into this existing group instead of creating one from the group name
-      QgsLayerTreeGroup *existingGroup = nullptr;
+        //! Skip the per-layer datum transform prompt; the caller asks once at the end of the bulk add
+        bool deferDatumTransformPrompts = false;
+        //! Add layers into this existing group instead of creating one from the group name
+        QgsLayerTreeGroup *existingGroup = nullptr;
     };
 
     /**
@@ -294,7 +294,6 @@ class APP_EXPORT QgsAppLayerHandling
      * \returns TRUE if any items were loaded
      */
     static bool askUserForZipItemLayers( const QString &path, const QList<Qgis::LayerType> &acceptableTypes );
-
 };
 Q_DECLARE_OPERATORS_FOR_FLAGS( QgsAppLayerHandling::DependencyFlags );
 

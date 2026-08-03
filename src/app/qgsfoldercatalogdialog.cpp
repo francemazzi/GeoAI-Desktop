@@ -14,6 +14,8 @@
 
 #include "qgsfoldercatalogdialog.h"
 
+#include <functional>
+
 #include "qgsfilterlineedit.h"
 #include "qgsgui.h"
 #include "qgsmaplayer.h"
@@ -25,16 +27,17 @@
 #include <QDir>
 #include <QLabel>
 #include <QPushButton>
+#include <QString>
 #include <QTreeView>
 #include <QVBoxLayout>
-
-#include <functional>
 
 #include "moc_qgsfoldercatalogdialog.cpp"
 
 using namespace Qt::StringLiterals;
 
-QgsFolderCatalogDialog::QgsFolderCatalogDialog( const QString &folderPath, const QList<QgsProviderSublayerDetails> &details, const QList<QgsProviderSublayerModel::NonLayerItem> &projectItems, bool truncated, QWidget *parent )
+QgsFolderCatalogDialog::QgsFolderCatalogDialog(
+  const QString &folderPath, const QList<QgsProviderSublayerDetails> &details, const QList<QgsProviderSublayerModel::NonLayerItem> &projectItems, bool truncated, QWidget *parent
+)
   : QDialog( parent )
 {
   const QString folderName = QDir( folderPath ).dirName();
@@ -107,7 +110,8 @@ QgsFolderCatalogDialog::QgsFolderCatalogDialog( const QString &folderPath, const
     const QModelIndex left = mTree->model()->index( index.row(), 0, index.parent() );
     if ( !( left.flags() & Qt::ItemIsSelectable ) )
       return;
-    mTree->selectionModel()->select( QItemSelection( left, mTree->model()->index( index.row(), mTree->model()->columnCount() - 1, index.parent() ) ), QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows );
+    mTree->selectionModel()
+      ->select( QItemSelection( left, mTree->model()->index( index.row(), mTree->model()->columnCount() - 1, index.parent() ) ), QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows );
     accept();
   } );
 }

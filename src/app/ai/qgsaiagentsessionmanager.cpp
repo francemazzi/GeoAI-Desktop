@@ -636,10 +636,7 @@ QStringList QgsAiAgentSessionManager::unresolvedPlanTools( const QStringList &re
 {
   // pseudo-tools planner models use to describe user interaction or reasoning-only
   // steps: these need no desktop tool and must never block execution
-  static const QSet<QString> sInteractionPseudoTools {
-    u"optional_user_input"_s, u"user_input"_s, u"ask_user"_s, u"user_decision"_s,
-    u"request_user_input"_s, u"user_confirmation"_s, u"none"_s, u"manual"_s
-  };
+  static const QSet<QString> sInteractionPseudoTools { u"optional_user_input"_s, u"user_input"_s, u"ask_user"_s, u"user_decision"_s, u"request_user_input"_s, u"user_confirmation"_s, u"none"_s, u"manual"_s };
 
   // common near-miss aliases seen from planner models → registry names
   static const QHash<QString, QString> sAliases {

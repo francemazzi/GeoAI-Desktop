@@ -12,6 +12,7 @@
 #include <QDir>
 #include <QFile>
 #include <QSignalSpy>
+#include <QString>
 #include <QTemporaryDir>
 
 using namespace Qt::StringLiterals;

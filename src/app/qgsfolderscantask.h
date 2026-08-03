@@ -16,6 +16,8 @@
 #ifndef QGSFOLDERSCANTASK_H
 #define QGSFOLDERSCANTASK_H
 
+#include <memory>
+
 #include "qgis_app.h"
 #include "qgsprovidersublayerdetails.h"
 #include "qgsprovidersublayermodel.h"
@@ -23,7 +25,6 @@
 
 #include <QMutex>
 #include <QStringList>
-#include <memory>
 
 class QDir;
 class QgsFeedback;

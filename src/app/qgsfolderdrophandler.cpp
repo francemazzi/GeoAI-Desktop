@@ -30,6 +30,7 @@
 
 #include <QDir>
 #include <QFileInfo>
+#include <QString>
 
 #include "moc_qgsfolderdrophandler.cpp"
 
@@ -65,7 +66,14 @@ bool QgsFolderDropHandler::openFolderAsCatalog( const QString &path )
     const QList<QgsProviderSublayerDetails> details = task->results();
     const QList<QgsProviderSublayerModel::NonLayerItem> projectItems = task->projectItems();
 
-    QgsMessageLog::logMessage( QObject::tr( "Folder catalog: %1 dataset(s) and %2 project file(s) found in \"%3\"%4" ).arg( details.size() ).arg( projectItems.size() ).arg( path, task->truncated() ? QObject::tr( " (scan truncated)" ) : QString() ), QObject::tr( "Layer Import" ), Qgis::MessageLevel::Info );
+    QgsMessageLog::logMessage(
+      QObject::tr( "Folder catalog: %1 dataset(s) and %2 project file(s) found in \"%3\"%4" )
+        .arg( details.size() )
+        .arg( projectItems.size() )
+        .arg( path, task->truncated() ? QObject::tr( " (scan truncated)" ) : QString() ),
+      QObject::tr( "Layer Import" ),
+      Qgis::MessageLevel::Info
+    );
 
     if ( details.empty() && projectItems.empty() )
     {
