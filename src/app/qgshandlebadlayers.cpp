@@ -68,9 +68,27 @@ void QgsHandleBadLayersHandler::handleBadLayers( const QList<QDomNode> &layers )
 
   if ( dialog->layerCount() > 0 )
   {
-    if ( dialog->exec() == dialog->Accepted )
+    // Strata: the automatic sibling-folder pass may have repaired every listed layer
+    // already — no dialog loop needed in that case
+    if ( dialog->unrepairedLayerCount() == 0 )
     {
+      QgisApp::instance()->messageBar()->pushMessage( tr( "Handle unavailable layers" ), tr( "%n layer path(s) were repaired automatically from a neighboring folder.", nullptr, dialog->layerCount() ), Qgis::MessageLevel::Success );
       emit layersChanged();
+    }
+    else
+    {
+      // Strata: when nothing could be repaired automatically, make "Keep Unavailable
+      // Layers" the default button so the dialog loop can be exited in one step
+      if ( dialog->unrepairedLayerCount() == dialog->layerCount() )
+      {
+        dialog->buttonBox->button( QDialogButtonBox::Ignore )->setDefault( true );
+        dialog->buttonBox->button( QDialogButtonBox::Ignore )->setFocus();
+      }
+
+      if ( dialog->exec() == dialog->Accepted )
+      {
+        emit layersChanged();
+      }
     }
   }
 
@@ -176,6 +194,116 @@ QgsHandleBadLayers::QgsHandleBadLayers( const QList<QDomNode> &layers )
   }
 
   // mLayerList->resizeColumnsToContents();
+
+  // Strata: try to repair the obvious cases (moved sibling folder) before the user sees anything
+  autoSuggestSiblingBasepaths();
+}
+
+int QgsHandleBadLayers::unrepairedLayerCount() const
+{
+  int count = 0;
+  for ( int row = 0; row < mLayerList->rowCount(); row++ )
+  {
+    if ( !mLayerList->item( row, 0 )->data( static_cast<int>( CustomRoles::DataSourceWasAutoRepaired ) ).toBool() )
+      count++;
+  }
+  return count;
+}
+
+void QgsHandleBadLayers::autoSuggestSiblingBasepaths()
+{
+  const QString projectPath = QgsProject::instance()->absolutePath();
+  if ( projectPath.isEmpty() )
+    return;
+
+  const QDir projectDir( projectPath );
+  QDir parentDir( projectPath );
+  QStringList siblingDirs;
+  if ( parentDir.cdUp() )
+  {
+    const QStringList entries = parentDir.entryList( QDir::Dirs | QDir::NoDotAndDotDot );
+    for ( const QString &entry : entries )
+      siblingDirs.append( parentDir.filePath( entry ) );
+  }
+
+  const QList<int> rows = fileBasedRows( false );
+  for ( const int row : rows )
+  {
+    QString path = filename( row );
+    if ( path.isEmpty() )
+      continue;
+    // datasources may still be project-relative at this point
+    if ( QFileInfo( path ).isRelative() )
+      path = QDir::cleanPath( projectDir.absoluteFilePath( path ) );
+    if ( QFileInfo::exists( path ) )
+      continue;
+
+    const QFileInfo pathInfo( path );
+    const QString fileName = pathInfo.fileName();
+    const QString layerId = mLayerList->item( row, 0 )->data( static_cast<int>( CustomRoles::LayerId ) ).toString();
+
+    // the part of the broken path below the project folder, e.g. "SHAPE/UN_VOL.shp"
+    QString relativeTail = projectDir.relativeFilePath( path );
+    if ( relativeTail.startsWith( ".."_L1 ) )
+      relativeTail = fileName;
+
+    // a directory already registered by an earlier hit repairs this row for free
+    bool found = false;
+    QString foundPath = checkBasepath( layerId, pathInfo.absolutePath(), fileName, found );
+    if ( !found || !QFileInfo::exists( foundPath ) )
+    {
+      found = false;
+      QStringList candidates;
+      candidates.append( projectDir.filePath( relativeTail ) );
+      for ( const QString &sibling : std::as_const( siblingDirs ) )
+      {
+        candidates.append( sibling + '/' + relativeTail );
+        candidates.append( sibling + '/' + fileName );
+      }
+      for ( const QString &candidate : std::as_const( candidates ) )
+      {
+        const QFileInfo candidateInfo( candidate );
+        if ( candidateInfo.exists() && candidateInfo.isFile() )
+        {
+          foundPath = candidate;
+          found = true;
+          // register the directory so every other layer sharing the original basepath is repaired too
+          bool registered = false;
+          checkBasepath( layerId, candidateInfo.absolutePath(), fileName, registered );
+          break;
+        }
+      }
+    }
+    if ( !found )
+      continue;
+
+    // repair the live layer, keeping its checked state and group (same as autoFind())
+    const QString name = mLayerList->item( row, 0 )->text();
+    const QString provider = mLayerList->item( row, 0 )->data( static_cast<int>( CustomRoles::Provider ) ).toString();
+
+    QVariantMap parts = QgsProviderRegistry::instance()->decodeUri( provider, mLayerList->item( row, 4 )->text() );
+    parts.insert( u"path"_s, foundPath );
+    const QString newDatasource = QgsProviderRegistry::instance()->encodeUri( provider, parts );
+
+    if ( QgsMapLayer *mapLayer = QgsProject::instance()->mapLayer( layerId ) )
+    {
+      const QgsDataProvider::ProviderOptions options;
+      mapLayer->setDataSource( newDatasource, name, provider, options );
+      if ( mapLayer->isValid() )
+      {
+        mLayerList->item( row, 4 )->setText( newDatasource );
+        mLayerList->item( row, 4 )->setForeground( QBrush( Qt::green ) );
+        mLayerList->item( row, 0 )->setData( static_cast<int>( CustomRoles::DataSourceWasAutoRepaired ), QVariant( true ) );
+      }
+    }
+    else
+    {
+      // no live layer to repair: pre-fill the corrected path so Apply picks it up,
+      // but don't count the row as repaired
+      mLayerList->item( row, 4 )->setText( newDatasource );
+      mLayerList->item( row, 4 )->setForeground( QBrush( Qt::green ) );
+    }
+  }
 }
 
 void QgsHandleBadLayers::selectionChanged()

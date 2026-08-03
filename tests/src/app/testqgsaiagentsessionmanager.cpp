@@ -167,6 +167,7 @@ class TestQgsAiAgentSessionManager : public QObject
     void emptyAssistantAfterToolErrorTriggersRecovery();
     void agentBehaviorTogglePropagatesToRouter();
     void planModeDoesNotAdvertiseTools();
+    void unresolvedPlanToolsNormalizesNearMissNames();
     void askAndAgentAdvertiseCaptureMapCanvasTool();
     void askBeforeEditsOnlyAdvertisesReadOnlyAndApprovalTools();
     void managedPolicyRestrictsAgentTools();
@@ -1940,6 +1941,28 @@ void TestQgsAiAgentSessionManager::systemPromptContainsUnavailableToolReasons()
   QVERIFY( body.contains( "download_file" ) );
   QVERIFY( body.contains( "not available" ) );
   QVERIFY( !body.contains( "\"tools\"" ) );
+}
+
+void TestQgsAiAgentSessionManager::unresolvedPlanToolsNormalizesNearMissNames()
+{
+  const QStringList allowed {
+    u"add_layer_from_file"_s, u"add_layer_from_service"_s, u"run_processing_algorithm"_s,
+    u"style_layer"_s, u"style_layer_advanced"_s, u"describe_layer"_s, u"list_files"_s
+  };
+
+  // near-miss planner names resolve to real tools; user-interaction pseudo-tools are
+  // ignored; only genuinely unknown tools remain and block
+  const QStringList requested {
+    u"add_layer"_s, u"optional_user_input"_s, u"run_processing"_s, u"set_layer_style"_s,
+    u"describe_layer"_s, u"totally_bogus_tool"_s
+  };
+  QCOMPARE( QgsAiAgentSessionManager::unresolvedPlanTools( requested, allowed ), QStringList { u"totally_bogus_tool"_s } );
+
+  // exact matches and empty requests resolve trivially
+  QVERIFY( QgsAiAgentSessionManager::unresolvedPlanTools( { u"style_layer"_s, u"ask_user"_s }, allowed ).isEmpty() );
+
+  // with an empty allowlist, real tool requests stay blocked but pseudo-tools don't
+  QCOMPARE( QgsAiAgentSessionManager::unresolvedPlanTools( { u"add_layer"_s, u"optional_user_input"_s }, QStringList() ), QStringList { u"add_layer"_s } );
 }
 
 QGSTEST_MAIN( TestQgsAiAgentSessionManager )

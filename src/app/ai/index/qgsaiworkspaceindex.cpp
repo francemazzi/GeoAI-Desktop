@@ -344,9 +344,19 @@ void QgsAiWorkspaceIndex::setEmbeddingProvider( QgsAiEmbeddingProvider *embeddin
 
 bool QgsAiWorkspaceIndex::embeddingProviderAvailable() const
 {
-  QMutexLocker providerLocker( &mProviderUseMutex );
+  // Never block here. This is called from timers and task-completion handlers which
+  // can run inside a nested event loop on the main thread while search()/reindex
+  // hold the provider mutex (e.g. waiting on a remote embedding HTTP request):
+  // locking unconditionally would deadlock the main thread on its own stack.
+  if ( !mProviderUseMutex.tryLock() )
+  {
+    // provider busy right now → it exists and is actively in use
+    return mEmbeddingProvider != nullptr;
+  }
   QString ignored;
-  return mEmbeddingProvider && mEmbeddingProvider->isAvailable( &ignored );
+  const bool available = mEmbeddingProvider && mEmbeddingProvider->isAvailable( &ignored );
+  mProviderUseMutex.unlock();
+  return available;
 }
 
 void QgsAiWorkspaceIndex::onWorkspaceRootChanged()

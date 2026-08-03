@@ -632,6 +632,59 @@ bool QgsAiAgentSessionManager::validateAgentPlanJson( const QJsonObject &plan, Q
   return true;
 }
 
+QStringList QgsAiAgentSessionManager::unresolvedPlanTools( const QStringList &requestedTools, const QStringList &allowedTools )
+{
+  // pseudo-tools planner models use to describe user interaction or reasoning-only
+  // steps: these need no desktop tool and must never block execution
+  static const QSet<QString> sInteractionPseudoTools {
+    u"optional_user_input"_s, u"user_input"_s, u"ask_user"_s, u"user_decision"_s,
+    u"request_user_input"_s, u"user_confirmation"_s, u"none"_s, u"manual"_s
+  };
+
+  // common near-miss aliases seen from planner models → registry names
+  static const QHash<QString, QString> sAliases {
+    { u"add_layer"_s, u"add_layer_from_file"_s },
+    { u"load_layer"_s, u"add_layer_from_file"_s },
+    { u"import_layer"_s, u"add_layer_from_file"_s },
+    { u"run_processing"_s, u"run_processing_algorithm"_s },
+    { u"processing"_s, u"run_processing_algorithm"_s },
+    { u"set_layer_style"_s, u"style_layer"_s },
+    { u"apply_style"_s, u"style_layer"_s },
+    { u"apply_symbology"_s, u"style_layer"_s },
+    { u"set_style"_s, u"style_layer"_s },
+    { u"zoom_to_layer"_s, u"set_canvas_extent"_s },
+  };
+
+  QStringList unresolved;
+  for ( const QString &requested : requestedTools )
+  {
+    const QString normalized = requested.trimmed().toLower();
+    if ( normalized.isEmpty() || sInteractionPseudoTools.contains( normalized ) )
+      continue;
+    if ( allowedTools.contains( normalized ) )
+      continue;
+    const QString alias = sAliases.value( normalized );
+    if ( !alias.isEmpty() && allowedTools.contains( alias ) )
+      continue;
+
+    // prefix match: "add_layer" resolves when e.g. "add_layer_from_service" is
+    // allowed, and "run_processing_algorithm_batch" style names resolve to their
+    // shorter allowed form
+    bool resolved = false;
+    for ( const QString &allowed : allowedTools )
+    {
+      if ( allowed.startsWith( normalized + '_' ) || normalized.startsWith( allowed + '_' ) )
+      {
+        resolved = true;
+        break;
+      }
+    }
+    if ( !resolved )
+      unresolved << requested;
+  }
+  return unresolved;
+}
+
 void QgsAiAgentSessionManager::resetCurrentSessionState( bool emitHistorySignal )
 {
   mHistory.clear();
@@ -1852,6 +1905,12 @@ QString QgsAiAgentSessionManager::buildSystemPrompt( const QString &extraContext
     prompt += "- Produce a concise implementation plan or answer. Make the plan concrete enough that an agent can execute it later.\n"_L1;
     prompt += "- If the user asks you to do the work, explain the exact steps that Agent mode would take instead of performing them.\n"_L1;
     prompt += "- When you have a complete executable plan, emit exactly one fenced ```strata_agent_plan JSON block. Shape: {\"version\":1,\"objective\":\"...\",\"mode\":\"plan|ask|ask_before_edits|auto_edit\",\"steps\":[{\"id\":\"s1\",\"title\":\"...\",\"risk\":\"low|medium|high|critical\",\"tool\":\"optional_tool_name\",\"requires_approval\":true,\"depends_on\":[]}]}. Keep it valid JSON.\n"_L1;
+    const QStringList catalogTools = mToolRegistry ? mToolRegistry->availableToolNames() : QStringList();
+    if ( !catalogTools.isEmpty() )
+    {
+      prompt += u"- The optional \"tool\" field of a step must be one of these exact names: %1.\n"_s.arg( catalogTools.join( ", "_L1 ) );
+      prompt += "- Never invent tool names. Omit the \"tool\" field entirely for steps that only need reasoning or a user decision.\n"_L1;
+    }
     prompt += "- You may also include a short human-readable summary outside the JSON block, but the JSON plan is the source of truth.\n"_L1;
     prompt += "- If you need user decisions before planning, do not guess. Emit exactly one fenced ```qgis_ai_questions JSON block with this shape: {\"questions\":[{\"id\":\"short_snake_case\",\"type\":\"single|multi\",\"question\":\"...\",\"options\":[{\"id\":\"option_id\",\"label\":\"...\",\"description\":\"...\"}],\"allow_other\":true}]}. Do not emit a proposed_plan in the same response.\n"_L1;
     if ( !extraContext.isEmpty() )

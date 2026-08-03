@@ -27,6 +27,7 @@
 #include "qgsaiclaudeoauthclient.h"
 #include "qgsaicodexoauthclient.h"
 #include "qgsaigissuggestionengine.h"
+#include "layers/qgsbatchedlayeraddcontroller.h"
 #include "qgsaimodelrouter.h"
 #include "qgsaiopenroutermodelcatalog.h"
 #include "qgsaiplanclient.h"
@@ -1796,13 +1797,9 @@ QStringList QgsAiChatDockWidget::disallowedWorkflowTools( const QString &planMar
     return QStringList();
 
   const QStringList allowedTools = mSessionManager->allowedToolNamesForActiveAgent();
-  QStringList disallowed;
-  for ( const QString &toolName : requestedTools )
-  {
-    if ( !allowedTools.contains( toolName ) )
-      disallowed << toolName;
-  }
-  return disallowed;
+  // near-miss names and user-interaction pseudo-tools are normalized instead of
+  // blocking; only genuinely unavailable tools remain
+  return QgsAiAgentSessionManager::unresolvedPlanTools( requestedTools, allowedTools );
 }
 
 bool QgsAiChatDockWidget::blockPlanExecutionForDisallowedTools( const QString &messageId, const QString &planMarkdown, const QVariantMap &metadata )
@@ -2942,6 +2939,15 @@ void QgsAiChatDockWidget::refreshGisSuggestionCard()
 {
   if ( !mGisCardContainer || !mGisCardBodyLayout )
     return;
+
+  // Strata: the suggestion engine samples features from every layer on the main thread;
+  // while a batched layer import is running, retry later instead of competing with it
+  if ( QgsBatchedLayerAddController::instance()->isActive() )
+  {
+    if ( mGisCardRefreshTimer )
+      mGisCardRefreshTimer->start( 5000 );
+    return;
+  }
 
   while ( QLayoutItem *item = mGisCardBodyLayout->takeAt( 0 ) )
   {

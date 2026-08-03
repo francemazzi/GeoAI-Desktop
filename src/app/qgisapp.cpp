@@ -274,6 +274,9 @@ using namespace Qt::StringLiterals;
 #include "qgsabstractmaptoolhandler.h"
 #include "qgsappauthrequesthandler.h"
 #include "qgsappbrowserproviders.h"
+#include "qgsfolderdrophandler.h"
+#include "qgsfolderscantask.h"
+#include "layers/qgsbatchedlayeraddcontroller.h"
 #include "qgsappdbutils.h"
 #include "qgsapplayertreeviewmenuprovider.h"
 #include "qgsapplication.h"
@@ -1503,6 +1506,20 @@ QgisApp::QgisApp(
                                         : defaultLayerIndexingEnabled;
   const bool canUseLocalEmbeddings = mAiWorkspaceIndex->embeddingProviderAvailable();
   mAiLayerIndexCoordinator->setEnabled( requestedLayerIndexing && canUseLocalEmbeddings && !runningCiTests );
+  mAiLayerIndexCoordinator->setInterFlushDelayMs( aiSettings.value( u"strata/index/inter-flush-delay-ms"_s, 250 ).toInt() );
+  // Strata: pause layer indexing (non-destructively) while a batched layer import runs,
+  // and cancel any in-flight workspace file indexing task, so the import keeps the main
+  // thread and the task pool to itself
+  connect( QgsBatchedLayerAddController::instance(), &QgsBatchedLayerAddController::aboutToStart, this, [this] {
+    if ( mAiLayerIndexCoordinator )
+      mAiLayerIndexCoordinator->beginBulkOperation();
+    if ( mAiIndexingScheduler )
+      mAiIndexingScheduler->cancel();
+  } );
+  connect( QgsBatchedLayerAddController::instance(), &QgsBatchedLayerAddController::completed, this, [this] {
+    if ( mAiLayerIndexCoordinator )
+      mAiLayerIndexCoordinator->endBulkOperation();
+  } );
   if ( !runningCiTests )
     mAiIndexingScheduler->scheduleStartupIndexing();
   mAiChatHistoryStore = std::make_unique<QgsAiChatHistoryStore>( mAiFileContextProvider.get(), this );
@@ -1815,6 +1832,7 @@ QgisApp::QgisApp(
   registerCustomDropHandler( new QgsQptDropHandler() );
   QgsApplication::dataItemProviderRegistry()->addProvider( new QgsStyleXmlDataItemProvider() );
   registerCustomDropHandler( new QgsStyleXmlDropHandler() );
+  registerCustomDropHandler( new QgsFolderDropHandler() ); // Strata: dropped plain folders open as a catalog
   QgsApplication::dataItemProviderRegistry()->addProvider( new QgsHtmlDataItemProvider() );
 
   // set handler for missing layers (will be owned by QgsProject)
@@ -2581,8 +2599,41 @@ void QgisApp::dropEvent( QDropEvent *event )
     // cf https://github.com/qgis/QGIS/issues/49439
     mBlockAutoSelectAddedLayer = true;
 
+    // Strata: when many plain data files are dropped at once, scan them in a background
+    // task and add them in batches instead of opening each synchronously in this loop
+    QStringList filesToProcess = files;
+    const int bulkThreshold = QgsBatchedLayerAddController::settingsBatchThreshold->value();
+    if ( bulkThreshold > 0 && filesToProcess.size() >= bulkThreshold )
+    {
+      const QSet<QString> specialSuffixes { u"qgs"_s, u"qgz"_s, u"qlr"_s, u"qpt"_s, u"py"_s };
+      QStringList bulkDataFiles;
+      for ( const QString &file : std::as_const( filesToProcess ) )
+      {
+        const QFileInfo fileInfo( file );
+        if ( fileInfo.isFile() && !specialSuffixes.contains( fileInfo.suffix().toLower() ) )
+          bulkDataFiles.append( file );
+      }
+
+      if ( bulkDataFiles.size() >= bulkThreshold )
+      {
+        for ( const QString &file : std::as_const( bulkDataFiles ) )
+          filesToProcess.removeOne( file );
+
+        QgsFolderScanTask *scanTask = new QgsFolderScanTask( bulkDataFiles );
+        connect( scanTask, &QgsTask::taskCompleted, this, [scanTask] {
+          const QList<QgsProviderSublayerDetails> details = scanTask->results();
+          if ( details.isEmpty() )
+            return;
+          QgsBatchedLayerAddController::instance()->enqueue( details, QString(), QString() );
+          QgsBatchedLayerAddController::instance()->start();
+        } );
+        QgsApplication::taskManager()->addTask( scanTask );
+        visibleMessageBar()->pushInfo( tr( "Layer import" ), tr( "Adding %n file(s) in the background — progress is shown in the task manager", nullptr, bulkDataFiles.size() ) );
+      }
+    }
+
     QList<QgsMapLayer *> addedLayers;
-    for ( const QString &file : std::as_const( files ) )
+    for ( const QString &file : std::as_const( filesToProcess ) )
     {
       bool handled = false;
 
@@ -7343,6 +7394,11 @@ QList<QgsMapLayer *> QgisApp::openFile( const QString &fileName, const QString &
   else if ( fi.suffix().compare( "py"_L1, Qt::CaseInsensitive ) == 0 )
   {
     runScript( fileName );
+  }
+  else if ( fi.isDir() && QgsFolderDropHandler::openFolderAsCatalog( fileName ) )
+  {
+    // Strata: plain folders open as a catalog instead of failing as an invalid datasource;
+    // OGR dataset directories (e.g. .gdb) are refused by the handler and fall through below
   }
   else
   {

@@ -66,6 +66,10 @@ set(TESTS
   testqgsgpsintegration.cpp
   testqgslabelpropertydialog.cpp
   testqgsmergeattributesdialog.cpp
+  testqgsapplayerhandling.cpp
+  testqgsbatchedlayeraddcontroller.cpp
+  testqgsfolderdrophandler.cpp
+  testqgshandlebadlayers.cpp
 )
 
 if (ENABLE_AI_ASSISTANT)

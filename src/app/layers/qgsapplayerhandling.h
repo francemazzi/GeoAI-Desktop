@@ -28,8 +28,10 @@
 
 using namespace Qt::StringLiterals;
 
+class QgsLayerTreeGroup;
 class QgsMapLayer;
 class QgsProviderSublayerDetails;
+class QgsSettingsEntryInteger;
 class QgsVectorLayer;
 class QgsRasterLayer;
 class QgsMeshLayer;
@@ -48,6 +50,34 @@ class APP_EXPORT QgsAppLayerHandling
       LoadAll,
       AbortLoading
     };
+
+    // Strata: above this many sublayers the user is always asked to select layers,
+    // even when the prompt-for-sublayers setting requests loading all. 0 disables the guardrail.
+    static const QgsSettingsEntryInteger *settingsSublayerPromptThreshold;
+
+    // Strata: public so the folder catalog and the batched add controller can resolve
+    // and add sublayer selections directly
+    static SublayerHandling shouldAskUserForSublayers( const QList<QgsProviderSublayerDetails> &layers, bool hasNonLayerItems = false );
+
+    // Strata: options controlling bulk sublayer addition
+    struct SublayerAddOptions
+    {
+      //! Skip the per-layer datum transform prompt; the caller asks once at the end of the bulk add
+      bool deferDatumTransformPrompts = false;
+      //! Add layers into this existing group instead of creating one from the group name
+      QgsLayerTreeGroup *existingGroup = nullptr;
+    };
+
+    /**
+     * Creates the layer tree group sublayers are added into, honoring the current
+     * layer insertion method. Extracted from addSublayers() so batched adds can create
+     * the group once and reuse it across batches.
+     */
+    static QgsLayerTreeGroup *createGroupForSublayers( const QString &groupName );
+
+    static QList<QgsMapLayer *> addSublayers( const QList<QgsProviderSublayerDetails> &layers, const QString &baseName, const QString &groupName, bool addToLegend = true );
+
+    static QList<QgsMapLayer *> addSublayers( const QList<QgsProviderSublayerDetails> &layers, const QString &baseName, const QString &groupName, bool addToLegend, const SublayerAddOptions &options );
 
     /**
      * A generic template based method for adding a single layer from a \a uri
@@ -265,9 +295,6 @@ class APP_EXPORT QgsAppLayerHandling
      */
     static bool askUserForZipItemLayers( const QString &path, const QList<Qgis::LayerType> &acceptableTypes );
 
-    static SublayerHandling shouldAskUserForSublayers( const QList<QgsProviderSublayerDetails> &layers, bool hasNonLayerItems = false );
-
-    static QList<QgsMapLayer *> addSublayers( const QList<QgsProviderSublayerDetails> &layers, const QString &baseName, const QString &groupName, bool addToLegend = true );
 };
 Q_DECLARE_OPERATORS_FOR_FLAGS( QgsAppLayerHandling::DependencyFlags );
 

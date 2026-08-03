@@ -43,6 +43,8 @@ class TestQgsAiLayerIndexCoordinator : public QObject
     void providerUnavailableMidBatchStopsBatch();
     void multipleLayersAreIndexedOneAtATime();
     void bulkReindexUsesLongerDebounceWindow();
+    void bulkOperationPausesFlushWithoutClearingDirtySet();
+    void nestedBulkOperationsResumeOnlyAtDepthZero();
 
   private:
     /**
@@ -429,6 +431,96 @@ void TestQgsAiLayerIndexCoordinator::bulkReindexUsesLongerDebounceWindow()
   QgsProject::instance()->clear();
 }
 
+
+void TestQgsAiLayerIndexCoordinator::bulkOperationPausesFlushWithoutClearingDirtySet()
+{
+  QTemporaryDir tempDir;
+  QVERIFY( tempDir.isValid() );
+  QgsAiFileContextProvider contextProvider( tempDir.path() );
+  CountingWorkspaceIndex index( &contextProvider );
+
+  QgsAiLayerIndexCoordinator coord( &index );
+  coord.setDebounceMs( 50 );
+  coord.setBulkDebounceMs( 50 );
+  coord.setInterFlushDelayMs( 0 );
+  coord.setEnabled( true );
+
+  QSignalSpy doneSpy( &coord, &QgsAiLayerIndexCoordinator::reindexFinished );
+
+  coord.beginBulkOperation();
+  QVERIFY( coord.isBulkOperationActive() );
+
+  // layers added while the bulk operation is active are queued, not flushed
+  const QString shpPath = copyPointsShapefile( tempDir.path() );
+  QList<QString> layerIds;
+  for ( int i = 0; i < 3; i++ )
+  {
+    QgsVectorLayer *layer = new QgsVectorLayer( shpPath, u"points_%1"_s.arg( i ), u"ogr"_s );
+    QVERIFY( layer->isValid() );
+    QgsProject::instance()->addMapLayer( layer, false );
+    layerIds.append( layer->id() );
+  }
+
+  QTest::qWait( 300 );
+  QCOMPARE( doneSpy.count(), 0 );
+
+  // ending the bulk operation flushes the preserved dirty set, one layer at a time
+  coord.endBulkOperation();
+  QVERIFY( !coord.isBulkOperationActive() );
+
+  while ( doneSpy.count() < 3 )
+  {
+    if ( !doneSpy.wait( 5000 ) )
+      break;
+  }
+  QCOMPARE( doneSpy.count(), 3 );
+  QCOMPARE( index.reindexedLayerIds.size(), 3 );
+  for ( const QString &layerId : layerIds )
+    QVERIFY( index.reindexedLayerIds.contains( layerId ) );
+
+  coord.setEnabled( false );
+}
+
+void TestQgsAiLayerIndexCoordinator::nestedBulkOperationsResumeOnlyAtDepthZero()
+{
+  QTemporaryDir tempDir;
+  QVERIFY( tempDir.isValid() );
+  QgsAiFileContextProvider contextProvider( tempDir.path() );
+  CountingWorkspaceIndex index( &contextProvider );
+
+  QgsAiLayerIndexCoordinator coord( &index );
+  coord.setDebounceMs( 50 );
+  coord.setBulkDebounceMs( 50 );
+  coord.setInterFlushDelayMs( 0 );
+  coord.setEnabled( true );
+
+  QSignalSpy doneSpy( &coord, &QgsAiLayerIndexCoordinator::reindexFinished );
+
+  coord.beginBulkOperation();
+  coord.beginBulkOperation();
+
+  const QString shpPath = copyPointsShapefile( tempDir.path() );
+  QgsVectorLayer *layer = new QgsVectorLayer( shpPath, u"points"_s, u"ogr"_s );
+  QVERIFY( layer->isValid() );
+  QgsProject::instance()->addMapLayer( layer, false );
+
+  // ending only one of two nested operations must not resume flushing
+  coord.endBulkOperation();
+  QVERIFY( coord.isBulkOperationActive() );
+  QTest::qWait( 300 );
+  QCOMPARE( doneSpy.count(), 0 );
+
+  coord.endBulkOperation();
+  QVERIFY( !coord.isBulkOperationActive() );
+  QVERIFY( doneSpy.wait( 5000 ) );
+  QCOMPARE( doneSpy.count(), 1 );
+
+  // an unbalanced extra end is ignored
+  coord.endBulkOperation();
+  QVERIFY( !coord.isBulkOperationActive() );
+
+  coord.setEnabled( false );
+}
 
 QGSTEST_MAIN( TestQgsAiLayerIndexCoordinator )
 #include "testqgsailayerindexcoordinator.moc"

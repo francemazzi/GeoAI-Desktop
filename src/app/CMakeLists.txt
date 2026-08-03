@@ -40,6 +40,9 @@ set(QGIS_APP_SRCS
   qgsdisplayangle.cpp
   qgsfirstrundialog.cpp
   qgsfixattributedialog.cpp
+  qgsfoldercatalogdialog.cpp
+  qgsfolderdrophandler.cpp
+  qgsfolderscantask.cpp
   qgsgeometryvalidationservice.cpp
   qgsgeometryvalidationdock.cpp
   qgsgeometryvalidationmodel.cpp
@@ -201,6 +204,7 @@ set(QGIS_APP_SRCS
   labeling/qgsmaptoolrotatelabel.cpp
 
   layers/qgsapplayerhandling.cpp
+  layers/qgsbatchedlayeraddcontroller.cpp
 
   layout/qgslayoutappmenuprovider.cpp
   layout/qgslayoutdesignerdialog.cpp

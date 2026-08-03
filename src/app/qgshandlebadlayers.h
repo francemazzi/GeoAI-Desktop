@@ -52,6 +52,9 @@ class APP_EXPORT QgsHandleBadLayers : public QDialog, public Ui::QgsHandleBadLay
 
     int layerCount();
 
+    // Strata: number of listed layers not repaired by the automatic sibling-folder pass
+    int unrepairedLayerCount() const;
+
   private slots:
     void selectionChanged();
     void browseClicked();
@@ -102,6 +105,17 @@ class APP_EXPORT QgsHandleBadLayers : public QDialog, public Ui::QgsHandleBadLay
      * If \a selectedOnly is true then only currently selected rows will be considered.
      */
     QList<int> fileBasedRows( bool selectedOnly );
+
+    /**
+     * Strata: cheap automatic repair pass run at construction. For each missing
+     * file-based layer, probes the project folder and its sibling folders for the
+     * same relative path or file name (e.g. broken "./SHAPE/…" resolved from a
+     * sibling "DBT 2020 - SHAPE" folder). A directory found for one layer is
+     * registered through checkBasepath(), so a single hit repairs every layer
+     * sharing the same original basepath. Unlike autoFind(), no recursive
+     * filesystem search is performed.
+     */
+    void autoSuggestSiblingBasepaths();
 };
 
 #endif

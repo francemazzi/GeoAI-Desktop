@@ -238,14 +238,52 @@ void QgsAiLayerIndexCoordinator::scheduleDirty( const QString &layerId )
   startDebounceTimer();
 }
 
+void QgsAiLayerIndexCoordinator::beginBulkOperation()
+{
+  mBulkOperationDepth++;
+  mDebounceTimer.stop();
+}
+
+void QgsAiLayerIndexCoordinator::endBulkOperation()
+{
+  if ( mBulkOperationDepth == 0 )
+    return;
+  mBulkOperationDepth--;
+  if ( mBulkOperationDepth == 0 && mEnabled && !mDirtyLayers.isEmpty() )
+  {
+    // resume after the bulk debounce window, one layer per flush as usual
+    mUseBulkDebounce = true;
+    startDebounceTimer();
+  }
+}
+
+void QgsAiLayerIndexCoordinator::setInterFlushDelayMs( int ms )
+{
+  mInterFlushDelayMs = std::max( 0, ms );
+}
+
 void QgsAiLayerIndexCoordinator::startDebounceTimer()
 {
+  if ( mBulkOperationDepth > 0 )
+    return;
   const int ms = mUseBulkDebounce ? mBulkDebounceMs : mDebounceMs;
   mDebounceTimer.start( ms );
 }
 
+void QgsAiLayerIndexCoordinator::scheduleNextFlush()
+{
+  // separates consecutive main-thread snapshots with real event-loop idle time,
+  // instead of chaining them back-to-back at 0 ms
+  if ( mBulkOperationDepth > 0 )
+    return;
+  mDebounceTimer.start( mInterFlushDelayMs );
+}
+
 void QgsAiLayerIndexCoordinator::flushDirty()
 {
+  if ( mBulkOperationDepth > 0 )
+    return;
+
   mUseBulkDebounce = false;
 
   if ( !mIndex || !mEnabled || !mIndex->embeddingProviderAvailable() )
@@ -271,8 +309,8 @@ void QgsAiLayerIndexCoordinator::flushDirty()
   {
     emit reindexFinished( layerId, false, snapshotError );
     QgsMessageLog::logMessage( u"Layer index: snapshot(%1) failed: %2"_s.arg( layerId, snapshotError ), u"AI/Index"_s, Qgis::MessageLevel::Warning, false );
-    if ( mEnabled && !mDirtyLayers.isEmpty() && mIndex && mIndex->embeddingProviderAvailable() )
-      mDebounceTimer.start( 0 );
+    if ( mEnabled && !mDirtyLayers.isEmpty() && mIndex ) // provider availability is re-checked when the flush fires
+      scheduleNextFlush();
     return;
   }
 
@@ -285,8 +323,8 @@ void QgsAiLayerIndexCoordinator::flushDirty()
     if ( !ok )
       QgsMessageLog::logMessage( u"Layer index: reindexLayer(%1) failed: %2"_s.arg( layerId, err ), u"AI/Index"_s, Qgis::MessageLevel::Warning, false );
 
-    if ( mEnabled && !mDirtyLayers.isEmpty() && mIndex && mIndex->embeddingProviderAvailable() )
-      mDebounceTimer.start( 0 );
+    if ( mEnabled && !mDirtyLayers.isEmpty() && mIndex ) // provider availability is re-checked when the flush fires
+      scheduleNextFlush();
     return;
   }
 
@@ -308,8 +346,8 @@ void QgsAiLayerIndexCoordinator::flushDirty()
     if ( mRunningTask == task )
       mRunningTask = nullptr;
 
-    if ( mEnabled && !mDirtyLayers.isEmpty() && mIndex && mIndex->embeddingProviderAvailable() )
-      mDebounceTimer.start( 0 );
+    if ( mEnabled && !mDirtyLayers.isEmpty() && mIndex ) // provider availability is re-checked when the flush fires
+      scheduleNextFlush();
   };
 
   connect( task, &QgsTask::taskCompleted, this, [finishTask]() { finishTask( false ); } );

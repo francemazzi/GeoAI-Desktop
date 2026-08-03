@@ -54,6 +54,23 @@ class APP_EXPORT QgsAiLayerIndexCoordinator : public QObject
     void scheduleAllLayers();
 
     /**
+     * Pauses indexing flushes for the duration of a bulk operation (e.g. a batched
+     * layer import). Refcounted and nesting-safe. Unlike setEnabled( false ), this is
+     * non-destructive: the dirty set and the signal connections are preserved, so
+     * layers added during the pause are indexed once the operation ends.
+     */
+    void beginBulkOperation();
+
+    //! Ends a bulk operation. At depth zero, indexing resumes after the bulk debounce window.
+    void endBulkOperation();
+
+    bool isBulkOperationActive() const { return mBulkOperationDepth > 0; }
+
+    //! Idle gap between two consecutive per-layer snapshot flushes (main-thread work).
+    int interFlushDelayMs() const { return mInterFlushDelayMs; }
+    void setInterFlushDelayMs( int ms );
+
+    /**
      * Override the QgsProject the coordinator listens to. Defaults to QgsProject::instance()
      * when null is passed. Useful in tests.
      */
@@ -76,6 +93,7 @@ class APP_EXPORT QgsAiLayerIndexCoordinator : public QObject
     void connectLayerSignals( QgsMapLayer *layer );
     void scheduleDirty( const QString &layerId );
     void startDebounceTimer();
+    void scheduleNextFlush();
 
     QgsAiWorkspaceIndex *mIndex = nullptr;
     QgsProject *mProject = nullptr;
@@ -86,6 +104,8 @@ class APP_EXPORT QgsAiLayerIndexCoordinator : public QObject
     bool mUseBulkDebounce = false;
     int mDebounceMs = 5000;
     int mBulkDebounceMs = 15000;
+    int mBulkOperationDepth = 0;
+    int mInterFlushDelayMs = 250;
 };
 
 #endif // QGSAILAYERINDEXCOORDINATOR_H

@@ -138,6 +138,18 @@ class APP_EXPORT QgsAiAgentSessionManager : public QObject
     //! Validates the agent V2 plan JSON contract used by Plan mode and executable runs.
     static bool validateAgentPlanJson( const QJsonObject &plan, QString *errorMessage = nullptr );
 
+    /**
+     * Returns the subset of \a requestedTools (tool names referenced by a plan's steps)
+     * which cannot be resolved against \a allowedTools.
+     *
+     * Planner models sometimes emit near-miss names ("add_layer" for
+     * "add_layer_from_file", "run_processing" for "run_processing_algorithm") or
+     * pseudo-tools describing user interaction ("optional_user_input"): these are
+     * normalized or ignored instead of blocking plan execution. Only names with no
+     * plausible match among the allowed tools are returned.
+     */
+    static QStringList unresolvedPlanTools( const QStringList &requestedTools, const QStringList &allowedTools );
+
     //! Runtime metadata-only memory for recent agent decisions/tool events.
     QVariantList agentMemoryEvents() const { return mAgentMemory; }
 

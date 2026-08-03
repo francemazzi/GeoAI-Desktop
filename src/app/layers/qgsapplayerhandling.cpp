@@ -34,8 +34,10 @@
 #include "qgsprojecttimesettings.h"
 #include "qgsrasterlayerproperties.h"
 #include "qgssettingsentryenumflag.h"
+#include "qgssettingsentryimpl.h"
 #include "qgssettingsregistrycore.h"
 #include "qgssettingsregistrygui.h"
+#include "qgssettingstree.h"
 #include "qgsterrainprovider.h"
 #include "qgstiledscenelayerproperties.h"
 #include "qgsvectorlayerproperties.h"
@@ -52,6 +54,7 @@ using namespace Qt::StringLiterals;
 #include "qgstiledscenelayer3drenderer.h"
 #endif
 #include "canvas/qgscanvasrefreshblocker.h"
+#include "qgsbatchedlayeraddcontroller.h"
 #include "qgsproviderutils.h"
 #include "qgsproviderregistry.h"
 #include "qgsprovidersublayerdetails.h"
@@ -89,6 +92,9 @@ using namespace Qt::StringLiterals;
 #include <QMessageBox>
 #include <QFileDialog>
 #include <QUrlQuery>
+
+const QgsSettingsEntryInteger *QgsAppLayerHandling::settingsSublayerPromptThreshold
+  = new QgsSettingsEntryInteger( u"sublayer-prompt-threshold"_s, QgsSettingsTree::sTreeApp, 20, u"Maximum number of sublayers loaded without asking for a selection, even when the sublayer prompt is set to load all. 0 disables the guardrail."_s, Qgis::SettingsOption(), 0 );
 
 void QgsAppLayerHandling::postProcessAddedLayer( QgsMapLayer *layer )
 {
@@ -710,6 +716,18 @@ QgsAppLayerHandling::SublayerHandling QgsAppLayerHandling::shouldAskUserForSubla
   QgsSettings settings;
   const Qgis::SublayerPromptMode promptLayers = settings.enumValue( u"qgis/promptForSublayers"_s, Qgis::SublayerPromptMode::AlwaysAsk );
 
+  // Strata: loading a very large number of sublayers in one go can freeze the UI for
+  // minutes, so above the threshold we always ask for a selection regardless of the setting
+  const auto guardedLoadAll = [&layers]() -> SublayerHandling {
+    const int threshold = settingsSublayerPromptThreshold->value();
+    if ( threshold > 0 && layers.size() > threshold )
+    {
+      QgsMessageLog::logMessage( QObject::tr( "Source contains %1 layers, above the sublayer prompt threshold (%2) — asking for a selection instead of loading all" ).arg( layers.size() ).arg( threshold ), QObject::tr( "Layer Import" ), Qgis::MessageLevel::Info );
+      return SublayerHandling::AskUser;
+    }
+    return SublayerHandling::LoadAll;
+  };
+
   switch ( promptLayers )
   {
     case Qgis::SublayerPromptMode::AlwaysAsk:
@@ -723,70 +741,81 @@ QgsAppLayerHandling::SublayerHandling QgsAppLayerHandling::shouldAskUserForSubla
         if ( sublayer.type() != Qgis::LayerType::Raster )
           return SublayerHandling::AskUser;
       }
-      return SublayerHandling::LoadAll;
+      return guardedLoadAll();
     }
 
     case Qgis::SublayerPromptMode::NeverAskSkip:
       return SublayerHandling::AbortLoading;
 
     case Qgis::SublayerPromptMode::NeverAskLoadAll:
-      return SublayerHandling::LoadAll;
+      return guardedLoadAll();
   }
 
   return SublayerHandling::AskUser;
 }
 
-QList<QgsMapLayer *> QgsAppLayerHandling::addSublayers( const QList<QgsProviderSublayerDetails> &layers, const QString &baseName, const QString &groupName, bool addToLegend )
+QgsLayerTreeGroup *QgsAppLayerHandling::createGroupForSublayers( const QString &groupName )
 {
   QgsLayerTreeGroup *group = nullptr;
-  if ( !groupName.isEmpty() )
+  int index { 0 };
+  switch ( QgsProject::instance()->layerTreeRegistryBridge()->layerInsertionMethod() )
   {
-    int index { 0 };
-    switch ( QgsProject::instance()->layerTreeRegistryBridge()->layerInsertionMethod() )
+    case Qgis::LayerTreeInsertionMethod::TopOfTree:
     {
-      case Qgis::LayerTreeInsertionMethod::TopOfTree:
+      group = QgsProject::instance()->layerTreeRoot()->insertGroup( 0, groupName );
+      break;
+    }
+    case Qgis::LayerTreeInsertionMethod::AboveInsertionPoint:
+    case Qgis::LayerTreeInsertionMethod::OptimalInInsertionGroup:
+    {
+      // Strata: guard for headless use (tests) where no QgisApp exists
+      QgsLayerTreeNode *currentNode { QgisApp::instance() && QgisApp::instance()->layerTreeView() ? QgisApp::instance()->layerTreeView()->currentNode() : nullptr };
+      if ( currentNode && currentNode->parent() )
       {
-        group = QgsProject::instance()->layerTreeRoot()->insertGroup( 0, groupName );
-        break;
-      }
-      case Qgis::LayerTreeInsertionMethod::AboveInsertionPoint:
-      case Qgis::LayerTreeInsertionMethod::OptimalInInsertionGroup:
-      {
-        QgsLayerTreeNode *currentNode { QgisApp::instance()->layerTreeView()->currentNode() };
-        if ( currentNode && currentNode->parent() )
+        if ( QgsLayerTree::isGroup( currentNode ) )
         {
-          if ( QgsLayerTree::isGroup( currentNode ) )
+          group = qobject_cast<QgsLayerTreeGroup *>( currentNode )->insertGroup( 0, groupName );
+        }
+        else if ( QgsLayerTree::isLayer( currentNode ) )
+        {
+          const QList<QgsLayerTreeNode *> currentNodeSiblings { currentNode->parent()->children() };
+          int nodeIdx { 0 };
+          for ( const QgsLayerTreeNode *child : std::as_const( currentNodeSiblings ) )
           {
-            group = qobject_cast<QgsLayerTreeGroup *>( currentNode )->insertGroup( 0, groupName );
-          }
-          else if ( QgsLayerTree::isLayer( currentNode ) )
-          {
-            const QList<QgsLayerTreeNode *> currentNodeSiblings { currentNode->parent()->children() };
-            int nodeIdx { 0 };
-            for ( const QgsLayerTreeNode *child : std::as_const( currentNodeSiblings ) )
+            nodeIdx++;
+            if ( child == currentNode )
             {
-              nodeIdx++;
-              if ( child == currentNode )
-              {
-                index = nodeIdx;
-                break;
-              }
+              index = nodeIdx;
+              break;
             }
-            group = qobject_cast<QgsLayerTreeGroup *>( currentNode->parent() )->insertGroup( index, groupName );
           }
-          else
-          {
-            group = QgsProject::instance()->layerTreeRoot()->insertGroup( 0, groupName );
-          }
+          group = qobject_cast<QgsLayerTreeGroup *>( currentNode->parent() )->insertGroup( index, groupName );
         }
         else
         {
           group = QgsProject::instance()->layerTreeRoot()->insertGroup( 0, groupName );
         }
-        break;
       }
+      else
+      {
+        group = QgsProject::instance()->layerTreeRoot()->insertGroup( 0, groupName );
+      }
+      break;
     }
   }
+  return group;
+}
+
+QList<QgsMapLayer *> QgsAppLayerHandling::addSublayers( const QList<QgsProviderSublayerDetails> &layers, const QString &baseName, const QString &groupName, bool addToLegend )
+{
+  return addSublayers( layers, baseName, groupName, addToLegend, SublayerAddOptions() );
+}
+
+QList<QgsMapLayer *> QgsAppLayerHandling::addSublayers( const QList<QgsProviderSublayerDetails> &layers, const QString &baseName, const QString &groupName, bool addToLegend, const SublayerAddOptions &sublayerAddOptions )
+{
+  QgsLayerTreeGroup *group = sublayerAddOptions.existingGroup;
+  if ( !group && !groupName.isEmpty() )
+    group = createGroupForSublayers( groupName );
 
   QgsSettings settings;
   const bool formatLayerNames = QgsSettingsRegistryGui::settingsFormatLayerName->value();
@@ -794,7 +823,7 @@ QList<QgsMapLayer *> QgsAppLayerHandling::addSublayers( const QList<QgsProviderS
   // if we aren't adding to a group, we need to add the layers in reverse order so that they maintain the correct
   // order in the layer tree!
   QList<QgsProviderSublayerDetails> sortedLayers = layers;
-  if ( groupName.isEmpty() )
+  if ( !group )
   {
     std::reverse( sortedLayers.begin(), sortedLayers.end() );
   }
@@ -817,7 +846,7 @@ QList<QgsMapLayer *> QgsAppLayerHandling::addSublayers( const QList<QgsProviderS
     QgsMapLayer *ml = layer.get();
     // if we aren't adding to a group, then we're iterating the layers in the reverse order
     // so account for that in the returned list of layers
-    if ( groupName.isEmpty() )
+    if ( !group )
       result.insert( 0, ml );
     else
       result << ml;
@@ -834,7 +863,7 @@ QList<QgsMapLayer *> QgsAppLayerHandling::addSublayers( const QList<QgsProviderS
     // filename in the layer's name, because the group is already titled with the filename.
     // But otherwise, we DO include the file name so that users can differentiate the source
     // when multiple layers are loaded from a GPX file or similar (refs https://github.com/qgis/QGIS/issues/37551)
-    if ( !groupName.isEmpty() )
+    if ( group )
     {
       if ( !layerName.isEmpty() )
         layer->setName( layerName );
@@ -875,7 +904,10 @@ QList<QgsMapLayer *> QgsAppLayerHandling::addSublayers( const QList<QgsProviderS
         break;
     }
 
-    QgisApp::instance()->askUserForDatumTransform( ml->crs(), projectCrsAfterLayerAdd, ml );
+    // Strata: batched adds defer this prompt and ask once per unique CRS at the end,
+    // instead of potentially popping one modal dialog per layer
+    if ( !sublayerAddOptions.deferDatumTransformPrompts )
+      QgisApp::instance()->askUserForDatumTransform( ml->crs(), projectCrsAfterLayerAdd, ml );
   }
 
   if ( group )
@@ -993,6 +1025,12 @@ QList<QgsMapLayer *> QgsAppLayerHandling::openLayer( const QString &fileName, bo
 
     if ( allowInteractive && ( !singleSublayerOnly || detailsAreIncomplete || !nonLayerItems.empty() ) )
     {
+      // Strata: detect when the selection dialog is shown only because of the sublayer guardrail,
+      // so the override of the user's "load all" preference can be explained afterwards
+      const int promptThreshold = settingsSublayerPromptThreshold->value();
+      const bool guardrailForced = promptThreshold > 0 && sublayers.size() > promptThreshold
+                                   && QgsSettings().enumValue( u"qgis/promptForSublayers"_s, Qgis::SublayerPromptMode::AlwaysAsk ) == Qgis::SublayerPromptMode::NeverAskLoadAll;
+
       // ask user for sublayers (unless user settings dictate otherwise!)
       switch ( shouldAskUserForSublayers( sublayers, !nonLayerItems.empty() ) )
       {
@@ -1013,6 +1051,9 @@ QList<QgsMapLayer *> QgsAppLayerHandling::openLayer( const QString &fileName, bo
             nonLayerItems.clear();
           }
           groupName = dlg.groupName();
+
+          if ( guardrailForced )
+            QgisApp::instance()->visibleMessageBar()->pushInfo( QObject::tr( "Layer selection" ), QObject::tr( "A selection was requested because this source contains more than %1 layers. This threshold can be changed in Settings." ).arg( promptThreshold ) );
           break;
         }
 
@@ -1042,14 +1083,25 @@ QList<QgsMapLayer *> QgsAppLayerHandling::openLayer( const QString &fileName, bo
     // now add sublayers
     if ( !sublayers.empty() )
     {
-      QgsCanvasRefreshBlocker refreshBlocker;
-      QgsSettings settings;
-
       QString base = QgsProviderUtils::suggestLayerNameFromFilePath( fileName );
       if ( QgsSettingsRegistryGui::settingsFormatLayerName->value() )
       {
         base = QgsMapLayer::formatLayerName( base );
       }
+
+      // Strata: large selections are added in main-thread batches with progress and
+      // cancellation instead of one long synchronous block. The controller owns legend
+      // insertion and bulk post-processing, so the returned list is empty here.
+      const int batchThreshold = QgsBatchedLayerAddController::settingsBatchThreshold->value();
+      if ( batchThreshold > 0 && sublayers.size() >= batchThreshold )
+      {
+        QgsBatchedLayerAddController::instance()->enqueue( sublayers, base, groupName );
+        QgsBatchedLayerAddController::instance()->start();
+        return {};
+      }
+
+      QgsCanvasRefreshBlocker refreshBlocker;
+      QgsSettings settings;
 
       openedLayers.append( addSublayers( sublayers, base, groupName, addToLegend ) );
       QgisApp::instance()->activateDeactivateLayerRelatedActions( QgisApp::instance()->activeLayer() );
