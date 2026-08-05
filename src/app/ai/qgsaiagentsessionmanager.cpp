@@ -29,15 +29,15 @@
 #include "qgsaivisualcontextutils.h"
 #include "qgsaiworkspacetrust.h"
 #include "qgsapplication.h"
-#include "qgsfeedback.h"
-#include "qgstaskmanager.h"
 #include "qgsexception.h"
+#include "qgsfeedback.h"
 #include "qgsmaplayer.h"
 #include "qgsmessagelog.h"
 #include "qgsnetworkaccessmanager.h"
 #include "qgspdfrenderer.h"
 #include "qgsproject.h"
 #include "qgssettings.h"
+#include "qgstaskmanager.h"
 
 #include <QCoreApplication>
 #include <QDateTime>
@@ -921,7 +921,7 @@ void QgsAiAgentSessionManager::cancelActiveRequest()
     task->cancel();
     mPendingProviders.clear();
     if ( mActiveProvider == QgsAiModelRouter::Provider::Plan )
-      completeManagedAgentRun(); // closes an approved run (and its heartbeat) we never dispatched
+      completeManagedAgentRun();                                                 // closes an approved run (and its heartbeat) we never dispatched
     emit requestStateChanged( u"cancelled"_s, u"Request cancelled by user."_s ); //#spellok
     emit requestRunningChanged( false );                                         //#spellok
     return;

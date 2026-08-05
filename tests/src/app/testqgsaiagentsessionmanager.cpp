@@ -18,8 +18,10 @@
 #include "ai/tools/qgsaitoolregistry.h"
 #include "qgsaitestloopbackserver.h"
 #include "qgssettings.h"
+#include "qgstaskmanager.h"
 #include "qgstest.h"
 
+#include <QAtomicInt>
 #include <QByteArray>
 #include <QDir>
 #include <QFile>
@@ -32,13 +34,10 @@
 #include <QPdfWriter>
 #include <QScopeGuard>
 #include <QSet>
-#include "qgstaskmanager.h"
-
-#include <QAtomicInt>
 #include <QSignalSpy>
-#include <QThread>
 #include <QString>
 #include <QTemporaryDir>
+#include <QThread>
 #include <QVector>
 
 using namespace Qt::StringLiterals;

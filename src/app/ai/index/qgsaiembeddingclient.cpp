@@ -177,7 +177,9 @@ bool QgsAiEmbeddingClient::embedWithRole( const QStringList &texts, const QStrin
   return true;
 }
 
-bool QgsAiEmbeddingClient::performRequest( const QByteArray &payload, const QString &key, int &httpStatus, QByteArray &body, int &networkError, int &retryAfterSeconds, QString *errorMessage, QgsFeedback *feedback )
+bool QgsAiEmbeddingClient::performRequest(
+  const QByteArray &payload, const QString &key, int &httpStatus, QByteArray &body, int &networkError, int &retryAfterSeconds, QString *errorMessage, QgsFeedback *feedback
+)
 {
   if ( feedback && feedback->isCanceled() )
   {
