@@ -15,14 +15,14 @@
 
 #include "qgsaidatahubextracttool.h"
 
+#include <algorithm>
+#include <cmath>
+
 #include "qgsaimodelrouter.h"
 #include "qgsaiplanclient.h"
 #include "qgsaisettingsutils.h"
 #include "qgsaitoolschemautil.h"
 #include "qgsnetworkaccessmanager.h"
-
-#include <algorithm>
-#include <cmath>
 
 #include <QCoreApplication>
 #include <QDateTime>
@@ -32,6 +32,7 @@
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QRegularExpression>
+#include <QString>
 #include <QTimer>
 #include <QUrl>
 
@@ -51,9 +52,7 @@ namespace
 
   JsonResponse sendJsonRequest( QgsNetworkAccessManager *networkManager, const QNetworkRequest &request, const QJsonObject *body )
   {
-    QNetworkReply *reply = body
-                             ? networkManager->post( request, QJsonDocument( *body ).toJson( QJsonDocument::Compact ) )
-                             : networkManager->get( request );
+    QNetworkReply *reply = body ? networkManager->post( request, QJsonDocument( *body ).toJson( QJsonDocument::Compact ) ) : networkManager->get( request );
     if ( !reply )
       return { false, 0, {}, u"Unable to start the Strata DataHub request."_s };
 
