@@ -17,6 +17,7 @@
 
 #include "qgsaimodelrouter.h"
 #include "qgsaiplanclient.h"
+#include "qgsaisettingsutils.h"
 #include "qgsaitoolschemautil.h"
 #include "qgsnetworkaccessmanager.h"
 
@@ -47,12 +48,6 @@ namespace
       QJsonObject body;
       QString error;
   };
-
-  bool isLocalHttpHost( const QString &host )
-  {
-    const QString normalized = host.trimmed().toLower();
-    return normalized == "localhost"_L1 || normalized == "127.0.0.1"_L1 || normalized == "::1"_L1 || normalized.startsWith( "127."_L1 );
-  }
 
   JsonResponse sendJsonRequest( QgsNetworkAccessManager *networkManager, const QNetworkRequest &request, const QJsonObject *body )
   {
@@ -102,7 +97,7 @@ namespace
     if ( !downloadUrl.isValid() || downloadUrl.host().isEmpty() )
       return QgsAiToolResult::error( u"DataHub job '%1' returned an invalid artifact downloadUrl."_s.arg( jobId ) );
     const QString scheme = downloadUrl.scheme().toLower();
-    if ( scheme != "https"_L1 && !( scheme == "http"_L1 && isLocalHttpHost( downloadUrl.host() ) ) )
+    if ( scheme != "https"_L1 && !( scheme == "http"_L1 && QgsAiSettingsUtils::isLocalHttpHost( downloadUrl.host() ) ) )
       return QgsAiToolResult::error( u"DataHub artifact downloadUrl must use HTTPS (localhost HTTP is allowed for development)."_s );
 
     const QString sha256 = artifact.value( u"sha256"_s ).toString().trimmed().toLower();

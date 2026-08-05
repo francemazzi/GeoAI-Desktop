@@ -49,6 +49,12 @@ namespace QgsAiSettingsUtils
     return u"%1 GiB"_s.arg( mb / 1024.0, 0, 'f', 2 );
   }
 
+  inline bool isLocalHttpHost( const QString &host )
+  {
+    const QString normalized = host.trimmed().toLower();
+    return normalized == "localhost"_L1 || normalized == "127.0.0.1"_L1 || normalized == "::1"_L1 || normalized.startsWith( "127."_L1 );
+  }
+
   //! Reads \a key falling back to \a legacyKeys so renamed settings keep their stored value.
   template<typename Settings> QVariant settingValueWithLegacy( Settings &settings, const QString &key, const QStringList &legacyKeys, const QVariant &defaultValue )
   {

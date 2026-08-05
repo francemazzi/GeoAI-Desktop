@@ -67,12 +67,6 @@ namespace
 
     return QDir( contextProvider->workspaceRoot() ).relativeFilePath( absolutePath );
   }
-
-  bool isLocalHttpHost( const QString &host )
-  {
-    const QString normalized = host.trimmed().toLower();
-    return normalized == "localhost"_L1 || normalized == "127.0.0.1"_L1 || normalized == "::1"_L1 || normalized.startsWith( "127."_L1 );
-  }
 } //namespace
 
 QgsAiDownloadFileTool::QgsAiDownloadFileTool( QgsAiFileContextProvider *contextProvider, QWidget *dialogParent )
@@ -139,7 +133,7 @@ QgsAiToolResult QgsAiDownloadFileTool::execute( const QJsonObject &args )
   const QString scheme = url.scheme().toLower();
   if ( scheme != "http"_L1 && scheme != "https"_L1 )
     return QgsAiToolResult::error( u"Only http and https URLs are allowed (got '%1')."_s.arg( scheme ) );
-  if ( scheme == "http"_L1 && !isLocalHttpHost( url.host() ) )
+  if ( scheme == "http"_L1 && !QgsAiSettingsUtils::isLocalHttpHost( url.host() ) )
     return QgsAiToolResult::error( u"Public HTTP downloads are refused. Use an HTTPS URL or localhost for development."_s );
 
   const QString destRequest = args.value( u"dest_path"_s ).toString().trimmed();
