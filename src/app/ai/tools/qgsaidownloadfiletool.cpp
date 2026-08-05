@@ -17,6 +17,7 @@
 
 #include "qgsaiauditlog.h"
 #include "qgsaifilecontextprovider.h"
+#include "qgsaisettingsutils.h"
 #include "qgsaitoolschemautil.h"
 #include "qgsaiworkspacetrust.h"
 #include "qgsmessagelog.h"
@@ -40,19 +41,6 @@ using namespace Qt::StringLiterals;
 
 namespace
 {
-  QString humanBytes( qint64 bytes )
-  {
-    if ( bytes < 1024 )
-      return u"%1 B"_s.arg( bytes );
-    const double kb = bytes / 1024.0;
-    if ( kb < 1024 )
-      return u"%1 KiB"_s.arg( kb, 0, 'f', 1 );
-    const double mb = kb / 1024.0;
-    if ( mb < 1024 )
-      return u"%1 MiB"_s.arg( mb, 0, 'f', 1 );
-    return u"%1 GiB"_s.arg( mb / 1024.0, 0, 'f', 2 );
-  }
-
   bool fullDownloadLogDetails()
   {
     QgsSettings settings;
@@ -194,7 +182,7 @@ QgsAiToolResult QgsAiDownloadFileTool::execute( const QJsonObject &args )
                          "  Destination: %2\n"
                          "  Max size: %3\n"
     )
-                         .arg( url.toString( QUrl::FullyEncoded ), destPath, humanBytes( maxBytes ) );
+                         .arg( url.toString( QUrl::FullyEncoded ), destPath, QgsAiSettingsUtils::humanBytes( maxBytes ) );
 
     // Informative warning when the destination looks executable.
     static const QStringList executableSuffixes

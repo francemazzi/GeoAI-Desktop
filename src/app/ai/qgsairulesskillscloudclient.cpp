@@ -36,7 +36,7 @@ namespace
 {
   constexpr int REQUEST_TIMEOUT_MS = 20000;
 
-  QUrl apiUrl( const QString &apiBase, const QString &path )
+  QUrl rulesSkillsApiUrl( const QString &apiBase, const QString &path )
   {
     return QUrl( apiBase + path );
   }
@@ -49,7 +49,7 @@ namespace
     request.setTransferTimeout( REQUEST_TIMEOUT_MS );
   }
 
-  QString responseErrorMessage( QNetworkReply *reply, const QByteArray &body )
+  QString rulesSkillsResponseErrorMessage( QNetworkReply *reply, const QByteArray &body )
   {
     const int httpStatus = reply ? reply->attribute( QNetworkRequest::HttpStatusCodeAttribute ).toInt() : 0;
     const QJsonObject root = QJsonDocument::fromJson( body ).object();
@@ -251,7 +251,7 @@ void QgsAiRulesSkillsCloudClient::ensureWorkspace( const QString &apiBase, const
   body.insert( u"fingerprint"_s, fingerprint );
   body.insert( u"name"_s, name );
 
-  QNetworkRequest request( apiUrl( apiBase, u"/v1/workspaces"_s ) );
+  QNetworkRequest request( rulesSkillsApiUrl( apiBase, u"/v1/workspaces"_s ) );
   setJsonHeaders( request, sessionToken );
   QNetworkReply *reply = networkManager->post( request, QJsonDocument( body ).toJson( QJsonDocument::Compact ) );
   if ( !reply )
@@ -266,7 +266,7 @@ void QgsAiRulesSkillsCloudClient::ensureWorkspace( const QString &apiBase, const
     const QByteArray responseBody = reply->readAll();
     if ( reply->error() != QNetworkReply::NoError || httpStatus < 200 || httpStatus >= 300 )
     {
-      emit requestFailed( responseErrorMessage( reply, responseBody ) );
+      emit requestFailed( rulesSkillsResponseErrorMessage( reply, responseBody ) );
       return;
     }
     const QString workspaceId = QJsonDocument::fromJson( responseBody ).object().value( u"id"_s ).toString();
@@ -288,7 +288,7 @@ void QgsAiRulesSkillsCloudClient::fetchRules( const QString &apiBase, const QStr
     return;
   }
 
-  QNetworkRequest request( apiUrl( apiBase, u"/v1/workspaces/%1/rules"_s.arg( encodedId( workspaceId ) ) ) );
+  QNetworkRequest request( rulesSkillsApiUrl( apiBase, u"/v1/workspaces/%1/rules"_s.arg( encodedId( workspaceId ) ) ) );
   setJsonHeaders( request, sessionToken );
   QNetworkReply *reply = networkManager->get( request );
   if ( !reply )
@@ -303,7 +303,7 @@ void QgsAiRulesSkillsCloudClient::fetchRules( const QString &apiBase, const QStr
     const QByteArray responseBody = reply->readAll();
     if ( reply->error() != QNetworkReply::NoError || httpStatus < 200 || httpStatus >= 300 )
     {
-      emit requestFailed( responseErrorMessage( reply, responseBody ) );
+      emit requestFailed( rulesSkillsResponseErrorMessage( reply, responseBody ) );
       return;
     }
     QList<RemoteRule> rules;
@@ -322,7 +322,7 @@ void QgsAiRulesSkillsCloudClient::fetchSkills( const QString &apiBase, const QSt
     return;
   }
 
-  QNetworkRequest request( apiUrl( apiBase, u"/v1/workspaces/%1/skills"_s.arg( encodedId( workspaceId ) ) ) );
+  QNetworkRequest request( rulesSkillsApiUrl( apiBase, u"/v1/workspaces/%1/skills"_s.arg( encodedId( workspaceId ) ) ) );
   setJsonHeaders( request, sessionToken );
   QNetworkReply *reply = networkManager->get( request );
   if ( !reply )
@@ -337,7 +337,7 @@ void QgsAiRulesSkillsCloudClient::fetchSkills( const QString &apiBase, const QSt
     const QByteArray responseBody = reply->readAll();
     if ( reply->error() != QNetworkReply::NoError || httpStatus < 200 || httpStatus >= 300 )
     {
-      emit requestFailed( responseErrorMessage( reply, responseBody ) );
+      emit requestFailed( rulesSkillsResponseErrorMessage( reply, responseBody ) );
       return;
     }
     QList<RemoteSkill> skills;
@@ -358,7 +358,7 @@ void QgsAiRulesSkillsCloudClient::pushRule( const QString &apiBase, const QStrin
 
   const bool isUpdate = !rule.id.isEmpty();
   const QString path = isUpdate ? u"/v1/workspaces/%1/rules/%2"_s.arg( encodedId( workspaceId ), encodedId( rule.id ) ) : u"/v1/workspaces/%1/rules"_s.arg( encodedId( workspaceId ) );
-  QNetworkRequest request( apiUrl( apiBase, path ) );
+  QNetworkRequest request( rulesSkillsApiUrl( apiBase, path ) );
   setJsonHeaders( request, sessionToken );
   const QByteArray payload = serializedRulePayload( rule );
   QNetworkReply *reply = isUpdate ? networkManager->sendCustomRequest( request, "PATCH", payload ) : networkManager->post( request, payload );
@@ -374,7 +374,7 @@ void QgsAiRulesSkillsCloudClient::pushRule( const QString &apiBase, const QStrin
     const QByteArray responseBody = reply->readAll();
     if ( reply->error() != QNetworkReply::NoError || httpStatus < 200 || httpStatus >= 300 )
     {
-      emit requestFailed( responseErrorMessage( reply, responseBody ) );
+      emit requestFailed( rulesSkillsResponseErrorMessage( reply, responseBody ) );
       return;
     }
     emit ruleSynced( ruleFromJson( QJsonDocument::fromJson( responseBody ).object() ) );
@@ -392,7 +392,7 @@ void QgsAiRulesSkillsCloudClient::pushSkill( const QString &apiBase, const QStri
 
   const bool isUpdate = !skill.id.isEmpty();
   const QString path = isUpdate ? u"/v1/workspaces/%1/skills/%2"_s.arg( encodedId( workspaceId ), encodedId( skill.id ) ) : u"/v1/workspaces/%1/skills"_s.arg( encodedId( workspaceId ) );
-  QNetworkRequest request( apiUrl( apiBase, path ) );
+  QNetworkRequest request( rulesSkillsApiUrl( apiBase, path ) );
   setJsonHeaders( request, sessionToken );
   const QByteArray payload = serializedSkillPayload( skill );
   QNetworkReply *reply = isUpdate ? networkManager->sendCustomRequest( request, "PATCH", payload ) : networkManager->post( request, payload );
@@ -408,7 +408,7 @@ void QgsAiRulesSkillsCloudClient::pushSkill( const QString &apiBase, const QStri
     const QByteArray responseBody = reply->readAll();
     if ( reply->error() != QNetworkReply::NoError || httpStatus < 200 || httpStatus >= 300 )
     {
-      emit requestFailed( responseErrorMessage( reply, responseBody ) );
+      emit requestFailed( rulesSkillsResponseErrorMessage( reply, responseBody ) );
       return;
     }
     emit skillSynced( skillFromJson( QJsonDocument::fromJson( responseBody ).object() ) );
@@ -424,7 +424,7 @@ void QgsAiRulesSkillsCloudClient::deleteRuleRemote( const QString &apiBase, cons
     return;
   }
 
-  QNetworkRequest request( apiUrl( apiBase, u"/v1/workspaces/%1/rules/%2"_s.arg( encodedId( workspaceId ), encodedId( remoteRuleId ) ) ) );
+  QNetworkRequest request( rulesSkillsApiUrl( apiBase, u"/v1/workspaces/%1/rules/%2"_s.arg( encodedId( workspaceId ), encodedId( remoteRuleId ) ) ) );
   setJsonHeaders( request, sessionToken );
   QNetworkReply *reply = networkManager->deleteResource( request );
   if ( !reply )
@@ -439,7 +439,7 @@ void QgsAiRulesSkillsCloudClient::deleteRuleRemote( const QString &apiBase, cons
     const QByteArray responseBody = reply->readAll();
     if ( reply->error() != QNetworkReply::NoError || httpStatus < 200 || httpStatus >= 300 )
     {
-      emit requestFailed( responseErrorMessage( reply, responseBody ) );
+      emit requestFailed( rulesSkillsResponseErrorMessage( reply, responseBody ) );
       return;
     }
     emit ruleDeleted( remoteRuleId );
@@ -455,7 +455,7 @@ void QgsAiRulesSkillsCloudClient::deleteSkillRemote( const QString &apiBase, con
     return;
   }
 
-  QNetworkRequest request( apiUrl( apiBase, u"/v1/workspaces/%1/skills/%2"_s.arg( encodedId( workspaceId ), encodedId( remoteSkillId ) ) ) );
+  QNetworkRequest request( rulesSkillsApiUrl( apiBase, u"/v1/workspaces/%1/skills/%2"_s.arg( encodedId( workspaceId ), encodedId( remoteSkillId ) ) ) );
   setJsonHeaders( request, sessionToken );
   QNetworkReply *reply = networkManager->deleteResource( request );
   if ( !reply )
@@ -470,7 +470,7 @@ void QgsAiRulesSkillsCloudClient::deleteSkillRemote( const QString &apiBase, con
     const QByteArray responseBody = reply->readAll();
     if ( reply->error() != QNetworkReply::NoError || httpStatus < 200 || httpStatus >= 300 )
     {
-      emit requestFailed( responseErrorMessage( reply, responseBody ) );
+      emit requestFailed( rulesSkillsResponseErrorMessage( reply, responseBody ) );
       return;
     }
     emit skillDeleted( remoteSkillId );
