@@ -191,8 +191,8 @@ namespace
       bool embed( const QStringList &texts, QgsAiEmbeddingRole role, QList<QVector<float>> &out, QString *errorMessage = nullptr, const QgsAiEmbeddingOptions &options = QgsAiEmbeddingOptions() ) override
       {
         if ( mProvider == QgsAiEmbeddingClient::Provider::StrataCloud )
-          return mClient.embedWithRole( texts, role == QgsAiEmbeddingRole::Query ? u"query"_s : u"passage"_s, out, errorMessage, options.maxBatch );
-        return embed( texts, out, errorMessage, options.maxBatch );
+          return mClient.embedWithRole( texts, role == QgsAiEmbeddingRole::Query ? u"query"_s : u"passage"_s, out, errorMessage, options.maxBatch, options.feedback );
+        return mClient.embedWithRole( texts, u"passage"_s, out, errorMessage, options.maxBatch, options.feedback );
       }
 
     private:

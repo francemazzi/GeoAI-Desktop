@@ -29,6 +29,8 @@
 #include "qgsaivisualcontextutils.h"
 #include "qgsaiworkspacetrust.h"
 #include "qgsapplication.h"
+#include "qgsfeedback.h"
+#include "qgstaskmanager.h"
 #include "qgsexception.h"
 #include "qgsmaplayer.h"
 #include "qgsmessagelog.h"
@@ -445,10 +447,31 @@ void QgsAiAgentSessionManager::setActiveAgent( const QString &agentName )
   }
 }
 
+QgsAiAgentSessionManager::~QgsAiAgentSessionManager()
+{
+  // Detach before cancelling: cancelling a still-queued task emits taskTerminated
+  // synchronously, and the finish lambda must not dispatch a request from here.
+  // Then wait for the worker so it cannot touch the workspace index (destroyed right
+  // after this manager) — cancel() aborts the embed, so the wait is near-instant.
+  for ( const QPointer<QgsTask> &tracked : std::as_const( mLiveRetrievalTasks ) )
+  {
+    if ( !tracked )
+      continue;
+    QgsTask *task = tracked;
+    if ( mRetrievalTask == task )
+      mRetrievalTask = nullptr;
+    task->cancel();
+    task->waitForFinished( 0 );
+  }
+  mLiveRetrievalTasks.clear();
+}
+
 void QgsAiAgentSessionManager::clearHistory()
 {
   mHistory.clear();
   mAgentMemory.clear();
+  mCachedRetrievalContext.clear();
+  mRetrievalContextMessageId.clear();
 }
 
 bool QgsAiAgentSessionManager::updateMessageMetadata( const QString &messageId, const QVariantMap &metadata )
@@ -491,7 +514,22 @@ bool QgsAiAgentSessionManager::continueAfterToolLimit( const QString &messageId 
 
     mToolIterations = 0;
     emit requestRunningChanged( true );
-    startProviderAttempt( mActiveProvider );
+
+    // The cache is cold after a session reload/restart: recompute rather than
+    // continuing with no retrieved context at all.
+    QString lastUserId;
+    for ( int i = mHistory.size() - 1; i >= 0; --i )
+    {
+      if ( mHistory.at( i ).role == QgsAiChatRole::User )
+      {
+        lastUserId = mHistory.at( i ).id;
+        break;
+      }
+    }
+    if ( !lastUserId.isEmpty() && lastUserId != mRetrievalContextMessageId )
+      beginRetrievalThenDispatch( mActiveProvider );
+    else
+      startProviderAttempt( mActiveProvider );
     return true;
   }
 
@@ -694,6 +732,8 @@ void QgsAiAgentSessionManager::resetCurrentSessionState( bool emitHistorySignal 
   mEmptyErrorRecoveryAttempted = false;
   mSessionUsage = QgsAiUsage();
   mAgentMemory.clear();
+  mCachedRetrievalContext.clear();
+  mRetrievalContextMessageId.clear();
   // Runtime accumulation only (not persisted): the UI resets its usage display.
   emit sessionUsageChanged( mSessionUsage );
   if ( emitHistorySignal )
@@ -818,6 +858,8 @@ void QgsAiAgentSessionManager::loadSession( const QString &sessionId )
   mHistory = mHistoryStore->loadMessages( sessionId );
   mActiveSessionId = sessionId;
   mNextMessageOrdering = mHistoryStore->lastOrdering( sessionId ) + 1;
+  mCachedRetrievalContext.clear();
+  mRetrievalContextMessageId.clear();
   emit historyReplaced();
 }
 
@@ -864,6 +906,22 @@ void QgsAiAgentSessionManager::cancelActiveRequest()
   {
     mAwaitingAgentRunApproval = false;
     completeManagedAgentRun();
+    emit requestStateChanged( u"cancelled"_s, u"Request cancelled by user."_s ); //#spellok
+    emit requestRunningChanged( false );                                         //#spellok
+    return;
+  }
+  if ( mRetrievalTask )
+  {
+    // cancel during the background retrieval phase: mark the in-flight result stale
+    // (its completion handler no-ops on the pointer mismatch) and unlock immediately
+    QgsTask *task = mRetrievalTask;
+    mRetrievalTask = nullptr;
+    mCachedRetrievalContext.clear();
+    mRetrievalContextMessageId.clear();
+    task->cancel();
+    mPendingProviders.clear();
+    if ( mActiveProvider == QgsAiModelRouter::Provider::Plan )
+      completeManagedAgentRun(); // closes an approved run (and its heartbeat) we never dispatched
     emit requestStateChanged( u"cancelled"_s, u"Request cancelled by user."_s ); //#spellok
     emit requestRunningChanged( false );                                         //#spellok
     return;
@@ -1036,7 +1094,8 @@ void QgsAiAgentSessionManager::createManagedAgentRun()
     mAwaitingAgentRunApproval = false;
     if ( mAgentHeartbeatTimer )
       mAgentHeartbeatTimer->start();
-    startProviderAttempt( QgsAiModelRouter::Provider::Plan );
+    // the run is approved now, so retrieval may run before the actual dispatch
+    beginRetrievalThenDispatch( QgsAiModelRouter::Provider::Plan );
   } );
 }
 
@@ -1073,7 +1132,8 @@ void QgsAiAgentSessionManager::approveManagedAgentRun()
     mAwaitingAgentRunApproval = false;
     if ( mAgentHeartbeatTimer )
       mAgentHeartbeatTimer->start();
-    startProviderAttempt( QgsAiModelRouter::Provider::Plan );
+    // the run is approved now, so retrieval may run before the actual dispatch
+    beginRetrievalThenDispatch( QgsAiModelRouter::Provider::Plan );
   } );
 }
 
@@ -1408,7 +1468,9 @@ void QgsAiAgentSessionManager::sendUserMessage( const QString &text, const QList
 
   const QgsAiModelRouter::Provider firstProvider = mPendingProviders.takeFirst();
   emit requestRunningChanged( true );
-  startProviderAttempt( firstProvider );
+  // Strata: workspace-index retrieval runs on a background task; the provider is
+  // dispatched from its completion handler, so the UI never blocks on the query embed
+  beginRetrievalThenDispatch( firstProvider );
 }
 
 void QgsAiAgentSessionManager::setToolRegistry( QgsAiToolRegistry *registry )
@@ -2080,6 +2142,13 @@ QString QgsAiAgentSessionManager::wrapUntrusted( const QString &sourceLabel, con
 
 QString QgsAiAgentSessionManager::formatRetrievedContext( const QList<QgsAiWorkspaceIndex::Chunk> &chunks, int byteCap )
 {
+  const QgsSettings settings;
+  const bool includeLayerWkt = settings.value( u"strata/privacy/include_layer_wkt_in_model_context"_s, false ).toBool();
+  return formatRetrievedContext( chunks, byteCap, includeLayerWkt );
+}
+
+QString QgsAiAgentSessionManager::formatRetrievedContext( const QList<QgsAiWorkspaceIndex::Chunk> &chunks, int byteCap, bool includeLayerWkt )
+{
   if ( chunks.isEmpty() )
     return QString();
 
@@ -2114,8 +2183,6 @@ QString QgsAiAgentSessionManager::formatRetrievedContext( const QList<QgsAiWorks
     }
 
     QString content = c.text;
-    QgsSettings settings;
-    const bool includeLayerWkt = settings.value( u"strata/privacy/include_layer_wkt_in_model_context"_s, false ).toBool();
     if ( includeLayerWkt && !c.wktBlob.isEmpty() )
     {
       const QByteArray wkts = qUncompress( c.wktBlob );
@@ -2139,61 +2206,185 @@ QString QgsAiAgentSessionManager::formatRetrievedContext( const QList<QgsAiWorks
   return out;
 }
 
-QString QgsAiAgentSessionManager::retrieveContextForLastUserMessage() const
+namespace
 {
+  /**
+   * The blocking part of workspace retrieval: index load, cosine search and
+   * formatting. Runs on a QgsAiRetrievalTask worker thread — SQLite access uses
+   * per-thread connections and the embedding providers are worker-safe (both are
+   * already exercised by the reindex tasks).
+   */
+  QString retrievalContextBlocking( QgsAiWorkspaceIndex *index, const QString &query, bool includeLayerWkt, QgsFeedback *feedback )
+  {
+    // Force the on-disk SQLite store into mCache before trusting status().
+    // On a fresh QGIS session the cache is empty until ensureLoaded() runs,
+    // and we'd skip retrieval silently while the index has thousands of chunks.
+    index->ensureLoaded();
+    const auto status = index->status();
+    QgsMessageLog::
+      logMessage( u"Retrieval: queryChars=%1 indexChunks=%2 (file=%3 layer=%4)"_s.arg( query.size() ).arg( status.chunkCount ).arg( status.fileChunkCount ).arg( status.layerChunkCount ), u"AI/Index"_s, Qgis::MessageLevel::Info, false );
+
+    if ( status.chunkCount == 0 )
+      return QString();
+
+    QString err;
+    const QList<QgsAiWorkspaceIndex::Chunk> hits = index->search( query, QgsAiAgentSessionManager::RETRIEVAL_TOP_K, &err, feedback );
+    QgsMessageLog::logMessage( u"Retrieval: hits=%1 err=%2"_s.arg( hits.size() ).arg( err.isEmpty() ? u"(none)"_s : err ), u"AI/Index"_s, Qgis::MessageLevel::Info, false );
+
+    if ( hits.isEmpty() )
+      return QString();
+
+    const QString formatted = QgsAiAgentSessionManager::formatRetrievedContext( hits, QgsAiAgentSessionManager::RETRIEVAL_BYTE_CAP, includeLayerWkt );
+    QgsMessageLog::logMessage( u"Retrieval: injected %1 bytes of context"_s.arg( formatted.size() ), u"AI/Index"_s, Qgis::MessageLevel::Info, false );
+    return formatted;
+  }
+
+  /**
+   * Background task computing the retrieved-context block for one chat turn, so the
+   * main thread never waits on the query embedding (which may be a remote HTTP call).
+   */
+  class QgsAiRetrievalTask final : public QgsTask
+  {
+    public:
+      QgsAiRetrievalTask( QgsAiWorkspaceIndex *index, const QString &query, bool includeLayerWkt )
+        : QgsTask( QObject::tr( "Retrieve AI chat context" ), QgsTask::CanCancel | QgsTask::CancelWithoutPrompt | QgsTask::Hidden )
+        , mIndex( index )
+        , mQuery( query )
+        , mIncludeLayerWkt( includeLayerWkt )
+      {}
+
+      QString contextText() const { return mContextText; }
+
+      //! TRUE once cancel() was requested (QgsTask::isCanceled() is protected).
+      bool wasCancelled() const { return mFeedback.isCanceled(); }
+
+      void cancel() override
+      {
+        // aborts the (possibly remote) query embedding, so the provider lock is
+        // released immediately instead of being held for the whole network timeout
+        mFeedback.cancel();
+        QgsTask::cancel();
+      }
+
+    protected:
+      bool run() override
+      {
+        if ( !mIndex )
+          return false;
+        if ( isCanceled() )
+        {
+          mIndex->closeDatabaseConnectionForCurrentThread();
+          return false;
+        }
+
+        mContextText = retrievalContextBlocking( mIndex, mQuery, mIncludeLayerWkt, &mFeedback );
+        mIndex->closeDatabaseConnectionForCurrentThread();
+        return !isCanceled();
+      }
+
+    private:
+      QPointer<QgsAiWorkspaceIndex> mIndex; // main-thread QObject: methods only, never signals
+      QString mQuery;
+      bool mIncludeLayerWkt = false;
+      QString mContextText;
+      QgsFeedback mFeedback;
+  };
+} // namespace
+
+void QgsAiAgentSessionManager::beginRetrievalThenDispatch( QgsAiModelRouter::Provider firstProvider )
+{
+  mCachedRetrievalContext.clear();
+  mRetrievalContextMessageId.clear();
+
+  // Managed runs must reach their approval gate before any egress: dispatch straight
+  // through, and retrieval runs after the run is approved (see createManagedAgentRun).
+  if ( needsManagedTaskApproval( firstProvider ) )
+  {
+    startProviderAttempt( firstProvider );
+    return;
+  }
+
+  // synchronous skips, preserving today's behavior and log lines for every case
+  // where retrieval is not applicable
   if ( !mWorkspaceIndex )
   {
     QgsMessageLog::logMessage( u"Retrieval: mWorkspaceIndex is null — skipping."_s, u"AI/Index"_s, Qgis::MessageLevel::Info, false );
-    return QString();
+    startProviderAttempt( firstProvider );
+    return;
   }
   if ( mHistory.isEmpty() )
   {
     QgsMessageLog::logMessage( u"Retrieval: history is empty — skipping."_s, u"AI/Index"_s, Qgis::MessageLevel::Info, false );
-    return QString();
+    startProviderAttempt( firstProvider );
+    return;
   }
 
   // Find the most recent user message — the one we are about to answer.
   QString query;
+  QString queryMessageId;
   for ( int i = mHistory.size() - 1; i >= 0; --i )
   {
     if ( mHistory.at( i ).role == QgsAiChatRole::User )
     {
       query = mHistory.at( i ).content;
+      queryMessageId = mHistory.at( i ).id;
       break;
     }
   }
   if ( query.trimmed().isEmpty() )
   {
     QgsMessageLog::logMessage( u"Retrieval: no user message found in history — skipping."_s, u"AI/Index"_s, Qgis::MessageLevel::Info, false );
-    return QString();
+    startProviderAttempt( firstProvider );
+    return;
   }
   if ( !mWorkspaceIndex->embeddingProviderAvailable() )
   {
     QgsMessageLog::logMessage( u"Retrieval: embedding provider unavailable; skipping."_s, u"AI/Index"_s, Qgis::MessageLevel::Info, false );
-    return QString();
+    startProviderAttempt( firstProvider );
+    return;
   }
 
-  // Force the on-disk SQLite store into mCache before trusting status().
-  // On a fresh QGIS session the cache is empty until ensureLoaded() runs,
-  // and we'd skip retrieval silently while the index has thousands of chunks.
-  mWorkspaceIndex->ensureLoaded();
-  const auto status = mWorkspaceIndex->status();
-  QgsMessageLog::
-    logMessage( u"Retrieval: queryChars=%1 indexChunks=%2 (file=%3 layer=%4)"_s.arg( query.size() ).arg( status.chunkCount ).arg( status.fileChunkCount ).arg( status.layerChunkCount ), u"AI/Index"_s, Qgis::MessageLevel::Info, false );
+  mRetrievalContextMessageId = queryMessageId;
+  const QgsSettings settings;
+  const bool includeLayerWkt = settings.value( u"strata/privacy/include_layer_wkt_in_model_context"_s, false ).toBool();
 
-  if ( status.chunkCount == 0 )
-    return QString();
+  QgsTaskManager *taskManager = QgsApplication::taskManager();
+  if ( !taskManager )
+  {
+    // headless fallback (tests): compute synchronously, same result
+    mCachedRetrievalContext = retrievalContextBlocking( mWorkspaceIndex, query, includeLayerWkt, nullptr );
+    startProviderAttempt( firstProvider );
+    return;
+  }
 
-  QString err;
-  const QList<QgsAiWorkspaceIndex::Chunk> hits = mWorkspaceIndex->search( query, RETRIEVAL_TOP_K, &err );
-  QgsMessageLog::logMessage( u"Retrieval: hits=%1 err=%2"_s.arg( hits.size() ).arg( err.isEmpty() ? u"(none)"_s : err ), u"AI/Index"_s, Qgis::MessageLevel::Info, false );
+  QgsAiRetrievalTask *task = new QgsAiRetrievalTask( mWorkspaceIndex, query, includeLayerWkt );
+  mRetrievalTask = task;
+  mLiveRetrievalTasks.removeIf( []( const QPointer<QgsTask> &t ) { return t.isNull(); } );
+  mLiveRetrievalTasks.append( task );
+  emit requestStateChanged( u"retrieving"_s, tr( "Searching workspace index…" ) );
 
-  if ( hits.isEmpty() )
-    return QString();
-
-  const QString formatted = formatRetrievedContext( hits, RETRIEVAL_BYTE_CAP );
-  QgsMessageLog::logMessage( u"Retrieval: injected %1 bytes of context"_s.arg( formatted.size() ), u"AI/Index"_s, Qgis::MessageLevel::Info, false );
-  return formatted;
+  const auto finish = [this, task, firstProvider]() {
+    if ( mRetrievalTask != task )
+      return; // cancelled or superseded: ignore the late result
+    mRetrievalTask = nullptr;
+    if ( task->wasCancelled() )
+    {
+      // cancelled through the task manager (e.g. "cancel all" on shutdown): unlock the
+      // UI instead of dispatching a request the user never asked to keep running
+      mCachedRetrievalContext.clear();
+      mRetrievalContextMessageId.clear();
+      mPendingProviders.clear();
+      emit requestStateChanged( u"cancelled"_s, u"Request cancelled."_s ); //#spellok
+      emit requestRunningChanged( false );                                 //#spellok
+      return;
+    }
+    // empty on failure → dispatch anyway, matching today's log-and-continue behavior
+    mCachedRetrievalContext = task->contextText();
+    startProviderAttempt( firstProvider );
+  };
+  connect( task, &QgsTask::taskCompleted, this, finish );
+  connect( task, &QgsTask::taskTerminated, this, finish );
+  taskManager->addTask( task, 0 );
 }
 
 QString QgsAiAgentSessionManager::processingScriptsFolder()
@@ -2309,7 +2500,9 @@ QList<QgsAiChatMessage> QgsAiAgentSessionManager::buildOutgoingMessages() const
   QgsAiChatMessage systemMessage;
   systemMessage.id = QUuid::createUuid().toString( QUuid::WithoutBraces );
   systemMessage.role = QgsAiChatRole::System;
-  QString extraContext = retrieveContextForLastUserMessage();
+  // Strata: retrieval runs once per turn on a background task (beginRetrievalThenDispatch);
+  // every provider round reuses the cached block instead of re-embedding the query
+  QString extraContext = mCachedRetrievalContext;
   const QString gisHealth = QgsAiGisSuggestionEngine::promptHealthBlockForProject( QgsProject::instance() );
   if ( !gisHealth.isEmpty() )
     extraContext = extraContext.isEmpty() ? gisHealth : gisHealth + u"\n"_s + extraContext;

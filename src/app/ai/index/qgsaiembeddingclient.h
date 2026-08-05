@@ -40,6 +40,8 @@ using namespace Qt::StringLiterals;
  * Not used by the default workspace index path. Local/on-device embeddings are
  * represented by QgsAiEmbeddingProvider implementations.
  */
+class QgsFeedback;
+
 class APP_EXPORT QgsAiEmbeddingClient : public QObject
 {
     Q_OBJECT
@@ -97,13 +99,13 @@ class APP_EXPORT QgsAiEmbeddingClient : public QObject
      * keep payloads under 1 MB. Default batch size is 64.
      */
     bool embed( const QStringList &texts, QList<QVector<float>> &out, QString *errorMessage = nullptr, int maxBatch = 64 );
-    bool embedWithRole( const QStringList &texts, const QString &role, QList<QVector<float>> &out, QString *errorMessage = nullptr, int maxBatch = 64 );
+    bool embedWithRole( const QStringList &texts, const QString &role, QList<QVector<float>> &out, QString *errorMessage = nullptr, int maxBatch = 64, QgsFeedback *feedback = nullptr );
 
   private:
     QString apiKey() const;
-    bool embedBatch( const QStringList &batch, const QString &role, QList<QVector<float>> &out, QString *errorMessage );
-    //! One blocking HTTP round trip. Outputs status/body/network error and the parsed Retry-After seconds (-1 when absent).
-    bool performRequest( const QByteArray &payload, const QString &key, int &httpStatus, QByteArray &body, int &networkError, int &retryAfterSeconds, QString *errorMessage );
+    bool embedBatch( const QStringList &batch, const QString &role, QList<QVector<float>> &out, QString *errorMessage, QgsFeedback *feedback );
+    //! One blocking HTTP round trip. Outputs status/body/network error and the parsed Retry-After seconds (-1 when absent). Cancelling \a feedback aborts the request.
+    bool performRequest( const QByteArray &payload, const QString &key, int &httpStatus, QByteArray &body, int &networkError, int &retryAfterSeconds, QString *errorMessage, QgsFeedback *feedback );
 
     QString mModelOverride;
     QString mEndpointOverride;

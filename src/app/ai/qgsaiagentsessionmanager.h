@@ -26,6 +26,7 @@
 
 #include <QList>
 #include <QObject>
+#include <QPointer>
 #include <QString>
 #include <QVariantList>
 
@@ -34,6 +35,7 @@ using namespace Qt::StringLiterals;
 class QgsAiFileContextProvider;
 class QgsAiReviewPatchEngine;
 class QgsAiToolRegistry;
+class QgsTask;
 class QTimer;
 
 struct APP_EXPORT QgsAiChatContextFile
@@ -80,6 +82,7 @@ class APP_EXPORT QgsAiAgentSessionManager : public QObject
 
   public:
     explicit QgsAiAgentSessionManager( QgsAiModelRouter *router, QgsAiFileContextProvider *contextProvider, QgsAiReviewPatchEngine *reviewEngine, QObject *parent = nullptr );
+    ~QgsAiAgentSessionManager() override;
 
     QStringList availableAgents() const;
     QString activeAgent() const { return mActiveAgent; }
@@ -157,7 +160,7 @@ class APP_EXPORT QgsAiAgentSessionManager : public QObject
     void sendUserMessage( const QString &text, const QList<QgsAiChatContextFile> &contextFiles );
     bool continueAfterToolLimit( const QString &messageId );
     void cancelActiveRequest();
-    bool hasActiveRequest() const { return !mActiveRequestId.isEmpty() || mAwaitingAgentRunApproval; }
+    bool hasActiveRequest() const { return !mActiveRequestId.isEmpty() || mAwaitingAgentRunApproval || !mRetrievalTask.isNull(); }
 
     /**
      * Appends \a message to the in-memory (and persistent) history without starting a model
@@ -198,6 +201,12 @@ class APP_EXPORT QgsAiAgentSessionManager : public QObject
      * unit-testing the formatting in isolation.
      */
     static QString formatRetrievedContext( const QList<QgsAiWorkspaceIndex::Chunk> &chunks, int byteCap = RETRIEVAL_BYTE_CAP );
+
+    /**
+     * Overload taking the layer-WKT privacy setting explicitly, so the rendering can
+     * run on a worker thread with the setting captured on the main thread.
+     */
+    static QString formatRetrievedContext( const QList<QgsAiWorkspaceIndex::Chunk> &chunks, int byteCap, bool includeLayerWkt );
 
     /**
      * Wraps untrusted content (RAG chunks, file snippets, free-text tool output)
@@ -297,7 +306,14 @@ class APP_EXPORT QgsAiAgentSessionManager : public QObject
     bool tryBuildPatchProposal( const QString &text, QgsAiPatchProposal &proposal ) const;
     QString buildSystemPrompt( const QString &extraContext = QString() ) const;
     QString formatAgentMemoryForPrompt() const;
-    QString retrieveContextForLastUserMessage() const;
+
+    /**
+     * Runs workspace-index retrieval for the last user message on a background task,
+     * caches the resulting context block, then dispatches \a firstProvider. When
+     * retrieval is not applicable (no index, unavailable provider, empty history)
+     * the dispatch happens synchronously with an empty cache, exactly like today.
+     */
+    void beginRetrievalThenDispatch( QgsAiModelRouter::Provider firstProvider );
     QStringList allowedToolsForActiveAgent() const;
     bool isToolAllowedForActiveAgent( const QString &toolName ) const;
     void refreshRouterToolPolicy();
@@ -353,6 +369,14 @@ class APP_EXPORT QgsAiAgentSessionManager : public QObject
     QgsAiAgentBehaviorSettings mBehaviorSettings;
     QgsAiManagedAgentPolicy mManagedAgentPolicy;
     QgsAiWorkspaceIndex *mWorkspaceIndex = nullptr;
+    //! Retrieved-context block for the current turn; computed once per user message.
+    QString mCachedRetrievalContext;
+    //! Id of the user message mCachedRetrievalContext was computed for.
+    QString mRetrievalContextMessageId;
+    //! Non-null exactly while a background retrieval task is in flight.
+    QPointer<QgsTask> mRetrievalTask;
+    //! Every spawned retrieval task still alive, including ones detached by a cancel.
+    QList<QPointer<QgsTask>> mLiveRetrievalTasks;
     QgsAiChatHistoryStore *mHistoryStore = nullptr;
     QString mActiveSessionId;
     int mNextMessageOrdering = 0;

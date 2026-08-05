@@ -28,6 +28,7 @@
 
 class QgsAiEmbeddingProvider;
 class QgsAiFileContextProvider;
+class QgsFeedback;
 
 /**
  * Lightweight retrieval index over the user's workspace. The model uses this
@@ -161,7 +162,14 @@ class APP_EXPORT QgsAiWorkspaceIndex : public QObject
     /**
      * Embeds \a query and returns the top-\a k chunks by cosine similarity.
      */
-    QList<Chunk> search( const QString &query, int k, QString *errorMessage = nullptr );
+    /**
+     * Runs a cosine similarity search for \a query, returning the best \a k chunks.
+     *
+     * Cancelling \a feedback aborts the (possibly remote) query embedding, so callers
+     * running on a worker thread stop holding the provider lock as soon as they are
+     * cancelled instead of waiting for the network timeout.
+     */
+    virtual QList<Chunk> search( const QString &query, int k, QString *errorMessage = nullptr, QgsFeedback *feedback = nullptr );
 
     /**
      * Builds chunks for every layer in the active QgsProject (vectors + rasters),

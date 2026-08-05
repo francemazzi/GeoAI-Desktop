@@ -19,6 +19,7 @@
 
 #include "ai/qgsaimodelrouter.h"
 #include "ai/qgsaisecretstore.h"
+#include "qgsfeedback.h"
 #include "qgsmessagelog.h"
 #include "qgsnetworkaccessmanager.h"
 #include "qgssettings.h"
@@ -146,7 +147,7 @@ bool QgsAiEmbeddingClient::embed( const QStringList &texts, QList<QVector<float>
   return embedWithRole( texts, u"passage"_s, out, errorMessage, maxBatch );
 }
 
-bool QgsAiEmbeddingClient::embedWithRole( const QStringList &texts, const QString &role, QList<QVector<float>> &out, QString *errorMessage, int maxBatch )
+bool QgsAiEmbeddingClient::embedWithRole( const QStringList &texts, const QString &role, QList<QVector<float>> &out, QString *errorMessage, int maxBatch, QgsFeedback *feedback )
 {
   out.clear();
   if ( texts.isEmpty() )
@@ -155,9 +156,15 @@ bool QgsAiEmbeddingClient::embedWithRole( const QStringList &texts, const QStrin
   const int batchSize = std::clamp( maxBatch, 1, 256 );
   for ( int i = 0; i < texts.size(); i += batchSize )
   {
+    if ( feedback && feedback->isCanceled() )
+    {
+      if ( errorMessage )
+        *errorMessage = u"Embeddings request cancelled."_s;
+      return false;
+    }
     const QStringList batch = texts.mid( i, batchSize );
     QList<QVector<float>> batchOut;
-    if ( !embedBatch( batch, role, batchOut, errorMessage ) )
+    if ( !embedBatch( batch, role, batchOut, errorMessage, feedback ) )
       return false;
     if ( batchOut.size() != batch.size() )
     {
@@ -170,8 +177,15 @@ bool QgsAiEmbeddingClient::embedWithRole( const QStringList &texts, const QStrin
   return true;
 }
 
-bool QgsAiEmbeddingClient::performRequest( const QByteArray &payload, const QString &key, int &httpStatus, QByteArray &body, int &networkError, int &retryAfterSeconds, QString *errorMessage )
+bool QgsAiEmbeddingClient::performRequest( const QByteArray &payload, const QString &key, int &httpStatus, QByteArray &body, int &networkError, int &retryAfterSeconds, QString *errorMessage, QgsFeedback *feedback )
 {
+  if ( feedback && feedback->isCanceled() )
+  {
+    if ( errorMessage )
+      *errorMessage = u"Embeddings request cancelled."_s;
+    return false;
+  }
+
   QgsNetworkAccessManager *nam = QgsNetworkAccessManager::instance();
   if ( !nam )
   {
@@ -199,10 +213,17 @@ bool QgsAiEmbeddingClient::performRequest( const QByteArray &payload, const QStr
     return false;
   }
 
-  // Block until finished. setTransferTimeout above guards against hangs.
+  // Block until finished. setTransferTimeout above guards against hangs, and a
+  // cancelled feedback aborts the reply so callers (e.g. a cancelled retrieval task)
+  // stop waiting immediately instead of holding locks for the whole timeout.
   QEventLoop loop;
   connect( reply, &QNetworkReply::finished, &loop, &QEventLoop::quit );
+  QMetaObject::Connection abortConnection;
+  if ( feedback )
+    abortConnection = connect( feedback, &QgsFeedback::canceled, reply, &QNetworkReply::abort );
   loop.exec();
+  if ( abortConnection )
+    disconnect( abortConnection );
 
   httpStatus = reply->attribute( QNetworkRequest::HttpStatusCodeAttribute ).toInt();
   body = reply->readAll();
@@ -219,7 +240,7 @@ bool QgsAiEmbeddingClient::performRequest( const QByteArray &payload, const QStr
   return true;
 }
 
-bool QgsAiEmbeddingClient::embedBatch( const QStringList &batch, const QString &role, QList<QVector<float>> &out, QString *errorMessage )
+bool QgsAiEmbeddingClient::embedBatch( const QStringList &batch, const QString &role, QList<QVector<float>> &out, QString *errorMessage, QgsFeedback *feedback )
 {
   const QString providerName = provider() == Provider::StrataCloud ? u"Strata Cloud"_s : provider() == Provider::OpenRouter ? u"OpenRouter"_s : u"OpenAI"_s;
 
@@ -269,19 +290,30 @@ bool QgsAiEmbeddingClient::embedBatch( const QStringList &batch, const QString &
   QByteArray body;
   int networkError = 0;
   int retryAfterSeconds = -1;
-  if ( !performRequest( payloadBytes, key, httpStatus, body, networkError, retryAfterSeconds, errorMessage ) )
+  if ( !performRequest( payloadBytes, key, httpStatus, body, networkError, retryAfterSeconds, errorMessage, feedback ) )
     return false;
 
   // One retry for transient failures (408/429/5xx), honoring Retry-After when present.
   const bool transientFailure = httpStatus == 408 || httpStatus == 429 || ( httpStatus >= 500 && httpStatus <= 599 );
-  if ( transientFailure )
+  if ( transientFailure && !( feedback && feedback->isCanceled() ) )
   {
     const int delayMs = retryAfterSeconds >= 0 ? std::min( retryAfterSeconds, 10 ) * 1000 : 1000;
     QgsMessageLog::logMessage( u"Embeddings request hit HTTP %1; retrying once in %2 ms."_s.arg( httpStatus ).arg( delayMs ), u"AI/Index"_s, Qgis::MessageLevel::Info, false );
     QEventLoop waitLoop;
     QTimer::singleShot( delayMs, &waitLoop, &QEventLoop::quit );
+    QMetaObject::Connection waitAbort;
+    if ( feedback )
+      waitAbort = connect( feedback, &QgsFeedback::canceled, &waitLoop, &QEventLoop::quit );
     waitLoop.exec();
-    if ( !performRequest( payloadBytes, key, httpStatus, body, networkError, retryAfterSeconds, errorMessage ) )
+    if ( waitAbort )
+      disconnect( waitAbort );
+    if ( feedback && feedback->isCanceled() )
+    {
+      if ( errorMessage )
+        *errorMessage = u"Embeddings request cancelled."_s;
+      return false;
+    }
+    if ( !performRequest( payloadBytes, key, httpStatus, body, networkError, retryAfterSeconds, errorMessage, feedback ) )
       return false;
   }
 

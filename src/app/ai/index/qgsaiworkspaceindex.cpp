@@ -24,6 +24,7 @@
 #include "qgsaifilecontextprovider.h"
 #include "qgsailayerchunker.h"
 #include "qgsapplication.h"
+#include "qgsfeedback.h"
 #include "qgsmaplayer.h"
 #include "qgsmessagelog.h"
 #include "qgsproject.h"
@@ -1074,7 +1075,7 @@ bool QgsAiWorkspaceIndex::reindex( const QList<WorkspaceFileSnapshot> &snapshot,
   return true;
 }
 
-QList<QgsAiWorkspaceIndex::Chunk> QgsAiWorkspaceIndex::search( const QString &query, int k, QString *errorMessage )
+QList<QgsAiWorkspaceIndex::Chunk> QgsAiWorkspaceIndex::search( const QString &query, int k, QString *errorMessage, QgsFeedback *feedback )
 {
   QList<Chunk> results;
   if ( query.trimmed().isEmpty() )
@@ -1085,6 +1086,13 @@ QList<QgsAiWorkspaceIndex::Chunk> QgsAiWorkspaceIndex::search( const QString &qu
   }
 
   QMutexLocker providerLocker( &mProviderUseMutex );
+  if ( feedback && feedback->isCanceled() )
+  {
+    // cancelled while waiting for the provider lock: don't start a new embed
+    if ( errorMessage )
+      *errorMessage = u"Search cancelled."_s;
+    return results;
+  }
   if ( !ensureEmbeddingProviderAvailable( mEmbeddingProvider, errorMessage ) )
     return results;
 
@@ -1106,7 +1114,11 @@ QList<QgsAiWorkspaceIndex::Chunk> QgsAiWorkspaceIndex::search( const QString &qu
   QList<QVector<float>> qEmb;
   QgsAiEmbeddingOptions options;
   options.maxBatch = 1;
+  options.feedback = feedback;
   if ( !mEmbeddingProvider->embed( qList, QgsAiEmbeddingRole::Query, qEmb, errorMessage, options ) || qEmb.isEmpty() )
+    return results;
+
+  if ( feedback && feedback->isCanceled() )
     return results;
 
   const QVector<float> &qVec = qEmb.first();

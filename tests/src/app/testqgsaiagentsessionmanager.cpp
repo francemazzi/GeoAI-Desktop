@@ -32,7 +32,11 @@
 #include <QPdfWriter>
 #include <QScopeGuard>
 #include <QSet>
+#include "qgstaskmanager.h"
+
+#include <QAtomicInt>
 #include <QSignalSpy>
+#include <QThread>
 #include <QString>
 #include <QTemporaryDir>
 #include <QVector>
@@ -148,6 +152,75 @@ namespace
       router.setProviderSettings( provider, settings );
     }
   }
+
+  /**
+   * Instant deterministic embedding provider with an embed-call counter, an optional
+   * artificial delay (to test cancellation during a slow background retrieval) and a
+   * failure switch. Modeled on FakeEmbeddingProvider in testqgsaiworkspaceindex.cpp.
+   */
+  class CountingEmbeddingProvider : public QgsAiEmbeddingProvider
+  {
+    public:
+      QString providerId() const override { return u"fake-counting"_s; }
+      QString displayName() const override { return u"Counting fake embeddings"_s; }
+      bool isAvailable( QString *errorMessage = nullptr ) const override
+      {
+        Q_UNUSED( errorMessage )
+        return true;
+      }
+
+      bool embed( const QStringList &texts, QList<QVector<float>> &out, QString *errorMessage = nullptr, int maxBatch = 64 ) override
+      {
+        Q_UNUSED( maxBatch )
+        mEmbedCalls.fetchAndAddOrdered( 1 );
+        if ( mSleepMs > 0 )
+          QThread::msleep( mSleepMs );
+        if ( mFailEmbeds )
+        {
+          if ( errorMessage )
+            *errorMessage = u"forced embed failure"_s;
+          return false;
+        }
+        out.clear();
+        for ( const QString &text : texts )
+        {
+          QVector<float> v( 3 );
+          v[0] = text.contains( u"alpha"_s, Qt::CaseInsensitive ) ? 1.0f : 0.0f;
+          v[1] = text.contains( u"beta"_s, Qt::CaseInsensitive ) ? 1.0f : 0.0f;
+          v[2] = 0.1f;
+          out.append( v );
+        }
+        return true;
+      }
+
+      QAtomicInt mEmbedCalls;
+      int mSleepMs = 0;
+      bool mFailEmbeds = false;
+  };
+
+  //! Seeds \a index with two file chunks so retrieval has something to find.
+  bool seedIndexWithChunks( QgsAiWorkspaceIndex &index )
+  {
+    QList<QgsAiWorkspaceIndex::Chunk> chunks;
+    QList<QVector<float>> embeddings;
+
+    QgsAiWorkspaceIndex::Chunk alpha;
+    alpha.sourceType = QString::fromLatin1( QgsAiWorkspaceIndex::SOURCE_TYPE_FILE );
+    alpha.relativePath = u"docs/alpha.md"_s;
+    alpha.chunkIndex = 0;
+    alpha.text = u"alpha content"_s;
+    chunks << alpha;
+    embeddings << QVector<float> { 1.0f, 0.0f, 0.1f };
+
+    QgsAiWorkspaceIndex::Chunk beta = alpha;
+    beta.relativePath = u"docs/beta.md"_s;
+    beta.text = u"beta content"_s;
+    chunks << beta;
+    embeddings << QVector<float> { 0.0f, 1.0f, 0.1f };
+
+    QString err;
+    return index.persistChunks( chunks, embeddings, QgsAiWorkspaceIndex::ReplaceScope::All, QString(), &err );
+  }
 } // namespace
 
 class TestQgsAiAgentSessionManager : public QObject
@@ -190,6 +263,11 @@ class TestQgsAiAgentSessionManager : public QObject
     void formatRetrievedContextRendersFileAndLayerHeaders();
     void formatRetrievedContextTruncatesOverBudget();
     void retrievalSkippedWithoutWorkspaceIndex();
+    void asyncRetrievalPopulatesCacheAndDispatches();
+    void retrievalCacheReusedAcrossProviderRounds();
+    void cancelDuringSlowRetrievalLeavesManagerIdle();
+    void taskManagerCancelDoesNotDispatchRequest();
+    void retrievalFailureStillDispatches();
     void preDispatchFailureUnlocksRunningState();
     void fallbackPreDispatchFailuresAreDrained();
     void sendWithoutConfiguredProvidersFailsActionably();
@@ -1596,6 +1674,237 @@ void TestQgsAiAgentSessionManager::retrievalSkippedWithoutWorkspaceIndex()
   // Re-send: no crash, no error. Retrieval must not attempt embeddings when
   // the local embedding provider is unavailable.
   manager.sendUserMessage( u"second"_s );
+}
+
+void TestQgsAiAgentSessionManager::asyncRetrievalPopulatesCacheAndDispatches()
+{
+  clearProviderSettings();
+
+  QTemporaryDir tempDir;
+  QVERIFY( tempDir.isValid() );
+
+  QgsAiModelRouter router;
+  forceProviderPreDispatchFailures( router );
+
+  QgsAiFileContextProvider contextProvider( tempDir.path() );
+  QgsAiReviewPatchEngine reviewEngine;
+  QgsAiAgentSessionManager manager( &router, &contextProvider, &reviewEngine );
+
+  CountingEmbeddingProvider provider;
+  QgsAiWorkspaceIndex index( &contextProvider, &provider );
+  QVERIFY( seedIndexWithChunks( index ) );
+  manager.setWorkspaceIndex( &index );
+
+  QSignalSpy runningSpy( &manager, &QgsAiAgentSessionManager::requestRunningChanged );
+  QSignalSpy stateSpy( &manager, &QgsAiAgentSessionManager::requestStateChanged );
+
+  manager.sendUserMessage( u"tell me about alpha"_s );
+
+  // the retrieval phase counts as an active request and the UI is unlocked at the end
+  QVERIFY( manager.hasActiveRequest() );
+  QCOMPARE( runningSpy.first().at( 0 ).toBool(), true );
+  QTRY_VERIFY_WITH_TIMEOUT( !manager.hasActiveRequest(), 15000 );
+  QCOMPARE( runningSpy.last().at( 0 ).toBool(), false );
+
+  // "retrieving" is reported before the first dispatch attempt
+  int retrievingIndex = -1;
+  int sendingIndex = -1;
+  for ( int i = 0; i < stateSpy.count(); i++ )
+  {
+    const QString state = stateSpy.at( i ).at( 0 ).toString();
+    if ( state == "retrieving"_L1 && retrievingIndex < 0 )
+      retrievingIndex = i;
+    if ( state == "sending"_L1 && sendingIndex < 0 )
+      sendingIndex = i;
+  }
+  QVERIFY( retrievingIndex >= 0 );
+  QVERIFY( sendingIndex > retrievingIndex );
+
+  QCOMPARE( provider.mEmbedCalls.loadAcquire(), 1 );
+
+  clearProviderSettings();
+}
+
+void TestQgsAiAgentSessionManager::retrievalCacheReusedAcrossProviderRounds()
+{
+  clearProviderSettings();
+
+  QTemporaryDir tempDir;
+  QVERIFY( tempDir.isValid() );
+
+  QgsAiModelRouter router;
+  forceProviderPreDispatchFailures( router );
+
+  QgsAiFileContextProvider contextProvider( tempDir.path() );
+  QgsAiReviewPatchEngine reviewEngine;
+  QgsAiAgentSessionManager manager( &router, &contextProvider, &reviewEngine );
+
+  CountingEmbeddingProvider provider;
+  QgsAiWorkspaceIndex index( &contextProvider, &provider );
+  QVERIFY( seedIndexWithChunks( index ) );
+  manager.setWorkspaceIndex( &index );
+
+  QSignalSpy stateSpy( &manager, &QgsAiAgentSessionManager::requestStateChanged );
+
+  // the pre-dispatch failure chain drains the whole provider fallback list: every
+  // round calls buildOutgoingMessages, but the query must be embedded exactly once
+  manager.sendUserMessage( u"alpha question"_s );
+  QTRY_VERIFY_WITH_TIMEOUT( !manager.hasActiveRequest(), 15000 );
+
+  bool sawRetrying = false;
+  for ( const QList<QVariant> &args : stateSpy )
+  {
+    if ( args.at( 0 ).toString() == "retrying"_L1 )
+      sawRetrying = true;
+  }
+  QVERIFY( sawRetrying );
+  QCOMPARE( provider.mEmbedCalls.loadAcquire(), 1 );
+
+  // a new turn re-embeds exactly once more
+  manager.sendUserMessage( u"beta question"_s );
+  QTRY_VERIFY_WITH_TIMEOUT( !manager.hasActiveRequest(), 15000 );
+  QCOMPARE( provider.mEmbedCalls.loadAcquire(), 2 );
+
+  clearProviderSettings();
+}
+
+void TestQgsAiAgentSessionManager::cancelDuringSlowRetrievalLeavesManagerIdle()
+{
+  clearProviderSettings();
+
+  QTemporaryDir tempDir;
+  QVERIFY( tempDir.isValid() );
+
+  QgsAiModelRouter router;
+  forceProviderPreDispatchFailures( router );
+
+  QgsAiFileContextProvider contextProvider( tempDir.path() );
+  QgsAiReviewPatchEngine reviewEngine;
+  QgsAiAgentSessionManager manager( &router, &contextProvider, &reviewEngine );
+
+  CountingEmbeddingProvider provider;
+  provider.mSleepMs = 400;
+  QgsAiWorkspaceIndex index( &contextProvider, &provider );
+  QVERIFY( seedIndexWithChunks( index ) );
+  manager.setWorkspaceIndex( &index );
+
+  QSignalSpy runningSpy( &manager, &QgsAiAgentSessionManager::requestRunningChanged );
+  QSignalSpy stateSpy( &manager, &QgsAiAgentSessionManager::requestStateChanged );
+
+  manager.sendUserMessage( u"slow alpha"_s );
+  QVERIFY( manager.hasActiveRequest() );
+
+  manager.cancelActiveRequest();
+  QVERIFY( !manager.hasActiveRequest() );
+  QCOMPARE( runningSpy.last().at( 0 ).toBool(), false );
+
+  // let the stale worker land: its result must be ignored, no dispatch may happen
+  QTest::qWait( 900 );
+  bool sawCancelled = false;
+  for ( const QList<QVariant> &args : stateSpy )
+  {
+    const QString state = args.at( 0 ).toString();
+    QVERIFY( state != "sending"_L1 );
+    if ( state == "cancelled"_L1 )
+      sawCancelled = true;
+  }
+  QVERIFY( sawCancelled );
+
+  // a message sent after the cancel starts a fresh turn and completes
+  const int embedsBefore = provider.mEmbedCalls.loadAcquire();
+  provider.mSleepMs = 0;
+  manager.sendUserMessage( u"after cancel"_s );
+  QTRY_VERIFY_WITH_TIMEOUT( !manager.hasActiveRequest(), 15000 );
+  QVERIFY( provider.mEmbedCalls.loadAcquire() > embedsBefore );
+
+  clearProviderSettings();
+}
+
+void TestQgsAiAgentSessionManager::taskManagerCancelDoesNotDispatchRequest()
+{
+  clearProviderSettings();
+
+  QTemporaryDir tempDir;
+  QVERIFY( tempDir.isValid() );
+
+  QgsAiModelRouter router;
+  forceProviderPreDispatchFailures( router );
+
+  QgsAiFileContextProvider contextProvider( tempDir.path() );
+  QgsAiReviewPatchEngine reviewEngine;
+  QgsAiAgentSessionManager manager( &router, &contextProvider, &reviewEngine );
+
+  CountingEmbeddingProvider provider;
+  provider.mSleepMs = 400;
+  QgsAiWorkspaceIndex index( &contextProvider, &provider );
+  QVERIFY( seedIndexWithChunks( index ) );
+  manager.setWorkspaceIndex( &index );
+
+  QSignalSpy runningSpy( &manager, &QgsAiAgentSessionManager::requestRunningChanged );
+  QSignalSpy stateSpy( &manager, &QgsAiAgentSessionManager::requestStateChanged );
+
+  manager.sendUserMessage( u"cancelled through the task manager"_s );
+  QVERIFY( manager.hasActiveRequest() );
+
+  // the retrieval task is cancelled from outside the manager, as QGIS shutdown and
+  // the task manager's "cancel all" button do: no provider request may be dispatched
+  QgsApplication::taskManager()->cancelAll();
+
+  QTRY_VERIFY_WITH_TIMEOUT( !manager.hasActiveRequest(), 15000 );
+  QTest::qWait( 300 );
+
+  bool sawCancelled = false;
+  for ( const QList<QVariant> &args : stateSpy )
+  {
+    const QString state = args.at( 0 ).toString();
+    QVERIFY( state != "sending"_L1 );
+    if ( state == "cancelled"_L1 )
+      sawCancelled = true;
+  }
+  QVERIFY( sawCancelled );
+  QCOMPARE( runningSpy.last().at( 0 ).toBool(), false );
+
+  clearProviderSettings();
+}
+
+void TestQgsAiAgentSessionManager::retrievalFailureStillDispatches()
+{
+  clearProviderSettings();
+
+  QTemporaryDir tempDir;
+  QVERIFY( tempDir.isValid() );
+
+  QgsAiModelRouter router;
+  forceProviderPreDispatchFailures( router );
+
+  QgsAiFileContextProvider contextProvider( tempDir.path() );
+  QgsAiReviewPatchEngine reviewEngine;
+  QgsAiAgentSessionManager manager( &router, &contextProvider, &reviewEngine );
+
+  CountingEmbeddingProvider provider;
+  provider.mFailEmbeds = true;
+  QgsAiWorkspaceIndex index( &contextProvider, &provider );
+  QVERIFY( seedIndexWithChunks( index ) );
+  manager.setWorkspaceIndex( &index );
+
+  QSignalSpy runningSpy( &manager, &QgsAiAgentSessionManager::requestRunningChanged );
+  QSignalSpy stateSpy( &manager, &QgsAiAgentSessionManager::requestStateChanged );
+
+  // a retrieval failure yields an empty context but never blocks the send
+  manager.sendUserMessage( u"alpha with failing embeds"_s );
+  QTRY_VERIFY_WITH_TIMEOUT( !manager.hasActiveRequest(), 15000 );
+  QCOMPARE( runningSpy.last().at( 0 ).toBool(), false );
+
+  bool sawSendingOrFailed = false;
+  for ( const QList<QVariant> &args : stateSpy )
+  {
+    const QString state = args.at( 0 ).toString();
+    if ( state == "sending"_L1 || state == "failed"_L1 )
+      sawSendingOrFailed = true;
+  }
+  QVERIFY( sawSendingOrFailed );
+
+  clearProviderSettings();
 }
 
 void TestQgsAiAgentSessionManager::preDispatchFailureUnlocksRunningState()

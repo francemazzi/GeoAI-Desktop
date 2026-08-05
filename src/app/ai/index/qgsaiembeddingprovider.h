@@ -37,9 +37,13 @@ enum class QgsAiEmbeddingRole
   Passage,
 };
 
+class QgsFeedback;
+
 struct QgsAiEmbeddingOptions
 {
     int maxBatch = 64;
+    //! Optional cancellation hook: providers doing network requests abort when it is cancelled.
+    QgsFeedback *feedback = nullptr;
 };
 
 struct APP_EXPORT QgsAiEmbeddingModelDownloadFile
