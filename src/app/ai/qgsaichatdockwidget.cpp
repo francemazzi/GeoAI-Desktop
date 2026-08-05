@@ -1703,6 +1703,15 @@ QWidget *QgsAiChatDockWidget::createToolLimitActionsWidget( const QString &messa
   layout->setContentsMargins( 8, 4, 8, 4 );
   layout->setSpacing( 6 );
 
+  const int usedRounds = metadata.value( u"tool_rounds_used"_s ).toInt();
+  const int totalLimit = metadata.value( u"tool_rounds_total_limit"_s ).toInt();
+  if ( totalLimit > 0 )
+  {
+    QLabel *budgetLabel = new QLabel( tr( "Tool rounds: %1/%2" ).arg( usedRounds ).arg( totalLimit ), limitCard );
+    budgetLabel->setObjectName( u"aiToolRoundBudgetLabel"_s );
+    layout->addWidget( budgetLabel );
+  }
+
   QPushButton *continueButton = new QPushButton( tr( "Continue" ), limitCard );
   continueButton->setObjectName( u"aiContinueToolLimitButton"_s );
   const QString status = metadata.value( u"tool_limit_status"_s, u"pending"_s ).toString();

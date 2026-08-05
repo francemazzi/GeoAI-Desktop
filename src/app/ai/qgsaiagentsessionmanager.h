@@ -25,6 +25,7 @@
 #include "qgsaitool.h"
 
 #include <QList>
+#include <QHash>
 #include <QObject>
 #include <QPointer>
 #include <QString>
@@ -55,6 +56,9 @@ struct APP_EXPORT QgsAiAgentBehaviorSettings
     static constexpr int DEFAULT_TOOL_CALL_PAUSE_LIMIT = 5;
     static constexpr int MIN_TOOL_CALL_PAUSE_LIMIT = 1;
     static constexpr int MAX_TOOL_CALL_PAUSE_LIMIT = 50;
+    static constexpr int DEFAULT_TOTAL_TOOL_CALL_LIMIT = 48;
+    static constexpr int MIN_TOTAL_TOOL_CALL_LIMIT = 6;
+    static constexpr int MAX_TOTAL_TOOL_CALL_LIMIT = 200;
 
     //! Master toggle. When false the agent must not use any custom tool/action.
     bool allowCustomActions = false;
@@ -72,6 +76,10 @@ struct APP_EXPORT QgsAiAgentBehaviorSettings
     QString skillsPath = u".strata/skills"_s;
     //! Tool-use rounds allowed before pausing for explicit user continuation.
     int maxToolIterationsPerTurn = DEFAULT_TOOL_CALL_PAUSE_LIMIT;
+    //! Cumulative tool-use rounds allowed for one user turn, across Continue blocks.
+    int maxTotalToolIterationsPerTurn = DEFAULT_TOTAL_TOOL_CALL_LIMIT;
+    //! Continue tool blocks automatically until the cumulative cap is reached.
+    bool autoContinueToolBlocks = false;
     //! When true, one low-risk run_python approval grants subsequent low-risk Python runs for this app session.
     bool rememberPythonApprovalsForSession = false;
 };
@@ -362,6 +370,10 @@ class APP_EXPORT QgsAiAgentSessionManager : public QObject
     QList<QgsAiChatContextFile> mCurrentContextFiles;
     QString mStreamedText;
     int mToolIterations = 0;
+    int mTotalToolIterations = 0;
+    int mConsecutiveFailedToolRounds = 0;
+    QHash<QString, int> mToolCallFingerprints;
+    QHash<QString, int> mToolCallCounts;
     //! True when the most recent completed tool round reported at least one failure.
     bool mLastToolRoundHadError = false;
     //! Guards a single empty-response recovery attempt after a failed tool round.

@@ -27,7 +27,8 @@ class QWidget;
 
 /**
  * install_python_package: lets the model install one or more Python packages into
- * the QGIS Python interpreter via `pip install --user`. The user MUST approve via
+ * an isolated directory in the active QGIS profile via `pip install --target`.
+ * The user MUST approve via
  * QgsAiPipInstallApprovalDialog before any install runs; cancellation returns
  * "user_rejected".
  *
@@ -35,10 +36,10 @@ class QWidget;
  * `<name>[<op><version>]`, blocking URLs, `git+...`, `-r requirements.txt`,
  * and any shell-injection vector.
  *
- * The install runs via QgsPythonRunner, shelling out to a validated Python
- * interpreter with matching major/minor version using `python -m pip install
- * --user`. Output is captured into a temp JSON file and returned to the model
- * (truncated to 32 KB per stream).
+ * The install runs via QgsPythonRunner, shelling out only to the bundled Python
+ * interpreter beside the application. The profile directory is added explicitly
+ * to sys.path by run_python. Already importable modules and successful exact
+ * specs are skipped before pip is invoked.
  *
  * Hard caps:
  *

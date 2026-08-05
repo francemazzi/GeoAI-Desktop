@@ -941,6 +941,21 @@ QWidget *QgsAiSettingsDialog::buildAgentPage()
     settingRow( tr( "Maximum tool calls before pause" ), tr( "The agent pauses after this many tool-use rounds and shows a Continue button before running another block." ), mMaxToolIterationsPerTurn, page )
   );
 
+  mMaxTotalToolIterationsPerTurn = new QSpinBox( page );
+  mMaxTotalToolIterationsPerTurn->setObjectName( u"aiMaxTotalToolIterationsPerTurnSpinBox"_s );
+  mMaxTotalToolIterationsPerTurn->setRange( QgsAiAgentBehaviorSettings::MIN_TOTAL_TOOL_CALL_LIMIT, QgsAiAgentBehaviorSettings::MAX_TOTAL_TOOL_CALL_LIMIT );
+  mMaxTotalToolIterationsPerTurn->setValue( currentBehavior.maxTotalToolIterationsPerTurn );
+  contentLayout->addWidget(
+    settingRow( tr( "Maximum tool calls per user turn" ), tr( "Hard cumulative limit across every Continue block. Reaching it stops the turn instead of allowing an unbounded loop." ), mMaxTotalToolIterationsPerTurn, page )
+  );
+
+  mAutoContinueToolBlocks = new QCheckBox( page );
+  mAutoContinueToolBlocks->setObjectName( u"aiAutoContinueToolBlocksCheckBox"_s );
+  mAutoContinueToolBlocks->setChecked( currentBehavior.autoContinueToolBlocks );
+  contentLayout->addWidget(
+    settingRow( tr( "Continue tool blocks automatically" ), tr( "Continue at each pause without asking, while still enforcing the cumulative per-turn limit and retry safeguards." ), mAutoContinueToolBlocks, page )
+  );
+
   QgsSettings gisToggleSettings;
   mGisSuggestionsEnabled = new QCheckBox( page );
   mGisSuggestionsEnabled->setObjectName( u"aiGisGlobalEnableCheckBox"_s );
@@ -2811,6 +2826,8 @@ void QgsAiSettingsDialog::applySettings()
     behaviorSettings.allowCustomActions = mAllowCustomActions->isChecked();
     behaviorSettings.rememberPythonApprovalsForSession = mRememberPythonApprovalsForSession->isChecked();
     behaviorSettings.maxToolIterationsPerTurn = mMaxToolIterationsPerTurn->value();
+    behaviorSettings.maxTotalToolIterationsPerTurn = mMaxTotalToolIterationsPerTurn->value();
+    behaviorSettings.autoContinueToolBlocks = mAutoContinueToolBlocks->isChecked();
     behaviorSettings.rulesPath = mRulesRelativeDirForList;
     behaviorSettings.skillsPath = mSkillsRelativeDirForList;
     mSessionManager->setAgentBehaviorSettings( behaviorSettings );

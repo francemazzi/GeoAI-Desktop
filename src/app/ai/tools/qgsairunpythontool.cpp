@@ -16,6 +16,7 @@
 #include "qgsairunpythontool.h"
 
 #include "qgsaiauditlog.h"
+#include "qgsaipythonruntime.h"
 #include "qgsaipythonapprovaldialog.h"
 #include "qgsaitoolschemautil.h"
 #include "qgsaiworkspacetrust.h"
@@ -29,6 +30,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QRegularExpression>
 #include <QString>
 #include <QStringList>
 #include <QTemporaryFile>
@@ -40,8 +42,8 @@ namespace
 {
   // Python source literal that performs sandboxed-ish execution: redirects
   // stdout/stderr, runs the user's code via exec(), serialises everything as
-  // JSON to a temp file. The two %1/%2 placeholders are filled with Python
-  // string literals (we use QString::arg with a repr-style path, see escapePath).
+  // JSON to a temp file. The %1/%2 placeholders are Python path literals and
+  // %3 is the indented runtime namespace bootstrap.
   // Keep this compatible with Python 3.7+.
   constexpr const char *PY_WRAPPER_TEMPLATE = R"(
 import sys, traceback, json, io
@@ -59,11 +61,19 @@ __qgsai_old_stderr = sys.stderr
 sys.stdout = __qgsai_stdout
 sys.stderr = __qgsai_stderr
 __qgsai_error = ""
+__qgsai_exception_type = ""
+__qgsai_exception_message = ""
 try:
+%3
     exec(compile(__qgsai_code, "<ai_run_python>", "exec"), globals())
-except SystemExit:
-    pass
-except BaseException:
+except SystemExit as __qgsai_ex:
+    if __qgsai_ex.code not in (None, 0):
+        __qgsai_exception_type = type(__qgsai_ex).__name__
+        __qgsai_exception_message = str(__qgsai_ex.code)
+        __qgsai_error = traceback.format_exc()
+except BaseException as __qgsai_ex:
+    __qgsai_exception_type = type(__qgsai_ex).__name__
+    __qgsai_exception_message = str(__qgsai_ex)
     __qgsai_error = traceback.format_exc()
 sys.stdout = __qgsai_old_stdout
 sys.stderr = __qgsai_old_stderr
@@ -74,6 +84,8 @@ try:
             "stdout": __qgsai_stdout.getvalue(),
             "stderr": __qgsai_stderr.getvalue(),
             "error": __qgsai_error,
+            "exception_type": __qgsai_exception_type,
+            "exception_message": __qgsai_exception_message,
         }, __qgsai_f)
 except BaseException:
     if not __qgsai_error:
@@ -100,6 +112,44 @@ except BaseException:
     if ( utf8.size() <= maxBytes )
       return text;
     return QString::fromUtf8( utf8.left( maxBytes ) ) + u"\n…[truncated]"_s;
+  }
+
+  void appendRunPythonDiagnostic( QJsonArray &diagnostics, const QString &code, const QString &source, const QString &message )
+  {
+    for ( const QJsonValue &value : diagnostics )
+    {
+      if ( value.toObject().value( u"code"_s ).toString() == code )
+        return;
+    }
+
+    QJsonObject diagnostic;
+    diagnostic.insert( u"code"_s, code );
+    diagnostic.insert( u"source"_s, source );
+    diagnostic.insert( u"message"_s, message.trimmed() );
+    diagnostics.append( diagnostic );
+  }
+
+  void diagnoseExplicitJsonFailure( const QString &text, const QString &source, QJsonArray &diagnostics )
+  {
+    QJsonParseError parseError;
+    const QJsonDocument document = QJsonDocument::fromJson( text.trimmed().toUtf8(), &parseError );
+    if ( parseError.error != QJsonParseError::NoError || !document.isObject() )
+      return;
+
+    const QJsonObject object = document.object();
+    const QString status = object.value( u"status"_s ).toString().trimmed().toLower();
+    const bool failedStatus = status == "error"_L1 || status == "failed"_L1 || status == "failure"_L1;
+    const bool failedBoolean = ( object.value( u"success"_s ).isBool() && !object.value( u"success"_s ).toBool() )
+                               || ( object.value( u"ok"_s ).isBool() && !object.value( u"ok"_s ).toBool() );
+    if ( !failedStatus && !failedBoolean )
+      return;
+
+    QString message = object.value( u"message"_s ).toString().trimmed();
+    if ( message.isEmpty() )
+      message = object.value( u"error"_s ).toString().trimmed();
+    if ( message.isEmpty() )
+      message = u"Python code returned an explicit failed status."_s;
+    appendRunPythonDiagnostic( diagnostics, u"explicit_failure"_s, source, message );
   }
 } //namespace
 
@@ -140,6 +190,8 @@ QString QgsAiRunPythonTool::description() const
     "Executes a snippet of PyQGIS code in the running QGIS session. "
     "Captures stdout/stderr and any Python traceback. The user must approve "
     "high-risk code via a modal dialog before it runs; refusal returns 'user_rejected'. "
+    "The execution namespace already provides iface, processing, qgis and PyQt "
+    "(qgis.PyQt), and includes AI-installed profile packages on sys.path. "
     "Use this tool ONLY when the action genuinely requires Python (e.g. driving "
     "the QGIS API to add a runtime layer). Prefer propose_edit/propose_create_file "
     "for static file changes."
@@ -152,6 +204,59 @@ QJsonObject QgsAiRunPythonTool::schema() const
   properties.insert( u"code"_s, prop( u"string"_s, u"The PyQGIS code to execute. Maximum 8000 characters."_s ) );
   properties.insert( u"description"_s, prop( u"string"_s, u"Short human-readable explanation of what the code does. Shown in the approval dialog."_s ) );
   return schemaObject( properties, QJsonArray { u"code"_s } );
+}
+
+QJsonObject QgsAiRunPythonTool::diagnoseCapturedOutput( const QString &stdoutText, const QString &stderrText, const QString &tracebackText, const QString &exceptionType, const QString &exceptionMessage )
+{
+  QJsonArray diagnostics;
+  if ( !tracebackText.trimmed().isEmpty() )
+  {
+    const QString message = exceptionMessage.trimmed().isEmpty() ? tracebackText.trimmed() : exceptionMessage.trimmed();
+    appendRunPythonDiagnostic( diagnostics, u"python_exception"_s, u"traceback"_s, message );
+  }
+
+  const QList<QPair<QString, QString>> streams {
+    { u"stdout"_s, stdoutText },
+    { u"stderr"_s, stderrText },
+  };
+  const QRegularExpression serviceExceptionExpression( u"(?:<\\s*(?:\\w+:)?ServiceException(?:Report)?\\b|\\bServiceException(?:Report)?\\b)"_s, QRegularExpression::CaseInsensitiveOption );
+  const QRegularExpression invalidProviderExpression(
+    u"\\b(?:provider\\s+(?:is\\s+)?(?:invalid|not\\s+valid|unavailable)|invalid\\s+provider|layer\\s+(?:is\\s+)?not\\s+valid)\\b"_s,
+    QRegularExpression::CaseInsensitiveOption
+  );
+  const QRegularExpression explicitFailureExpression( u"^\\s*(?:FAILED|FAILURE)\\s*:\\s*(.+)$"_s, QRegularExpression::CaseInsensitiveOption | QRegularExpression::MultilineOption );
+
+  for ( const auto &stream : streams )
+  {
+    const QString &source = stream.first;
+    const QString &text = stream.second;
+    const QRegularExpressionMatch serviceMatch = serviceExceptionExpression.match( text );
+    if ( serviceMatch.hasMatch() )
+      appendRunPythonDiagnostic( diagnostics, u"service_exception"_s, source, u"OGC service returned a ServiceException. Verify the endpoint, requested layer/type name, parameters, and service capabilities."_s );
+
+    const QRegularExpressionMatch providerMatch = invalidProviderExpression.match( text );
+    if ( providerMatch.hasMatch() )
+      appendRunPythonDiagnostic( diagnostics, u"invalid_provider"_s, source, providerMatch.captured( 0 ) );
+
+    const QRegularExpressionMatch failureMatch = explicitFailureExpression.match( text );
+    if ( failureMatch.hasMatch() )
+      appendRunPythonDiagnostic( diagnostics, u"explicit_failure"_s, source, failureMatch.captured( 1 ) );
+
+    diagnoseExplicitJsonFailure( text, source, diagnostics );
+  }
+
+  QJsonObject result;
+  result.insert( u"status"_s, diagnostics.isEmpty() ? u"ok"_s : u"error"_s );
+  result.insert( u"diagnostics"_s, diagnostics );
+  if ( !diagnostics.isEmpty() )
+  {
+    const QJsonObject primary = diagnostics.at( 0 ).toObject();
+    result.insert( u"failure_code"_s, primary.value( u"code"_s ) );
+    result.insert( u"failure_message"_s, primary.value( u"message"_s ) );
+  }
+  if ( !exceptionType.trimmed().isEmpty() )
+    result.insert( u"exception_type"_s, exceptionType.trimmed() );
+  return result;
 }
 
 QgsAiToolResult QgsAiRunPythonTool::execute( const QJsonObject &args )
@@ -207,7 +312,8 @@ QgsAiToolResult QgsAiRunPythonTool::execute( const QJsonObject &args )
   QgsAiAuditLog::append( u"run_python"_s, code );
 
   // Build the wrapper with safely-quoted paths.
-  const QString wrapper = QString::fromUtf8( PY_WRAPPER_TEMPLATE ).arg( escapeRunPythonPath( codePath ), escapeRunPythonPath( outPath ) );
+  const QString wrapper = QString::fromUtf8( PY_WRAPPER_TEMPLATE )
+                            .arg( escapeRunPythonPath( codePath ), escapeRunPythonPath( outPath ), QgsAiPythonRuntime::bootstrapSource( QgsAiPythonRuntime::packageTargetPath() ) );
 
   {
     QFile wrapperFile( wrapperPath );
@@ -222,6 +328,8 @@ QgsAiToolResult QgsAiRunPythonTool::execute( const QJsonObject &args )
   QString stdoutText;
   QString stderrText;
   QString tracebackText;
+  QString exceptionType;
+  QString exceptionMessage;
   if ( QFile::exists( outPath ) )
   {
     QFile outFile( outPath );
@@ -235,6 +343,8 @@ QgsAiToolResult QgsAiRunPythonTool::execute( const QJsonObject &args )
         stdoutText = obj.value( u"stdout"_s ).toString();
         stderrText = obj.value( u"stderr"_s ).toString();
         tracebackText = obj.value( u"error"_s ).toString();
+        exceptionType = obj.value( u"exception_type"_s ).toString();
+        exceptionMessage = obj.value( u"exception_message"_s ).toString();
       }
     }
   }
@@ -251,15 +361,15 @@ QgsAiToolResult QgsAiRunPythonTool::execute( const QJsonObject &args )
     return QgsAiToolResult::error( u"Python wrapper failed to execute. %1"_s.arg( detail ) );
   }
 
-  const bool hadException = !tracebackText.isEmpty();
+  const QJsonObject diagnosis = diagnoseCapturedOutput( stdoutText, stderrText, tracebackText, exceptionType, exceptionMessage );
+  const bool hadFailure = diagnosis.value( u"status"_s ).toString() == "error"_L1;
   QgsMessageLog::
-    logMessage( u"run_python: completed (stdoutBytes=%1, stderrBytes=%2, exception=%3)"_s.arg( stdoutText.size() ).arg( stderrText.size() ).arg( hadException ), u"AI/Python"_s, hadException ? Qgis::MessageLevel::Warning : Qgis::MessageLevel::Info, false );
+    logMessage( u"run_python: completed (stdoutBytes=%1, stderrBytes=%2, failure=%3)"_s.arg( stdoutText.size() ).arg( stderrText.size() ).arg( hadFailure ), u"AI/Python"_s, hadFailure ? Qgis::MessageLevel::Warning : Qgis::MessageLevel::Info, false );
 
-  QJsonObject output;
-  output.insert( u"status"_s, hadException ? u"error"_s : u"ok"_s );
+  QJsonObject output = diagnosis;
   output.insert( u"stdout"_s, truncateRunPythonOutput( stdoutText, MAX_CAPTURE_BYTES ) );
   output.insert( u"stderr"_s, truncateRunPythonOutput( stderrText, MAX_CAPTURE_BYTES ) );
-  if ( hadException )
+  if ( !tracebackText.isEmpty() )
     output.insert( u"traceback"_s, truncateRunPythonOutput( tracebackText, MAX_CAPTURE_BYTES ) );
   return QgsAiToolResult::ok( output );
 }

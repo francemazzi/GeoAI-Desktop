@@ -245,6 +245,73 @@ namespace
     return e;
   }
 
+  QJsonObject layerQualityChecks( QgsMapLayer *layer, QgsProject *project )
+  {
+    const bool layerInProject = layer && project && project->mapLayer( layer->id() ) == layer;
+    const bool extentValid = layer && ( !layer->isSpatial() || ( layer->extent().isFinite() && !layer->extent().isEmpty() ) );
+    const bool crsValid = layer && ( !layer->isSpatial() || layer->crs().isValid() );
+    bool featureCountValid = true;
+    bool geometryPresent = true;
+    if ( QgsVectorLayer *vector = qobject_cast<QgsVectorLayer *>( layer ) )
+    {
+      featureCountValid = vector->featureCount() > 0;
+      geometryPresent = !vector->isSpatial() || vector->geometryType() != Qgis::GeometryType::Unknown;
+    }
+
+    QJsonObject checks;
+    checks.insert( u"layer_in_project"_s, layerInProject );
+    checks.insert( u"feature_count_valid"_s, featureCountValid );
+    checks.insert( u"extent_valid"_s, extentValid );
+    checks.insert( u"geometry_present"_s, geometryPresent );
+    checks.insert( u"crs_valid"_s, crsValid );
+    checks.insert( u"passed"_s, layerInProject && featureCountValid && extentValid && geometryPresent && crsValid );
+    return checks;
+  }
+
+  bool fileMayBeNonSpatialTable( const QString &path )
+  {
+    const QString extension = QFileInfo( path ).suffix().toLower();
+    return extension == "csv"_L1 || extension == "gpkg"_L1 || extension == "sqlite"_L1 || extension == "db"_L1;
+  }
+
+  QString validateUsableVectorLayer( QgsVectorLayer *layer, bool allowNonSpatialTable )
+  {
+    if ( !layer )
+      return u"Vector layer was not created."_s;
+
+    const qint64 featureCount = layer->featureCount();
+    if ( featureCount == 0 )
+      return u"Vector layer contains zero features."_s;
+
+    if ( !layer->isSpatial() )
+    {
+      if ( allowNonSpatialTable )
+        return QString();
+      return u"Vector layer has no geometry, but this source is expected to contain spatial features."_s;
+    }
+
+    bool hasGeometry = false;
+    QgsFeatureRequest request;
+    request.setNoAttributes();
+    QgsFeatureIterator iterator = layer->getFeatures( request );
+    QgsFeature feature;
+    while ( iterator.nextFeature( feature ) )
+    {
+      if ( feature.hasGeometry() && !feature.geometry().isEmpty() )
+      {
+        hasGeometry = true;
+        break;
+      }
+    }
+    if ( !hasGeometry )
+      return u"Vector layer declares a spatial geometry type but no feature has geometry."_s;
+
+    const QgsRectangle extent = layer->extent();
+    if ( !extent.isFinite() )
+      return u"Vector layer extent contains non-finite coordinates."_s;
+    return QString();
+  }
+
   QString layerTreePath( QgsLayerTreeLayer *node )
   {
     if ( !node )
@@ -736,6 +803,10 @@ QgsAiToolResult QgsAiAddLayerFromFileTool::execute( const QJsonObject &args )
     if ( !layer->isValid() )
       return QgsAiToolResult::error( u"Vector layer is invalid: %1 (provider error: %2)"_s.arg( path, layer->error().summary() ) );
 
+    const QString validationError = validateUsableVectorLayer( layer.get(), fileMayBeNonSpatialTable( path ) );
+    if ( !validationError.isEmpty() )
+      return QgsAiToolResult::error( u"Refusing to add unusable vector layer '%1': %2 No project layer was added."_s.arg( name, validationError ) );
+
     output.insert( u"feature_count"_s, static_cast<qint64>( layer->featureCount() ) );
     output.insert( u"geometry_type"_s, QgsWkbTypes::geometryDisplayString( layer->geometryType() ) );
     added = layer.release();
@@ -774,10 +845,12 @@ QgsAiToolResult QgsAiAddLayerFromFileTool::execute( const QJsonObject &args )
   output.insert( u"name"_s, added->name() );
   output.insert( u"crs"_s, added->crs().authid() );
   output.insert( u"source"_s, added->publicSource() );
-  output.insert( u"extent"_s, extentJson( added->extent() ) );
+  output.insert( u"spatial"_s, added->isSpatial() );
+  output.insert( u"extent"_s, added->isSpatial() && added->extent().isFinite() ? QJsonValue( extentJson( added->extent() ) ) : QJsonValue( QJsonValue::Null ) );
   output.insert( u"diff"_s, diff );
   output.insert( u"rollback_token"_s, token );
   output.insert( u"rollback"_s, rollbackJson( token, u"remove_added_layer"_s ) );
+  output.insert( u"quality_checks"_s, layerQualityChecks( added, project ) );
   return QgsAiToolResult::ok( output );
 }
 
@@ -828,6 +901,17 @@ QgsAiToolResult QgsAiAddLayerFromServiceTool::execute( const QJsonObject &args )
   if ( providerKey.isEmpty() || layerType.isEmpty() )
     return QgsAiToolResult::error( u"Unsupported provider '%1'. Use one of: wms, wfs, xyz, postgres."_s.arg( provider ) );
 
+  if ( provider == "wfs"_L1 )
+  {
+    QgsProviderRegistry *registry = QgsProviderRegistry::instance();
+    if ( !registry || ( !registry->providerMetadata( u"WFS"_s ) && !registry->providerMetadata( u"wfs"_s ) ) )
+    {
+      return QgsAiToolResult::error(
+        u"WFS provider is unavailable in this QGIS installation. Install or enable the QGIS WFS provider, verify that the providers plugin path is configured, then retry with a valid WFS endpoint and typename."_s
+      );
+    }
+  }
+
   const QString rawUri = args.value( u"uri"_s ).toString().trimmed();
   if ( rawUri.isEmpty() )
     return QgsAiToolResult::error( u"Argument 'uri' is required."_s );
@@ -864,7 +948,25 @@ QgsAiToolResult QgsAiAddLayerFromServiceTool::execute( const QJsonObject &args )
   {
     auto layer = std::make_unique<QgsVectorLayer>( uri, name, providerKey );
     if ( !layer->isValid() )
+    {
+      if ( provider == "wfs"_L1 )
+      {
+        return QgsAiToolResult::error(
+          u"WFS layer could not be loaded. Verify that the endpoint is reachable, the URI includes a valid typename, the server advertises that layer in GetCapabilities, and authentication is configured. Provider detail: %1"_s.arg( layer->error().summary() )
+        );
+      }
       return QgsAiToolResult::error( u"Service vector layer is invalid for provider '%1': %2"_s.arg( provider, layer->error().summary() ) );
+    }
+
+    const bool allowNonSpatialTable = provider == "postgres"_L1 || provider == "postgis"_L1;
+    const QString validationError = validateUsableVectorLayer( layer.get(), allowNonSpatialTable );
+    if ( !validationError.isEmpty() )
+    {
+      const QString guidance = provider == "wfs"_L1
+                                 ? u" Verify the WFS typename, filters, server capabilities, and response payload."_s
+                                 : QString();
+      return QgsAiToolResult::error( u"Refusing to add unusable service vector layer '%1': %2%3 No project layer was added."_s.arg( name, validationError, guidance ) );
+    }
     output.insert( u"feature_count"_s, static_cast<qint64>( layer->featureCount() ) );
     output.insert( u"geometry_type"_s, QgsWkbTypes::geometryDisplayString( layer->geometryType() ) );
     added = layer.release();
@@ -888,10 +990,12 @@ QgsAiToolResult QgsAiAddLayerFromServiceTool::execute( const QJsonObject &args )
   output.insert( u"name"_s, added->name() );
   output.insert( u"crs"_s, added->crs().authid() );
   output.insert( u"source"_s, added->publicSource() );
-  output.insert( u"extent"_s, extentJson( added->extent() ) );
+  output.insert( u"spatial"_s, added->isSpatial() );
+  output.insert( u"extent"_s, added->isSpatial() && added->extent().isFinite() ? QJsonValue( extentJson( added->extent() ) ) : QJsonValue( QJsonValue::Null ) );
   output.insert( u"diff"_s, diff );
   output.insert( u"rollback_token"_s, token );
   output.insert( u"rollback"_s, rollbackJson( token, u"remove_added_layer"_s ) );
+  output.insert( u"quality_checks"_s, layerQualityChecks( added, project ) );
   return QgsAiToolResult::ok( output );
 }
 

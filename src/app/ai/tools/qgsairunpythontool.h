@@ -58,6 +58,13 @@ class APP_EXPORT QgsAiRunPythonTool : public QgsAiTool
     QString availabilityReason() const override;
     void setRememberApprovalsForSession( bool enabled );
 
+    /**
+     * Classifies captured Python output using conservative, explicit failure
+     * signals. This deliberately does not treat arbitrary occurrences of the
+     * word "error" as failures.
+     */
+    static QJsonObject diagnoseCapturedOutput( const QString &stdoutText, const QString &stderrText, const QString &tracebackText, const QString &exceptionType = QString(), const QString &exceptionMessage = QString() );
+
   private:
     QWidget *mDialogParent = nullptr;
     bool mRememberApprovalsForSession = false;

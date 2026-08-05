@@ -14,6 +14,7 @@
 #include "ai/tools/qgsaidownloadfiletool.h"
 #include "ai/tools/qgsailayertools.h"
 #include "ai/tools/qgsaireadtools.h"
+#include "ai/tools/qgsairunpythontool.h"
 #include "ai/tools/qgsaitoolregistry.h"
 #include "qgsapplication.h"
 #include "qgscategorizedsymbolrenderer.h"
@@ -42,6 +43,7 @@
 #include "qgsvectorlayerlabeling.h"
 
 #include <QColor>
+#include <QFile>
 #include <QFileInfo>
 #include <QImage>
 #include <QJsonArray>
@@ -130,7 +132,10 @@ class TestQgsAiToolRegistry : public QObject
     void registryAuditsRiskyToolMetadataOnly();
     void captureMapCanvasRequiresConsent();
     void captureMapCanvasCreatesCappedPng();
+    void runPythonDiagnosticsAreConservative();
     void setCanvasExtentSetsZoomsAndRollsBack();
+    void setCanvasExtentIgnoresEmptyOptionalStrings();
+    void addLayerFromFileRejectsUnusableVectors();
     void addLayerFromServiceLoadsXyzAndRollsBack();
     void styleLayerAppliesNativeChanges();
     void advancedStyleLayerAppliesRenderersLabelsAndRollback();
@@ -338,6 +343,35 @@ void TestQgsAiToolRegistry::captureMapCanvasCreatesCappedPng()
   settings.remove( u"geoai/visual_context/image_send_consent"_s );
 }
 
+void TestQgsAiToolRegistry::runPythonDiagnosticsAreConservative()
+{
+  QJsonObject diagnosis = QgsAiRunPythonTool::diagnoseCapturedOutput(
+    u"Processed field named error_code successfully."_s,
+    u"warning: error budget is low"_s,
+    QString()
+  );
+  QCOMPARE( diagnosis.value( u"status"_s ).toString(), u"ok"_s );
+  QVERIFY( diagnosis.value( u"diagnostics"_s ).toArray().isEmpty() );
+
+  diagnosis = QgsAiRunPythonTool::diagnoseCapturedOutput( QString(), QString(), u"Traceback (most recent call last):\nValueError: bad value"_s, u"ValueError"_s, u"bad value"_s );
+  QCOMPARE( diagnosis.value( u"failure_code"_s ).toString(), u"python_exception"_s );
+  QCOMPARE( diagnosis.value( u"exception_type"_s ).toString(), u"ValueError"_s );
+
+  diagnosis = QgsAiRunPythonTool::diagnoseCapturedOutput(
+    u"<ServiceExceptionReport><ServiceException code=\"LayerNotDefined\">missing</ServiceException></ServiceExceptionReport>"_s,
+    QString(),
+    QString()
+  );
+  QCOMPARE( diagnosis.value( u"failure_code"_s ).toString(), u"service_exception"_s );
+
+  diagnosis = QgsAiRunPythonTool::diagnoseCapturedOutput( QString(), u"Provider is not valid for this URI"_s, QString() );
+  QCOMPARE( diagnosis.value( u"failure_code"_s ).toString(), u"invalid_provider"_s );
+
+  diagnosis = QgsAiRunPythonTool::diagnoseCapturedOutput( u"{\"success\":false,\"message\":\"No output layer was created\"}"_s, QString(), QString() );
+  QCOMPARE( diagnosis.value( u"failure_code"_s ).toString(), u"explicit_failure"_s );
+  QCOMPARE( diagnosis.value( u"failure_message"_s ).toString(), u"No output layer was created"_s );
+}
+
 void TestQgsAiToolRegistry::setCanvasExtentSetsZoomsAndRollsBack()
 {
   QgsProject project;
@@ -406,6 +440,80 @@ void TestQgsAiToolRegistry::setCanvasExtentSetsZoomsAndRollsBack()
   const QgsAiToolResult zoomSelection = tool.execute( zoomSelectionArgs );
   QVERIFY2( zoomSelection.success, qPrintable( zoomSelection.errorMessage ) );
   QVERIFY( canvas.extent().contains( QgsRectangle( 20, 20, 20, 20 ) ) );
+}
+
+void TestQgsAiToolRegistry::setCanvasExtentIgnoresEmptyOptionalStrings()
+{
+  QgsProject project;
+  QgsMapCanvas canvas;
+  canvas.resize( 640, 360 );
+  canvas.setDestinationCrs( QgsCoordinateReferenceSystem( u"EPSG:4326"_s ) );
+  canvas.setExtent( QgsRectangle( 0, 0, 10, 10 ) );
+
+  QgsAiSetCanvasExtentTool tool( &canvas, &project );
+  QJsonObject args;
+  args.insert( u"crs"_s, QString() );
+  args.insert( u"zoom_to_layer"_s, u"  "_s );
+  args.insert( u"zoom_to_selection"_s, QJsonValue::Null );
+  args.insert( u"scale"_s, 2500 );
+  const QgsAiToolResult result = tool.execute( args );
+  QVERIFY2( result.success, qPrintable( result.errorMessage ) );
+  QGSCOMPARENEAR( canvas.scale(), 2500.0, 0.1 );
+
+  QJsonObject invalidSelection;
+  invalidSelection.insert( u"zoom_to_selection"_s, false );
+  const QgsAiToolResult invalidResult = tool.execute( invalidSelection );
+  QVERIFY( !invalidResult.success );
+  QVERIFY( invalidResult.errorMessage.contains( u"zoom_to_selection"_s ) );
+}
+
+void TestQgsAiToolRegistry::addLayerFromFileRejectsUnusableVectors()
+{
+  QTemporaryDir tempDir;
+  QVERIFY( tempDir.isValid() );
+
+  QFile emptyGeoJson( tempDir.filePath( u"empty.geojson"_s ) );
+  QVERIFY( emptyGeoJson.open( QIODevice::WriteOnly | QIODevice::Text ) );
+  QVERIFY( emptyGeoJson.write( R"({"type":"FeatureCollection","features":[]})" ) > 0 );
+  emptyGeoJson.close();
+
+  QFile geometrylessGeoJson( tempDir.filePath( u"geometryless.geojson"_s ) );
+  QVERIFY( geometrylessGeoJson.open( QIODevice::WriteOnly | QIODevice::Text ) );
+  QVERIFY( geometrylessGeoJson.write( R"({"type":"FeatureCollection","features":[{"type":"Feature","properties":{"id":1},"geometry":null}]})" ) > 0 );
+  geometrylessGeoJson.close();
+
+  QFile tableCsv( tempDir.filePath( u"table.csv"_s ) );
+  QVERIFY( tableCsv.open( QIODevice::WriteOnly | QIODevice::Text ) );
+  QVERIFY( tableCsv.write( "id,name\n1,Alpha\n" ) > 0 );
+  tableCsv.close();
+
+  QgsAiFileContextProvider contextProvider( tempDir.path() );
+  QgsProject project;
+  QgsAiAddLayerFromFileTool tool( &contextProvider, &project );
+
+  QJsonObject emptyArgs;
+  emptyArgs.insert( u"path"_s, u"empty.geojson"_s );
+  const QgsAiToolResult emptyResult = tool.execute( emptyArgs );
+  QVERIFY( !emptyResult.success );
+  QVERIFY( emptyResult.errorMessage.contains( u"zero features"_s ) );
+  QCOMPARE( project.mapLayers().size(), 0 );
+
+  QJsonObject geometrylessArgs;
+  geometrylessArgs.insert( u"path"_s, u"geometryless.geojson"_s );
+  const QgsAiToolResult geometrylessResult = tool.execute( geometrylessArgs );
+  QVERIFY( !geometrylessResult.success );
+  QVERIFY( geometrylessResult.errorMessage.contains( u"no geometry"_s ) );
+  QCOMPARE( project.mapLayers().size(), 0 );
+
+  QJsonObject tableArgs;
+  tableArgs.insert( u"path"_s, u"table.csv"_s );
+  const QgsAiToolResult tableResult = tool.execute( tableArgs );
+  QVERIFY2( tableResult.success, qPrintable( tableResult.errorMessage ) );
+  const QJsonObject output = tableResult.output.toObject();
+  QCOMPARE( output.value( u"feature_count"_s ).toVariant().toLongLong(), 1 );
+  QCOMPARE( output.value( u"spatial"_s ).toBool(), false );
+  QVERIFY( output.value( u"extent"_s ).isNull() );
+  QCOMPARE( project.mapLayers().size(), 1 );
 }
 
 void TestQgsAiToolRegistry::addLayerFromServiceLoadsXyzAndRollsBack()

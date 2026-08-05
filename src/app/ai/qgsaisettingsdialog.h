@@ -154,6 +154,8 @@ class APP_EXPORT QgsAiSettingsDialog : public QDialog
 
     QCheckBox *mAllowCustomActions = nullptr;
     QSpinBox *mMaxToolIterationsPerTurn = nullptr;
+    QSpinBox *mMaxTotalToolIterationsPerTurn = nullptr;
+    QCheckBox *mAutoContinueToolBlocks = nullptr;
     QCheckBox *mRememberPythonApprovalsForSession = nullptr;
     QCheckBox *mGisSuggestionsEnabled = nullptr;
     QCheckBox *mGisSuggestionsProjectEnabled = nullptr;

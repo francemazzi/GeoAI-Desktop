@@ -22,6 +22,7 @@
 #include "qgsaiauditlog.h"
 #include "qgsaifilecontextprovider.h"
 #include "qgsaigissuggestionengine.h"
+#include "qgsaiplanclient.h"
 #include "qgsaireviewpatchengine.h"
 #include "qgsairulesskillsstore.h"
 #include "qgsaitool.h"
@@ -40,6 +41,7 @@
 #include "qgstaskmanager.h"
 
 #include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
@@ -70,9 +72,19 @@ namespace
   constexpr int MIN_MANAGED_TOOL_CATALOG_VERSION = 6;
   constexpr int MAX_TOOL_RESULT_CHARS = 50000;
   constexpr int AGENT_API_TIMEOUT_MS = 20000;
+  constexpr int MAX_EQUIVALENT_TOOL_CALLS_PER_TURN = 3;
+  constexpr int MAX_RUN_PYTHON_CALLS_PER_TURN = 20;
+  constexpr int MAX_PACKAGE_INSTALL_CALLS_PER_TURN = 2;
+  constexpr int MAX_CONSECUTIVE_FAILED_TOOL_ROUNDS = 3;
 
   int managedToolRoundLimit( const QString &model )
   {
+    const QList<QgsAiPlanClient::ModelInfo> catalog = QgsAiPlanClient::cachedModels();
+    for ( const QgsAiPlanClient::ModelInfo &info : catalog )
+    {
+      if ( info.id == model && info.agentToolRounds > 0 )
+        return std::clamp( info.agentToolRounds, QgsAiAgentBehaviorSettings::MIN_TOOL_CALL_PAUSE_LIMIT, QgsAiAgentBehaviorSettings::MAX_TOOL_CALL_PAUSE_LIMIT );
+    }
     if ( model == "anthropic/claude-opus-4.7"_L1 )
       return 10;
     if ( model == "anthropic/claude-sonnet-4.6"_L1 )
@@ -170,6 +182,31 @@ namespace
     if ( !ok || parsed < QgsAiAgentBehaviorSettings::MIN_TOOL_CALL_PAUSE_LIMIT || parsed > QgsAiAgentBehaviorSettings::MAX_TOOL_CALL_PAUSE_LIMIT )
       return QgsAiAgentBehaviorSettings::DEFAULT_TOOL_CALL_PAUSE_LIMIT;
     return parsed;
+  }
+
+  int normalizedTotalToolCallLimit( const QVariant &value )
+  {
+    bool ok = false;
+    const int parsed = value.toInt( &ok );
+    if ( !ok || parsed < QgsAiAgentBehaviorSettings::MIN_TOTAL_TOOL_CALL_LIMIT || parsed > QgsAiAgentBehaviorSettings::MAX_TOTAL_TOOL_CALL_LIMIT )
+      return QgsAiAgentBehaviorSettings::DEFAULT_TOTAL_TOOL_CALL_LIMIT;
+    return parsed;
+  }
+
+  QString toolCallFingerprint( const QgsAiToolCall &call )
+  {
+    const QByteArray payload = call.name.toUtf8() + '\0' + QJsonDocument( call.args ).toJson( QJsonDocument::Compact );
+    return QString::fromLatin1( QCryptographicHash::hash( payload, QCryptographicHash::Sha256 ).toHex() );
+  }
+
+  bool assistantClaimsSuccessfulCompletion( const QString &text )
+  {
+    static const QRegularExpression explicitStatus( uR"("status"\s*:\s*"success")"_s, QRegularExpression::CaseInsensitiveOption );
+    static const QRegularExpression completionPhrase(
+      uR"((?:\bcompleted\s+successfully\b|\bsuccessfully\s+(?:completed|configured|loaded|created)\b|\bcon\s+successo\b|^\s*fatto[.!:\s]))"_s,
+      QRegularExpression::CaseInsensitiveOption | QRegularExpression::MultilineOption
+    );
+    return explicitStatus.match( text ).hasMatch() || completionPhrase.match( text ).hasMatch();
   }
 
   QStringList reviewerReadOnlyTools()
@@ -382,7 +419,7 @@ QgsAiAgentSessionManager::QgsAiAgentSessionManager( QgsAiModelRouter *router, Qg
 
       if ( success )
       {
-        const QString finalText = !responseText.isEmpty() ? responseText : mStreamedText;
+        QString finalText = !responseText.isEmpty() ? responseText : mStreamedText;
         if ( finalText.trimmed().isEmpty() && mLastToolRoundHadError && !mEmptyErrorRecoveryAttempted )
         {
           mEmptyErrorRecoveryAttempted = true;
@@ -397,6 +434,25 @@ QgsAiAgentSessionManager::QgsAiAgentSessionManager( QgsAiModelRouter *router, Qg
           emit requestStateChanged( u"retrying"_s, u"Recovering after empty reply following a tool error…"_s );
           startProviderAttempt( mActiveProvider );
           return;
+        }
+        if ( mLastToolRoundHadError && assistantClaimsSuccessfulCompletion( finalText ) )
+        {
+          if ( !mEmptyErrorRecoveryAttempted )
+          {
+            mEmptyErrorRecoveryAttempted = true;
+            mActiveRequestId.clear();
+            QgsAiChatMessage recovery;
+            recovery.id = QUuid::createUuid().toString( QUuid::WithoutBraces );
+            recovery.role = QgsAiChatRole::User;
+            recovery.content
+              = u"The latest tool round failed its verification checks, but your draft claims successful completion. Do not claim success. State exactly what failed, what was actually verified, and either provide one materially different recovery step or stop."_s;
+            recovery.timestamp = QDateTime::currentDateTimeUtc();
+            recordHistoryMessage( recovery );
+            emit requestStateChanged( u"retrying"_s, u"Rejecting an unverified completion claim…"_s );
+            startProviderAttempt( mActiveProvider );
+            return;
+          }
+          finalText = u"I cannot confirm successful completion because the latest tool round failed its verification checks. Review the last tool result before continuing."_s;
         }
         const QgsAiChatMessage assistant = buildAssistantMessage( finalText );
         recordHistoryMessage( assistant );
@@ -512,6 +568,7 @@ bool QgsAiAgentSessionManager::continueAfterToolLimit( const QString &messageId 
     if ( !updateMessageMetadata( messageId, metadata ) )
       return false;
 
+    mTotalToolIterations = std::max( mTotalToolIterations, message.metadata.value( u"tool_rounds_used"_s ).toInt() );
     mToolIterations = 0;
     emit requestRunningChanged( true );
 
@@ -728,6 +785,10 @@ void QgsAiAgentSessionManager::resetCurrentSessionState( bool emitHistorySignal 
   mCurrentContextFiles.clear();
   mStreamedText.clear();
   mToolIterations = 0;
+  mTotalToolIterations = 0;
+  mConsecutiveFailedToolRounds = 0;
+  mToolCallFingerprints.clear();
+  mToolCallCounts.clear();
   mLastToolRoundHadError = false;
   mEmptyErrorRecoveryAttempted = false;
   mSessionUsage = QgsAiUsage();
@@ -1453,6 +1514,10 @@ void QgsAiAgentSessionManager::sendUserMessage( const QString &text, const QList
   recordHistoryMessage( message );
   mCurrentContextFiles = contextFiles;
   mToolIterations = 0;
+  mTotalToolIterations = 0;
+  mConsecutiveFailedToolRounds = 0;
+  mToolCallFingerprints.clear();
+  mToolCallCounts.clear();
   mLastToolRoundHadError = false;
   mEmptyErrorRecoveryAttempted = false;
 
@@ -1493,6 +1558,8 @@ void QgsAiAgentSessionManager::setAgentBehaviorSettings( const QgsAiAgentBehavio
   if ( mBehaviorSettings.skillsPath.trimmed().isEmpty() )
     mBehaviorSettings.skillsPath = defaultSkillsPath();
   mBehaviorSettings.maxToolIterationsPerTurn = normalizedToolCallPauseLimit( mBehaviorSettings.maxToolIterationsPerTurn );
+  mBehaviorSettings.maxTotalToolIterationsPerTurn = normalizedTotalToolCallLimit( mBehaviorSettings.maxTotalToolIterationsPerTurn );
+  mBehaviorSettings.maxTotalToolIterationsPerTurn = std::max( mBehaviorSettings.maxTotalToolIterationsPerTurn, mBehaviorSettings.maxToolIterationsPerTurn );
 
   syncRunPythonApprovalSettings();
   persistBehaviorSettings();
@@ -1607,6 +1674,10 @@ void QgsAiAgentSessionManager::loadPersistedBehaviorSettings()
   mBehaviorSettings.skillsPath
     = settingValueWithLegacy( settings, u"strata/agent/skills_path"_s, QStringList { u"geoai/agent/skills_path"_s, u"qgis_ai/agent/skills_path"_s }, defaultSkillsPath() ).toString();
   mBehaviorSettings.maxToolIterationsPerTurn = normalizedToolCallPauseLimit( settings.value( u"strata/agent/max_tool_iterations_per_turn"_s, QgsAiAgentBehaviorSettings::DEFAULT_TOOL_CALL_PAUSE_LIMIT ) );
+  mBehaviorSettings.maxTotalToolIterationsPerTurn
+    = normalizedTotalToolCallLimit( settings.value( u"strata/agent/max_total_tool_iterations_per_turn"_s, QgsAiAgentBehaviorSettings::DEFAULT_TOTAL_TOOL_CALL_LIMIT ) );
+  mBehaviorSettings.maxTotalToolIterationsPerTurn = std::max( mBehaviorSettings.maxTotalToolIterationsPerTurn, mBehaviorSettings.maxToolIterationsPerTurn );
+  mBehaviorSettings.autoContinueToolBlocks = settings.value( u"strata/agent/auto_continue_tool_blocks"_s, false ).toBool();
   mBehaviorSettings.rememberPythonApprovalsForSession = settings.value( u"strata/agent/remember_python_approvals_for_session"_s, false ).toBool();
 }
 
@@ -1621,6 +1692,8 @@ void QgsAiAgentSessionManager::persistBehaviorSettings() const
   settings.setValue( u"strata/agent/rules_path"_s, mBehaviorSettings.rulesPath );
   settings.setValue( u"strata/agent/skills_path"_s, mBehaviorSettings.skillsPath );
   settings.setValue( u"strata/agent/max_tool_iterations_per_turn"_s, mBehaviorSettings.maxToolIterationsPerTurn );
+  settings.setValue( u"strata/agent/max_total_tool_iterations_per_turn"_s, mBehaviorSettings.maxTotalToolIterationsPerTurn );
+  settings.setValue( u"strata/agent/auto_continue_tool_blocks"_s, mBehaviorSettings.autoContinueToolBlocks );
   settings.setValue( u"strata/agent/remember_python_approvals_for_session"_s, mBehaviorSettings.rememberPythonApprovalsForSession );
   settings.remove( u"geoai/agent"_s );
   settings.remove( u"qgis_ai/agent"_s );
@@ -1880,6 +1953,8 @@ QString QgsAiAgentSessionManager::buildSystemPrompt( const QString &extraContext
   const bool canWebSearch = allowedTools.contains( u"web_search"_s );
   const bool canDownloadFile = allowedTools.contains( u"download_file"_s );
   const bool canAddLayerFromFile = allowedTools.contains( u"add_layer_from_file"_s );
+  const bool canAddLayerFromService = allowedTools.contains( u"add_layer_from_service"_s );
+  const bool canDataHubExtract = allowedTools.contains( u"datahub_extract"_s );
   const bool canRunPython = allowedTools.contains( u"run_python"_s );
   const bool canInstallPythonPackage = allowedTools.contains( u"install_python_package"_s );
   const bool canReorderLayers = allowedTools.contains( u"reorder_layers"_s );
@@ -2050,14 +2125,18 @@ QString QgsAiAgentSessionManager::buildSystemPrompt( const QString &extraContext
   prompt += "- Never call propose_edit blind: read the file first to capture the exact original text.\n"_L1;
   prompt += "- Keep proposals small and reviewable. One concept per proposal.\n"_L1;
   prompt += "- Do not invent file paths; resolve them via search_files or list_files.\n"_L1;
-  if ( canCatalogSearch || canDownloadFile || canAddLayerFromFile || canRunPython || canWebSearch )
+  if ( canCatalogSearch || canDownloadFile || canAddLayerFromFile || canAddLayerFromService || canDataHubExtract || canRunPython || canWebSearch )
   {
     prompt += "- Use only the remote-data and execution tools listed in Available tools for this turn.\n"_L1;
-    if ( canCatalogSearch || canDownloadFile || canAddLayerFromFile || canRunPython )
+    if ( canCatalogSearch || canDownloadFile || canAddLayerFromFile || canAddLayerFromService || canDataHubExtract || canRunPython )
     {
       QStringList remoteSteps;
       if ( canCatalogSearch )
         remoteSteps << u"catalog_search for reliable GIS sources"_s;
+      if ( canAddLayerFromService )
+        remoteSteps << u"add_layer_from_service when the catalog returns a supported serviceUri"_s;
+      if ( canDataHubExtract )
+        remoteSteps << u"datahub_extract when a catalog service must be materialized as a verified local artifact"_s;
       if ( canDownloadFile )
         remoteSteps << u"download_file(url, dest_path) for trusted downloads"_s;
       if ( canAddLayerFromFile )
@@ -2073,7 +2152,9 @@ QString QgsAiAgentSessionManager::buildSystemPrompt( const QString &extraContext
   }
   if ( canInstallPythonPackage && canRunPython )
   {
-    prompt += "  - To use a Python library not bundled with QGIS (geopy, osmnx, requests, shapely, pandas, ...):\n"_L1;
+    prompt += "  - The Python runtime is Qt6: always import Qt through qgis.PyQt, never PyQt5. The run_python namespace provides iface, processing, and QGIS APIs.\n"_L1;
+    prompt += "  - Prefer download_file for HTTP downloads instead of installing or importing requests. Check whether a package is already available before installing it; DuckDB is bundled in supported Strata builds.\n"_L1;
+    prompt += "  - To use a Python library that is genuinely not bundled with QGIS:\n"_L1;
     prompt += "      1) Briefly state the plan in chat.\n"_L1;
     prompt += "      2) Call install_python_package with exact pinned specs (the user approves).\n"_L1;
     prompt += "      3) Then call run_python to use them.\n"_L1;
@@ -2087,11 +2168,7 @@ QString QgsAiAgentSessionManager::buildSystemPrompt( const QString &extraContext
     prompt += "- Python execution is not available in this mode or policy. Do not propose run_python; use available native tools or explain the limitation.\n"_L1;
   }
   if ( canDownloadFile && ( canAddLayerFromFile || canRunPython ) )
-  {
-    const QString loadStep = canAddLayerFromFile ? u"add_layer_from_file"_s : u"run_python"_s;
-    prompt += u"  - Concrete example: for 'boundary of Pomponesco, Italy', prefer download_file with an Overpass API query (admin_level=8 boundary as GeoJSON), save in workspace, then add it as a layer via %1. Use osmnx only when a true graph/network API is needed.\n"_s
-                .arg( loadStep );
-  }
+    prompt += "  - For file-based catalog results, download into the workspace, verify provenance/hash, load the file, and validate feature count, geometry, CRS, extent, and canvas visibility before claiming success.\n"_L1;
   if ( canRunPython )
   {
     prompt += QStringLiteral(
@@ -2564,7 +2641,14 @@ QgsAiChatMessage QgsAiAgentSessionManager::buildToolResultMessage( const QgsAiTo
   const QgsAiTool *tool = mToolRegistry ? mToolRegistry->find( call.name ) : nullptr;
   const QJsonObject outputObject = result.output.isObject() ? result.output.toObject() : QJsonObject();
   const QString statusText = outputObject.value( u"status"_s ).toString();
-  const bool softFailure = result.success && ( statusText == "error"_L1 || ( call.name == "run_python"_L1 && !outputObject.value( u"traceback"_s ).toString().trimmed().isEmpty() ) );
+  const QJsonObject qualityChecks = outputObject.value( u"quality_checks"_s ).toObject();
+  const QString semanticStatus = outputObject.value( u"semantic_status"_s ).toString();
+  const bool qualityFailure = !qualityChecks.isEmpty() && qualityChecks.contains( u"passed"_s ) && !qualityChecks.value( u"passed"_s ).toBool();
+  const bool softFailure = result.success
+                           && ( statusText == "error"_L1
+                                || semanticStatus == "failure"_L1
+                                || qualityFailure
+                                || ( call.name == "run_python"_L1 && !outputObject.value( u"traceback"_s ).toString().trimmed().isEmpty() ) );
   const bool effectiveSuccess = result.success && !softFailure;
 
   QJsonObject verification;
@@ -2575,6 +2659,8 @@ QgsAiChatMessage QgsAiAgentSessionManager::buildToolResultMessage( const QgsAiTo
   verification.insert( u"check"_s, u"Before the next action, verify the tool status, inspect any diff, confirm rollback availability for mutations, and stop if the result contradicts the plan."_s );
   if ( softFailure )
     verification.insert( u"soft_failure"_s, true );
+  if ( !qualityChecks.isEmpty() )
+    verification.insert( u"quality_checks"_s, qualityChecks );
 
   if ( result.success )
   {
@@ -2743,22 +2829,70 @@ void QgsAiAgentSessionManager::onToolCallsRequested( const QString &requestId, c
     }
   }
 
-  ++mToolIterations;
   const int maxToolIterations = mActiveProvider == QgsAiModelRouter::Provider::Plan && mRouter ? managedToolRoundLimit( mRouter->providerSettings( QgsAiModelRouter::Provider::Plan ).model )
                                                                                                : normalizedToolCallPauseLimit( mBehaviorSettings.maxToolIterationsPerTurn );
-  if ( mToolIterations > maxToolIterations )
+  const int maxTotalToolIterations = normalizedTotalToolCallLimit( mBehaviorSettings.maxTotalToolIterationsPerTurn );
+  if ( mTotalToolIterations >= maxTotalToolIterations )
+  {
+    const QString message = tr( "Tool-use budget exhausted after %1 rounds in this user turn. Start a new turn with a narrower objective or choose a materially different strategy." ).arg( mTotalToolIterations );
+    recordHistoryMessage( buildAssistantMessage( message ) );
+    mActiveRequestId.clear();
+    if ( mActiveProvider == QgsAiModelRouter::Provider::Plan )
+      completeManagedAgentRun();
+    emit requestStateChanged( u"failed"_s, message );
+    emit requestRunningChanged( false );
+    return;
+  }
+
+  if ( mToolIterations >= maxToolIterations && !mBehaviorSettings.autoContinueToolBlocks )
   {
     QgsAiChatMessage limitMessage = buildAssistantMessage(
-      tr( "Numero massimo raggiunto: l'agente ha usato %1 round di tool call. Premi Continue per concedere un altro blocco di %1." ).arg( maxToolIterations )
+      tr( "Numero massimo raggiunto: l'agente ha usato %1 round di tool call in questo blocco (%2/%3 totali). Premi Continue per concedere un altro blocco di %1." )
+        .arg( maxToolIterations )
+        .arg( mTotalToolIterations )
+        .arg( maxTotalToolIterations )
     );
     limitMessage.metadata.insert( u"ui_kind"_s, u"tool_limit"_s );
     limitMessage.metadata.insert( u"tool_limit_status"_s, u"pending"_s );
     limitMessage.metadata.insert( u"tool_limit"_s, maxToolIterations );
+    limitMessage.metadata.insert( u"tool_rounds_used"_s, mTotalToolIterations );
+    limitMessage.metadata.insert( u"tool_rounds_total_limit"_s, maxTotalToolIterations );
     recordHistoryMessage( limitMessage );
     mActiveRequestId.clear();
     emit requestRunningChanged( false );
     return;
   }
+  if ( mToolIterations >= maxToolIterations )
+    mToolIterations = 0;
+
+  for ( const QgsAiToolCall &call : calls )
+  {
+    const QString fingerprint = toolCallFingerprint( call );
+    const int equivalentCount = mToolCallFingerprints.value( fingerprint ) + 1;
+    const int toolCount = mToolCallCounts.value( call.name ) + 1;
+    if ( equivalentCount > MAX_EQUIVALENT_TOOL_CALLS_PER_TURN
+         || ( call.name == "run_python"_L1 && toolCount > MAX_RUN_PYTHON_CALLS_PER_TURN )
+         || ( call.name == "install_python_package"_L1 && toolCount > MAX_PACKAGE_INSTALL_CALLS_PER_TURN ) )
+    {
+      const QString message = equivalentCount > MAX_EQUIVALENT_TOOL_CALLS_PER_TURN
+                                ? tr( "Stopped a repeated tool loop: '%1' was requested with equivalent arguments more than %2 times. Use a materially different strategy or ask the user how to proceed." )
+                                    .arg( call.name )
+                                    .arg( MAX_EQUIVALENT_TOOL_CALLS_PER_TURN )
+                                : tr( "Stopped because tool '%1' exceeded its per-turn safety budget. Start a new, narrower turn if further execution is required." ).arg( call.name );
+      recordHistoryMessage( buildAssistantMessage( message ) );
+      mActiveRequestId.clear();
+      if ( mActiveProvider == QgsAiModelRouter::Provider::Plan )
+        completeManagedAgentRun();
+      emit requestStateChanged( u"failed"_s, message );
+      emit requestRunningChanged( false );
+      return;
+    }
+    mToolCallFingerprints.insert( fingerprint, equivalentCount );
+    mToolCallCounts.insert( call.name, toolCount );
+  }
+
+  ++mToolIterations;
+  ++mTotalToolIterations;
 
   // Append the assistant turn that requested the tools only after the calls are
   // accepted by the active mode. Otherwise the next turn would carry a tool-call
@@ -2767,6 +2901,8 @@ void QgsAiAgentSessionManager::onToolCallsRequested( const QString &requestId, c
   recordHistoryMessage( assistantMessage );
 
   bool roundHadError = false;
+  bool roundHadNonRetryableError = false;
+  QString nonRetryableToolName;
 
   // Execute every requested, mode-allowed tool synchronously and add its result to history.
   for ( const QgsAiToolCall &call : calls )
@@ -2803,6 +2939,11 @@ void QgsAiAgentSessionManager::onToolCallsRequested( const QString &requestId, c
       const QJsonObject output = result.output.toObject();
       memory.insert( u"has_diff"_s, output.contains( u"diff"_s ) );
       memory.insert( u"rollback_available"_s, output.contains( u"rollback_token"_s ) || output.contains( u"rollback"_s ) );
+      if ( output.value( u"status"_s ).toString() == "error"_L1 && output.contains( u"retryable"_s ) && !output.value( u"retryable"_s ).toBool() )
+      {
+        roundHadNonRetryableError = true;
+        nonRetryableToolName = call.name;
+      }
     }
     rememberAgentEvent( u"tool_result"_s, memory );
     const QgsAiChatMessage resultMessage = buildToolResultMessage( call, result );
@@ -2813,7 +2954,40 @@ void QgsAiAgentSessionManager::onToolCallsRequested( const QString &requestId, c
 
   mLastToolRoundHadError = roundHadError;
   if ( roundHadError )
+  {
     mEmptyErrorRecoveryAttempted = false;
+    ++mConsecutiveFailedToolRounds;
+  }
+  else
+  {
+    mConsecutiveFailedToolRounds = 0;
+  }
+
+  if ( roundHadNonRetryableError )
+  {
+    const QString message
+      = tr( "Stopped because tool '%1' reported a non-retryable failure. Review its error details and choose a different strategy or change the environment before starting another turn." ).arg( nonRetryableToolName );
+    recordHistoryMessage( buildAssistantMessage( message ) );
+    mActiveRequestId.clear();
+    if ( mActiveProvider == QgsAiModelRouter::Provider::Plan )
+      completeManagedAgentRun();
+    emit requestStateChanged( u"failed"_s, message );
+    emit requestRunningChanged( false );
+    return;
+  }
+
+  if ( mConsecutiveFailedToolRounds >= MAX_CONSECUTIVE_FAILED_TOOL_ROUNDS )
+  {
+    const QString message
+      = tr( "Stopped after %1 consecutive tool rounds failed verification. Review the recorded errors and choose a materially different strategy before continuing." ).arg( mConsecutiveFailedToolRounds );
+    recordHistoryMessage( buildAssistantMessage( message ) );
+    mActiveRequestId.clear();
+    if ( mActiveProvider == QgsAiModelRouter::Provider::Plan )
+      completeManagedAgentRun();
+    emit requestStateChanged( u"failed"_s, message );
+    emit requestRunningChanged( false );
+    return;
+  }
 
   // Continue the conversation with the same provider (no fallback rotation mid-loop).
   mActiveRequestId.clear();

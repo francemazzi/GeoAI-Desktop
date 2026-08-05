@@ -1,0 +1,54 @@
+{
+  "algorithm_id": "agent.completion_gate.v1",
+  "source_session": "anonymized-gis-wfs-regression",
+  "responses": [
+    {
+      "choices": [
+        {
+          "message": {
+            "role": "assistant",
+            "content": null,
+            "tool_calls": [
+              {
+                "id": "call_err",
+                "type": "function",
+                "function": {
+                  "name": "echo",
+                  "arguments": "{\"text\":\"x\"}"
+                }
+              }
+            ]
+          },
+          "finish_reason": "tool_calls"
+        }
+      ]
+    },
+    {
+      "choices": [
+        {
+          "message": {
+            "role": "assistant",
+            "content": "Configurazione completata con successo."
+          },
+          "finish_reason": "stop"
+        }
+      ]
+    },
+    {
+      "choices": [
+        {
+          "message": {
+            "role": "assistant",
+            "content": "Il tool ha fallito; il lavoro non è completo."
+          },
+          "finish_reason": "stop"
+        }
+      ]
+    }
+  ],
+  "expected": {
+    "request_count": 3,
+    "final_message": "Il tool ha fallito; il lavoro non è completo.",
+    "forbidden_terminal_message": "Configurazione completata con successo."
+  }
+}

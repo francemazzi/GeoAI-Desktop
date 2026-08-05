@@ -346,6 +346,7 @@ if (ENABLE_AI_ASSISTANT)
     ai/qgsaivisualcontextutils.cpp
     ai/qgsaiworkspacetrust.cpp
     ai/tools/qgsaiattributetabletools.cpp
+    ai/tools/qgsaidatahubextracttool.cpp
     ai/tools/qgsaidownloadfiletool.cpp
     ai/tools/qgsaiechotool.cpp
     ai/tools/qgsaieditingtools.cpp
@@ -354,6 +355,7 @@ if (ENABLE_AI_ASSISTANT)
     ai/tools/qgsaiinstallpackagetool.cpp
     ai/tools/qgsailayertools.cpp
     ai/tools/qgsaimessagelogtool.cpp
+    ai/tools/qgsaipythonruntime.cpp
     ai/tools/qgsaiprojecttools.cpp
     ai/tools/qgsaireadtools.cpp
     ai/tools/qgsairunpythontool.cpp

@@ -25,6 +25,9 @@
 #include "qgscoordinatereferencesystem.h"
 #include "qgscoordinatetransform.h"
 #include "qgsexception.h"
+#include "qgsfeature.h"
+#include "qgsfeatureiterator.h"
+#include "qgsfeaturerequest.h"
 #include "qgslayertree.h"
 #include "qgslayertreelayer.h"
 #include "qgsmapcanvas.h"
@@ -144,6 +147,12 @@ namespace
       return false;
     }
 
+    if ( !std::isfinite( xmin ) || !std::isfinite( ymin ) || !std::isfinite( xmax ) || !std::isfinite( ymax ) )
+    {
+      error = u"Extent coordinates must be finite numbers."_s;
+      return false;
+    }
+
     if ( !( xmax > xmin ) || !( ymax > ymin ) )
     {
       error = u"Extent is invalid: xmax/ymax must be greater than xmin/ymin."_s;
@@ -180,10 +189,11 @@ namespace
   {
     if ( value.isString() )
     {
-      QgsMapLayer *layer = project ? project->mapLayer( value.toString() ) : nullptr;
+      const QString layerId = value.toString().trimmed();
+      QgsMapLayer *layer = project ? project->mapLayer( layerId ) : nullptr;
       QgsVectorLayer *vectorLayer = qobject_cast<QgsVectorLayer *>( layer );
       if ( !vectorLayer )
-        error = u"zoom_to_selection must reference a vector layer id."_s;
+        error = u"zoom_to_selection must reference an existing vector layer id."_s;
       return vectorLayer;
     }
 
@@ -708,11 +718,16 @@ QgsAiToolResult QgsAiSetCanvasExtentTool::execute( const QJsonObject &args )
     return QgsAiToolResult::ok( output );
   }
 
-  const bool hasExtent = args.contains( u"extent"_s );
-  const bool hasScale = args.contains( u"scale"_s );
-  const bool hasZoomToLayer = args.contains( u"zoom_to_layer"_s );
-  const bool hasZoomToSelection = args.contains( u"zoom_to_selection"_s );
-  const bool hasCrs = args.contains( u"crs"_s );
+  const QJsonValue extentValue = args.value( u"extent"_s );
+  const QJsonValue scaleValue = args.value( u"scale"_s );
+  const QJsonValue zoomToLayerValue = args.value( u"zoom_to_layer"_s );
+  const QJsonValue zoomToSelectionValue = args.value( u"zoom_to_selection"_s );
+  const QJsonValue crsValue = args.value( u"crs"_s );
+  const bool hasExtent = args.contains( u"extent"_s ) && !extentValue.isNull() && !extentValue.isUndefined();
+  const bool hasScale = args.contains( u"scale"_s ) && !scaleValue.isNull() && !scaleValue.isUndefined();
+  const bool hasZoomToLayer = args.contains( u"zoom_to_layer"_s ) && !zoomToLayerValue.isNull() && !( zoomToLayerValue.isString() && zoomToLayerValue.toString().trimmed().isEmpty() );
+  const bool hasZoomToSelection = args.contains( u"zoom_to_selection"_s ) && !zoomToSelectionValue.isNull() && !( zoomToSelectionValue.isString() && zoomToSelectionValue.toString().trimmed().isEmpty() );
+  const bool hasCrs = args.contains( u"crs"_s ) && !crsValue.isNull() && !( crsValue.isString() && crsValue.toString().trimmed().isEmpty() );
   if ( !hasExtent && !hasScale && !hasZoomToLayer && !hasZoomToSelection && !hasCrs )
     return QgsAiToolResult::error( u"Provide extent, scale, zoom_to_layer, zoom_to_selection or crs."_s );
 
@@ -724,7 +739,9 @@ QgsAiToolResult QgsAiSetCanvasExtentTool::execute( const QJsonObject &args )
   QgsCoordinateReferenceSystem requestedCrs;
   if ( hasCrs )
   {
-    const QString crsText = args.value( u"crs"_s ).toString().trimmed();
+    if ( !crsValue.isString() )
+      return QgsAiToolResult::error( u"Argument 'crs' must be a string."_s );
+    const QString crsText = crsValue.toString().trimmed();
     if ( crsText.isEmpty() )
       return QgsAiToolResult::error( u"Argument 'crs' must not be empty."_s );
     requestedCrs = QgsCoordinateReferenceSystem( crsText );
@@ -736,15 +753,14 @@ QgsAiToolResult QgsAiSetCanvasExtentTool::execute( const QJsonObject &args )
   if ( hasExtent )
   {
     QString error;
-    if ( !readToolsParseExtent( args.value( u"extent"_s ), requestedExtent, error ) )
+    if ( !readToolsParseExtent( extentValue, requestedExtent, error ) )
       return QgsAiToolResult::error( error );
   }
 
   double requestedScale = 0;
   if ( hasScale )
   {
-    const QJsonValue scaleValue = args.value( u"scale"_s );
-    if ( !scaleValue.isDouble() || scaleValue.toDouble() <= 0 )
+    if ( !scaleValue.isDouble() || !std::isfinite( scaleValue.toDouble() ) || scaleValue.toDouble() <= 0 )
       return QgsAiToolResult::error( u"Argument 'scale' must be a positive number."_s );
     requestedScale = scaleValue.toDouble();
   }
@@ -754,7 +770,9 @@ QgsAiToolResult QgsAiSetCanvasExtentTool::execute( const QJsonObject &args )
   const QgsCoordinateReferenceSystem destinationCrs = requestedCrs.isValid() ? requestedCrs : mCanvas->mapSettings().destinationCrs();
   if ( hasZoomToLayer )
   {
-    const QString layerId = args.value( u"zoom_to_layer"_s ).toString().trimmed();
+    if ( !zoomToLayerValue.isString() )
+      return QgsAiToolResult::error( u"Argument 'zoom_to_layer' must be a layer id string."_s );
+    const QString layerId = zoomToLayerValue.toString().trimmed();
     if ( layerId.isEmpty() )
       return QgsAiToolResult::error( u"Argument 'zoom_to_layer' must be a layer id."_s );
     zoomLayer = project ? project->mapLayer( layerId ) : nullptr;
@@ -773,11 +791,32 @@ QgsAiToolResult QgsAiSetCanvasExtentTool::execute( const QJsonObject &args )
   if ( hasZoomToSelection )
   {
     QString error;
-    selectionLayer = readToolsSelectionLayer( mCanvas, project, args.value( u"zoom_to_selection"_s ), error );
+    selectionLayer = readToolsSelectionLayer( mCanvas, project, zoomToSelectionValue, error );
     if ( !selectionLayer )
       return QgsAiToolResult::error( error );
     if ( selectionLayer->selectedFeatureCount() == 0 )
       return QgsAiToolResult::error( u"Layer has no selected features: %1"_s.arg( selectionLayer->id() ) );
+    if ( !selectionLayer->isSpatial() )
+      return QgsAiToolResult::error( u"Selected layer has no geometry: %1"_s.arg( selectionLayer->id() ) );
+
+    bool selectedGeometryFound = false;
+    QgsFeatureRequest request;
+    request.setFilterFids( selectionLayer->selectedFeatureIds() );
+    request.setNoAttributes();
+    QgsFeatureIterator iterator = selectionLayer->getFeatures( request );
+    QgsFeature feature;
+    while ( iterator.nextFeature( feature ) )
+    {
+      if ( feature.hasGeometry() && !feature.geometry().isEmpty() )
+      {
+        selectedGeometryFound = true;
+        break;
+      }
+    }
+    if ( !selectedGeometryFound )
+      return QgsAiToolResult::error( u"Selected features have no usable geometry: %1"_s.arg( selectionLayer->id() ) );
+    if ( !selectionLayer->boundingBoxOfSelected().isFinite() )
+      return QgsAiToolResult::error( u"Selected feature extent contains non-finite coordinates: %1"_s.arg( selectionLayer->id() ) );
   }
 
   QStringList changes;
@@ -832,6 +871,18 @@ QgsAiToolResult QgsAiSetCanvasExtentTool::execute( const QJsonObject &args )
   output.insert( u"diff"_s, diff );
   output.insert( u"rollback_token"_s, token );
   output.insert( u"rollback"_s, readToolsRollbackJson( token, u"restore_canvas_extent"_s ) );
+  const bool extentValid = mCanvas->extent().isFinite() && !mCanvas->extent().isEmpty();
+  bool canvasIntersection = extentValid;
+  if ( hasExtent )
+    canvasIntersection = canvasIntersection && mCanvas->extent().intersects( requestedExtent );
+  if ( hasZoomToLayer )
+    canvasIntersection = canvasIntersection && mCanvas->extent().intersects( zoomLayerExtent );
+  QJsonObject qualityChecks;
+  qualityChecks.insert( u"extent_valid"_s, extentValid );
+  qualityChecks.insert( u"canvas_intersection"_s, canvasIntersection );
+  qualityChecks.insert( u"selection_present"_s, !hasZoomToSelection || ( selectionLayer && selectionLayer->selectedFeatureCount() > 0 ) );
+  qualityChecks.insert( u"passed"_s, extentValid && canvasIntersection && ( !hasZoomToSelection || ( selectionLayer && selectionLayer->selectedFeatureCount() > 0 ) ) );
+  output.insert( u"quality_checks"_s, qualityChecks );
   return QgsAiToolResult::ok( output );
 }
 

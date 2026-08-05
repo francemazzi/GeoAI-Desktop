@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "contracts": [
+    {
+      "algorithm_id": "tool.run_python.semantic_diagnostics.v1",
+      "unit_test": "runPythonDiagnosticsAreConservative",
+      "integration_test": "runPythonSoftFailureMarksToolResultError",
+      "expected": "Explicit runtime failures cannot produce verification.success=true."
+    },
+    {
+      "algorithm_id": "tool.layer.usability_validation.v1",
+      "unit_test": "addLayerFromFileRejectsUnusableVectors",
+      "integration_test": "unverifiedSuccessClaimTriggersCompletionGate",
+      "expected": "An empty or unusable vector layer cannot be reported as completed."
+    },
+    {
+      "algorithm_id": "tool.canvas.argument_normalization.v1",
+      "unit_test": "setCanvasExtentIgnoresEmptyOptionalStrings",
+      "integration_test": "setCanvasExtentSetsZoomsAndRollsBack",
+      "expected": "Empty optional values are ignored while valid scale and zoom operations remain reversible."
+    },
+    {
+      "algorithm_id": "python.runtime.bootstrap.v1",
+      "unit_test": "bootstrapProvidesPyQgisNamespace",
+      "integration_test": "pipWrapperUsesIsolatedTargetAndBundledInterpreter",
+      "expected": "AI Python uses the QGIS Qt6 namespace and an isolated package target."
+    },
+    {
+      "algorithm_id": "python.install.non_retryable_failure.v1",
+      "unit_test": "externallyManagedErrorsAreRecognized",
+      "integration_test": "nonRetryableToolFailureStopsTurn",
+      "expected": "PEP 668 and equivalent terminal installation failures cannot trigger an automatic retry."
+    },
+    {
+      "algorithm_id": "agent.tool_budget.v1",
+      "unit_test": "agentBehaviorSettingsRoundTrip",
+      "integration_test": "cumulativeToolBudgetStopsAutomaticContinuation",
+      "expected": "Automatic continuation always stops at the cumulative per-turn cap."
+    },
+    {
+      "algorithm_id": "agent.retry_dedup.v1",
+      "unit_test": "toolCallLimitPausesAndContinues",
+      "integration_test": "repeatedEquivalentToolCallsStopTurn",
+      "expected": "Equivalent tool calls stop after the configured repetition budget."
+    },
+    {
+      "algorithm_id": "agent.completion_gate.v1",
+      "unit_test": "runPythonSoftFailureMarksToolResultError",
+      "integration_test": "unverifiedSuccessClaimTriggersCompletionGate",
+      "expected": "A failed verification rejects a subsequent unverified success claim."
+    },
+    {
+      "algorithm_id": "desktop.datahub_extract_pipeline.v1",
+      "unit_test": "validatesArgumentsWithoutNetwork",
+      "integration_test": "pollsAndReturnsVerifiedArtifact",
+      "expected": "The desktop submits the backend contract, bounds polling, and accepts only verified artifact metadata."
+    }
+  ]
+}
