@@ -4,19 +4,18 @@
   begin                : August 2026
 ***************************************************************************/
 
-#include "qgstest.h"
-
+#include "qgsaidatahubextracttool.h"
 #include "qgsaimodelrouter.h"
 #include "qgsaisecretstore.h"
-#include "qgsaidatahubextracttool.h"
-#include "qgssettings.h"
-
 #include "qgsaitestloopbackserver.h"
+#include "qgssettings.h"
+#include "qgstest.h"
 
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QRegularExpression>
+#include <QString>
 
 using namespace Qt::StringLiterals;
 
@@ -107,7 +106,8 @@ void TestQgsAiDataHubExtractTool::pollsAndReturnsVerifiedArtifact()
     << QgsAiTestLoopbackServer::jsonResponse( 202, "Accepted", QByteArrayLiteral( R"({"id":"job/42","status":"QUEUED","format":"geojson","createdAt":"2026-08-05T16:00:00Z"})" ) )
     << QgsAiTestLoopbackServer::jsonResponse( 200, "OK", QByteArrayLiteral( R"({"status":"running"})" ) )
     << QgsAiTestLoopbackServer::jsonResponse(
-         200, "OK",
+         200,
+         "OK",
          QByteArrayLiteral(
            R"({"status":"SUCCEEDED","artifact":{"downloadUrl":"http://127.0.0.1:9876/artifacts/job-42.geojson?signature=test","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","sizeBytes":"1234","format":"GEOJSON","expiresAt":"2030-01-02T03:04:05Z"},"provenance":{"sourceId":"source-42","endpointId":"endpoint-42","sourceName":"Official cadastre","serviceUri":"https://example.test/wfs","license":"CC-BY-4.0","attribution":"Official source","trustLevel":"OFFICIAL"}})"
          )
@@ -147,7 +147,8 @@ void TestQgsAiDataHubExtractTool::includesAgentContextWhenSetOnRouter()
   server.responses
     << QgsAiTestLoopbackServer::jsonResponse( 202, "Accepted", QByteArrayLiteral( R"({"id":"job/ctx","status":"QUEUED","format":"geojson","createdAt":"2026-08-05T16:00:00Z"})" ) )
     << QgsAiTestLoopbackServer::jsonResponse(
-         200, "OK",
+         200,
+         "OK",
          QByteArrayLiteral(
            R"({"status":"SUCCEEDED","artifact":{"downloadUrl":"http://127.0.0.1:9876/artifacts/job-ctx.geojson?signature=test","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","sizeBytes":"1234","format":"GEOJSON","expiresAt":"2030-01-02T03:04:05Z"},"provenance":{"sourceId":"source-42","endpointId":"endpoint-42","sourceName":"Official cadastre","serviceUri":"https://example.test/wfs","license":"CC-BY-4.0","attribution":"Official source","trustLevel":"OFFICIAL"}})"
          )
@@ -178,12 +179,8 @@ void TestQgsAiDataHubExtractTool::rejectsMalformedArtifact()
   QgsAiTestLoopbackServer server;
   server.responses
     << QgsAiTestLoopbackServer::jsonResponse( 202, "Accepted", QByteArrayLiteral( R"({"id":"job-bad","status":"QUEUED","format":"geojson","createdAt":"2026-08-05T16:00:00Z"})" ) )
-    << QgsAiTestLoopbackServer::jsonResponse(
-         200, "OK",
-         QByteArrayLiteral(
-           R"({"status":"completed","artifact":{"downloadUrl":"https://example.test/data.geojson","sha256":"not-a-hash","sizeBytes":12,"format":"geojson","expiresAt":"2030-01-02T03:04:05Z"}})"
-         )
-       );
+    << QgsAiTestLoopbackServer::
+         jsonResponse( 200, "OK", QByteArrayLiteral( R"({"status":"completed","artifact":{"downloadUrl":"https://example.test/data.geojson","sha256":"not-a-hash","sizeBytes":12,"format":"geojson","expiresAt":"2030-01-02T03:04:05Z"}})" ) );
   QVERIFY( server.listen( QHostAddress::LocalHost, 0 ) );
 
   QgsAiModelRouter router;
