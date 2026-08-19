@@ -89,7 +89,11 @@ class APP_EXPORT QgsAiModelRouter : public QObject
     void setPlanConversationId( const QString &conversationId );
     //! Binds an approved backend agent task to managed Plan requests only.
     void setPlanAgentRunId( const QString &agentRunId ) { mPlanAgentRunId = agentRunId.trimmed(); }
+    QString planAgentRunId() const { return mPlanAgentRunId; }
     void setPlanClientSessionId( const QString &clientSessionId ) { mPlanClientSessionId = clientSessionId.trimmed(); }
+    QString planClientSessionId() const { return mPlanClientSessionId; }
+    //! Adds non-empty Plan agent context keys used by managed tool POSTs.
+    void appendManagedToolContext( QJsonObject &body ) const;
     //! Starts a fresh OpenRouter prompt-cache session without deleting chat history.
     void resetPlanPromptCacheSession();
 

@@ -63,6 +63,7 @@ class TestQgsAiDataHubExtractTool : public QObject
     void cleanup();
     void validatesArgumentsWithoutNetwork();
     void pollsAndReturnsVerifiedArtifact();
+    void includesAgentContextWhenSetOnRouter();
     void rejectsMalformedArtifact();
     void stopsAfterBoundedPolls();
 };
@@ -135,6 +136,41 @@ void TestQgsAiDataHubExtractTool::pollsAndReturnsVerifiedArtifact()
   QCOMPARE( submitted.value( u"endpointId"_s ).toString(), u"endpoint-42"_s );
   QCOMPARE( submitted.value( u"catalogRecordId"_s ).toString(), u"record-7"_s );
   QCOMPARE( submitted.value( u"typeName"_s ).toString(), u"CP:CadastralParcel"_s );
+  QVERIFY( !submitted.contains( u"agent_mode"_s ) );
+  QVERIFY( !submitted.contains( u"agentRunId"_s ) );
+  QVERIFY( !submitted.contains( u"agentClientSessionId"_s ) );
+}
+
+void TestQgsAiDataHubExtractTool::includesAgentContextWhenSetOnRouter()
+{
+  QgsAiTestLoopbackServer server;
+  server.responses
+    << QgsAiTestLoopbackServer::jsonResponse( 202, "Accepted", QByteArrayLiteral( R"({"id":"job/ctx","status":"QUEUED","format":"geojson","createdAt":"2026-08-05T16:00:00Z"})" ) )
+    << QgsAiTestLoopbackServer::jsonResponse(
+         200, "OK",
+         QByteArrayLiteral(
+           R"({"status":"SUCCEEDED","artifact":{"downloadUrl":"http://127.0.0.1:9876/artifacts/job-ctx.geojson?signature=test","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","sizeBytes":"1234","format":"GEOJSON","expiresAt":"2030-01-02T03:04:05Z"},"provenance":{"sourceId":"source-42","endpointId":"endpoint-42","sourceName":"Official cadastre","serviceUri":"https://example.test/wfs","license":"CC-BY-4.0","attribution":"Official source","trustLevel":"OFFICIAL"}})"
+         )
+       );
+  QVERIFY( server.listen( QHostAddress::LocalHost, 0 ) );
+
+  QgsAiModelRouter router;
+  QVERIFY( configurePlanForLoopback( router, server.serverPort() ) );
+  router.setAgentMode( u"ask_before_edits"_s );
+  router.setPlanAgentRunId( u"run_extract_1"_s );
+  router.setPlanClientSessionId( u"desktop_extract_1"_s );
+  QgsAiDataHubExtractTool tool( &router, 0, 2 );
+  const QgsAiToolResult result = tool.execute( validArgs() );
+
+  QVERIFY2( result.success, qPrintable( result.errorMessage ) );
+  QCOMPARE( server.requestCount, 2 );
+  QVERIFY( server.rawRequests.at( 0 ).startsWith( "POST /v1/datahub/extract HTTP/1.1\r\n" ) );
+
+  const QJsonObject submitted = QJsonDocument::fromJson( server.requestBodies.at( 0 ) ).object();
+  QCOMPARE( submitted.value( u"agent_mode"_s ).toString(), u"ask_before_edits"_s );
+  QCOMPARE( submitted.value( u"agentRunId"_s ).toString(), u"run_extract_1"_s );
+  QCOMPARE( submitted.value( u"agentClientSessionId"_s ).toString(), u"desktop_extract_1"_s );
+  QCOMPARE( submitted.value( u"endpointId"_s ).toString(), u"endpoint-42"_s );
 }
 
 void TestQgsAiDataHubExtractTool::rejectsMalformedArtifact()

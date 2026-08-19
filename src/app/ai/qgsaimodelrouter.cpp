@@ -731,6 +731,16 @@ QgsAiModelRouter::ApiWireFormat QgsAiModelRouter::wireFormatForProvider( Provide
   return ApiWireFormat::PlainMessages;
 }
 
+void QgsAiModelRouter::appendManagedToolContext( QJsonObject &body ) const
+{
+  if ( !mAgentMode.isEmpty() )
+    body.insert( u"agent_mode"_s, mAgentMode );
+  if ( !mPlanAgentRunId.isEmpty() )
+    body.insert( u"agentRunId"_s, mPlanAgentRunId );
+  if ( !mPlanClientSessionId.isEmpty() )
+    body.insert( u"agentClientSessionId"_s, mPlanClientSessionId );
+}
+
 QByteArray QgsAiModelRouter::buildRequestPayload( Provider provider, const QList<QgsAiChatMessage> &messages, bool stream ) const
 {
   QJsonObject payload;
@@ -738,15 +748,10 @@ QByteArray QgsAiModelRouter::buildRequestPayload( Provider provider, const QList
   const QString model = normalizedModelForProvider( provider, settings.model );
   payload.insert( u"model"_s, model );
   payload.insert( u"stream"_s, stream );
-  if ( provider == Provider::Plan && !mAgentMode.isEmpty() )
-    payload.insert( u"agent_mode"_s, mAgentMode );
   if ( provider == Provider::Plan )
   {
+    appendManagedToolContext( payload );
     payload.insert( u"session_id"_s, planPromptCacheSessionId() );
-    if ( !mPlanAgentRunId.isEmpty() )
-      payload.insert( u"agentRunId"_s, mPlanAgentRunId );
-    if ( !mPlanClientSessionId.isEmpty() )
-      payload.insert( u"agentClientSessionId"_s, mPlanClientSessionId );
   }
 
   const ApiWireFormat wireFormat = wireFormatForProvider( provider );

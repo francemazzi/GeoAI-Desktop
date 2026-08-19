@@ -261,6 +261,7 @@ QgsAiToolResult QgsAiDataHubExtractTool::execute( const QJsonObject &args )
   submitBody.insert( u"typeName"_s, typeName );
   submitBody.insert( u"bbox"_s, bbox );
   submitBody.insert( u"format"_s, format );
+  mRouter->appendManagedToolContext( submitBody );
 
   const QNetworkRequest submitRequest = requestForPath( u"/v1/datahub/extract"_s );
   const JsonResponse submit = sendJsonRequest( networkManager, submitRequest, &submitBody );
