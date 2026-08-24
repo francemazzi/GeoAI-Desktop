@@ -123,11 +123,13 @@ namespace
       QJsonObject schema() const override { return QJsonObject { { u"type"_s, u"object"_s } }; }
       QgsAiToolResult execute( const QJsonObject & ) override
       {
-        return QgsAiToolResult::ok( QJsonObject {
-          { u"status"_s, u"error"_s },
-          { u"error_code"_s, u"externally_managed_environment"_s },
-          { u"retryable"_s, false },
-        } );
+        return QgsAiToolResult::ok(
+          QJsonObject {
+            { u"status"_s, u"error"_s },
+            { u"error_code"_s, u"externally_managed_environment"_s },
+            { u"retryable"_s, false },
+          }
+        );
       }
       bool requiresApproval() const override { return false; }
   };
@@ -757,8 +759,10 @@ void TestQgsAiAgentSessionManager::repeatedEquivalentToolCallsStopTurn()
   } );
 
   QgsAiTestLoopbackServer server;
-  const QByteArray repeated
-    = QByteArrayLiteral( "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":null,\"tool_calls\":[{\"id\":\"call_repeat\",\"type\":\"function\",\"function\":{\"name\":\"echo\",\"arguments\":\"{\\\"text\\\":\\\"same\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}" );
+  const QByteArray repeated = QByteArrayLiteral(
+    "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":null,\"tool_calls\":[{\"id\":\"call_repeat\",\"type\":\"function\",\"function\":{\"name\":\"echo\",\"arguments\":\"{\\\"text\\\":"
+    "\\\"same\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}"
+  );
   server.responses
     << QgsAiTestLoopbackServer::jsonResponse( 200, "OK", repeated )
     << QgsAiTestLoopbackServer::jsonResponse( 200, "OK", repeated )
@@ -812,9 +816,8 @@ void TestQgsAiAgentSessionManager::nonRetryableToolFailureStopsTurn()
   } );
 
   QgsAiTestLoopbackServer server;
-  server.responses
-    << QgsAiTestLoopbackServer::
-         jsonResponse( 200, "OK", QByteArrayLiteral( "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":null,\"tool_calls\":[{\"id\":\"call_install\",\"type\":\"function\",\"function\":{\"name\":\"install_python_package\",\"arguments\":\"{}\"}}]},\"finish_reason\":\"tool_calls\"}]}" ) );
+  server.responses << QgsAiTestLoopbackServer::
+      jsonResponse( 200, "OK", QByteArrayLiteral( "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":null,\"tool_calls\":[{\"id\":\"call_install\",\"type\":\"function\",\"function\":{\"name\":\"install_python_package\",\"arguments\":\"{}\"}}]},\"finish_reason\":\"tool_calls\"}]}" ) );
   QVERIFY( server.listen( QHostAddress::LocalHost, 0 ) );
 
   settings.setValue( u"ai/provider/openrouter/apiKey"_s, u"sk-or-loopback-test"_s );

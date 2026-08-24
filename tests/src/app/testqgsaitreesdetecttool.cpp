@@ -4,10 +4,10 @@
   begin                : August 2026
 ***************************************************************************/
 
-#include "qgsaitreesdetecttool.h"
 #include "qgsaimodelrouter.h"
 #include "qgsaisecretstore.h"
 #include "qgsaitestloopbackserver.h"
+#include "qgsaitreesdetecttool.h"
 #include "qgssettings.h"
 #include "qgstest.h"
 
@@ -169,13 +169,8 @@ void TestQgsAiTreesDetectTool::rejectsMalformedArtifact()
   QgsAiTestLoopbackServer server;
   server.responses
     << QgsAiTestLoopbackServer::jsonResponse( 202, "Accepted", QByteArrayLiteral( R"({"id":"job-bad","status":"QUEUED","format":"geojson","createdAt":"2026-08-22T16:00:00Z"})" ) )
-    << QgsAiTestLoopbackServer::jsonResponse(
-         200,
-         "OK",
-         QByteArrayLiteral(
-           R"({"status":"completed","artifact":{"downloadUrl":"https://example.test/trees.geojson","sha256":"not-a-hash","sizeBytes":12,"format":"geojson","expiresAt":"2030-01-02T03:04:05Z"}})"
-         )
-       );
+    << QgsAiTestLoopbackServer::
+         jsonResponse( 200, "OK", QByteArrayLiteral( R"({"status":"completed","artifact":{"downloadUrl":"https://example.test/trees.geojson","sha256":"not-a-hash","sizeBytes":12,"format":"geojson","expiresAt":"2030-01-02T03:04:05Z"}})" ) );
   QVERIFY( server.listen( QHostAddress::LocalHost, 0 ) );
 
   QgsAiModelRouter router;

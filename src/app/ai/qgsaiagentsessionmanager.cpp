@@ -202,10 +202,8 @@ namespace
   bool assistantClaimsSuccessfulCompletion( const QString &text )
   {
     static const QRegularExpression explicitStatus( uR"("status"\s*:\s*"success")"_s, QRegularExpression::CaseInsensitiveOption );
-    static const QRegularExpression completionPhrase(
-      uR"((?:\bcompleted\s+successfully\b|\bsuccessfully\s+(?:completed|configured|loaded|created)\b|\bcon\s+successo\b|^\s*fatto[.!:\s]))"_s,
-      QRegularExpression::CaseInsensitiveOption | QRegularExpression::MultilineOption
-    );
+    static const QRegularExpression
+      completionPhrase( uR"((?:\bcompleted\s+successfully\b|\bsuccessfully\s+(?:completed|configured|loaded|created)\b|\bcon\s+successo\b|^\s*fatto[.!:\s]))"_s, QRegularExpression::CaseInsensitiveOption | QRegularExpression::MultilineOption );
     return explicitStatus.match( text ).hasMatch() || completionPhrase.match( text ).hasMatch();
   }
 
@@ -1674,8 +1672,9 @@ void QgsAiAgentSessionManager::loadPersistedBehaviorSettings()
   mBehaviorSettings.skillsPath
     = settingValueWithLegacy( settings, u"strata/agent/skills_path"_s, QStringList { u"geoai/agent/skills_path"_s, u"qgis_ai/agent/skills_path"_s }, defaultSkillsPath() ).toString();
   mBehaviorSettings.maxToolIterationsPerTurn = normalizedToolCallPauseLimit( settings.value( u"strata/agent/max_tool_iterations_per_turn"_s, QgsAiAgentBehaviorSettings::DEFAULT_TOOL_CALL_PAUSE_LIMIT ) );
-  mBehaviorSettings.maxTotalToolIterationsPerTurn
-    = normalizedTotalToolCallLimit( settings.value( u"strata/agent/max_total_tool_iterations_per_turn"_s, QgsAiAgentBehaviorSettings::DEFAULT_TOTAL_TOOL_CALL_LIMIT ) );
+  mBehaviorSettings.maxTotalToolIterationsPerTurn = normalizedTotalToolCallLimit(
+    settings.value( u"strata/agent/max_total_tool_iterations_per_turn"_s, QgsAiAgentBehaviorSettings::DEFAULT_TOTAL_TOOL_CALL_LIMIT )
+  );
   mBehaviorSettings.maxTotalToolIterationsPerTurn = std::max( mBehaviorSettings.maxTotalToolIterationsPerTurn, mBehaviorSettings.maxToolIterationsPerTurn );
   mBehaviorSettings.autoContinueToolBlocks = settings.value( u"strata/agent/auto_continue_tool_blocks"_s, false ).toBool();
   mBehaviorSettings.rememberPythonApprovalsForSession = settings.value( u"strata/agent/remember_python_approvals_for_session"_s, false ).toBool();
@@ -2647,11 +2646,9 @@ QgsAiChatMessage QgsAiAgentSessionManager::buildToolResultMessage( const QgsAiTo
   const QJsonObject qualityChecks = outputObject.value( u"quality_checks"_s ).toObject();
   const QString semanticStatus = outputObject.value( u"semantic_status"_s ).toString();
   const bool qualityFailure = !qualityChecks.isEmpty() && qualityChecks.contains( u"passed"_s ) && !qualityChecks.value( u"passed"_s ).toBool();
-  const bool softFailure = result.success
-                           && ( statusText == "error"_L1
-                                || semanticStatus == "failure"_L1
-                                || qualityFailure
-                                || ( call.name == "run_python"_L1 && !outputObject.value( u"traceback"_s ).toString().trimmed().isEmpty() ) );
+  const bool softFailure
+    = result.success
+      && ( statusText == "error"_L1 || semanticStatus == "failure"_L1 || qualityFailure || ( call.name == "run_python"_L1 && !outputObject.value( u"traceback"_s ).toString().trimmed().isEmpty() ) );
   const bool effectiveSuccess = result.success && !softFailure;
 
   QJsonObject verification;
@@ -2837,7 +2834,8 @@ void QgsAiAgentSessionManager::onToolCallsRequested( const QString &requestId, c
   const int maxTotalToolIterations = normalizedTotalToolCallLimit( mBehaviorSettings.maxTotalToolIterationsPerTurn );
   if ( mTotalToolIterations >= maxTotalToolIterations )
   {
-    const QString message = tr( "Tool-use budget exhausted after %1 rounds in this user turn. Start a new turn with a narrower objective or choose a materially different strategy." ).arg( mTotalToolIterations );
+    const QString message
+      = tr( "Tool-use budget exhausted after %1 rounds in this user turn. Start a new turn with a narrower objective or choose a materially different strategy." ).arg( mTotalToolIterations );
     recordHistoryMessage( buildAssistantMessage( message ) );
     mActiveRequestId.clear();
     if ( mActiveProvider == QgsAiModelRouter::Provider::Plan )
