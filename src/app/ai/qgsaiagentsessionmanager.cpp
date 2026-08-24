@@ -1955,6 +1955,7 @@ QString QgsAiAgentSessionManager::buildSystemPrompt( const QString &extraContext
   const bool canAddLayerFromFile = allowedTools.contains( u"add_layer_from_file"_s );
   const bool canAddLayerFromService = allowedTools.contains( u"add_layer_from_service"_s );
   const bool canDataHubExtract = allowedTools.contains( u"datahub_extract"_s );
+  const bool canTreesDetect = allowedTools.contains( u"trees_detect"_s );
   const bool canRunPython = allowedTools.contains( u"run_python"_s );
   const bool canInstallPythonPackage = allowedTools.contains( u"install_python_package"_s );
   const bool canReorderLayers = allowedTools.contains( u"reorder_layers"_s );
@@ -2125,10 +2126,10 @@ QString QgsAiAgentSessionManager::buildSystemPrompt( const QString &extraContext
   prompt += "- Never call propose_edit blind: read the file first to capture the exact original text.\n"_L1;
   prompt += "- Keep proposals small and reviewable. One concept per proposal.\n"_L1;
   prompt += "- Do not invent file paths; resolve them via search_files or list_files.\n"_L1;
-  if ( canCatalogSearch || canDownloadFile || canAddLayerFromFile || canAddLayerFromService || canDataHubExtract || canRunPython || canWebSearch )
+  if ( canCatalogSearch || canDownloadFile || canAddLayerFromFile || canAddLayerFromService || canDataHubExtract || canTreesDetect || canRunPython || canWebSearch )
   {
     prompt += "- Use only the remote-data and execution tools listed in Available tools for this turn.\n"_L1;
-    if ( canCatalogSearch || canDownloadFile || canAddLayerFromFile || canAddLayerFromService || canDataHubExtract || canRunPython )
+    if ( canCatalogSearch || canDownloadFile || canAddLayerFromFile || canAddLayerFromService || canDataHubExtract || canTreesDetect || canRunPython )
     {
       QStringList remoteSteps;
       if ( canCatalogSearch )
@@ -2137,6 +2138,8 @@ QString QgsAiAgentSessionManager::buildSystemPrompt( const QString &extraContext
         remoteSteps << u"add_layer_from_service when the catalog returns a supported serviceUri"_s;
       if ( canDataHubExtract )
         remoteSteps << u"datahub_extract when a catalog service must be materialized as a verified local artifact"_s;
+      if ( canTreesDetect )
+        remoteSteps << u"trees_detect for Lombardy public street-row and park trees (not private parcels)"_s;
       if ( canDownloadFile )
         remoteSteps << u"download_file(url, dest_path) for trusted downloads"_s;
       if ( canAddLayerFromFile )

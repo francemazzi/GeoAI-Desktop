@@ -54,6 +54,12 @@
       "unit_test": "validatesArgumentsWithoutNetwork",
       "integration_test": "pollsAndReturnsVerifiedArtifact",
       "expected": "The desktop submits the backend contract, bounds polling, and accepts only verified artifact metadata."
+    },
+    {
+      "algorithm_id": "desktop.trees_detect_pipeline.v1",
+      "unit_test": "validatesArgumentsWithoutNetwork",
+      "integration_test": "pollsAndReturnsVerifiedArtifact",
+      "expected": "The desktop submits a Lombardy trees job, bounds polling, and accepts only verified GeoJSON artifact metadata."
     }
   ]
 }

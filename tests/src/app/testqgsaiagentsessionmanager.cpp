@@ -499,11 +499,13 @@ void TestQgsAiAgentSessionManager::algorithmContractManifestIsComplete()
   QFile sessionTests( QDir( QStringLiteral( TEST_DATA_DIR ) ).absoluteFilePath( u"../src/app/testqgsaiagentsessionmanager.cpp"_s ) );
   QFile runtimeTests( QDir( QStringLiteral( TEST_DATA_DIR ) ).absoluteFilePath( u"../src/app/testqgsaipythonruntime.cpp"_s ) );
   QFile dataHubTests( QDir( QStringLiteral( TEST_DATA_DIR ) ).absoluteFilePath( u"../src/app/testqgsaidatahubextracttool.cpp"_s ) );
+  QFile treesTests( QDir( QStringLiteral( TEST_DATA_DIR ) ).absoluteFilePath( u"../src/app/testqgsaitreesdetecttool.cpp"_s ) );
   QVERIFY( registryTests.open( QIODevice::ReadOnly ) );
   QVERIFY( sessionTests.open( QIODevice::ReadOnly ) );
   QVERIFY( runtimeTests.open( QIODevice::ReadOnly ) );
   QVERIFY( dataHubTests.open( QIODevice::ReadOnly ) );
-  const QByteArray testSources = registryTests.readAll() + sessionTests.readAll() + runtimeTests.readAll() + dataHubTests.readAll();
+  QVERIFY( treesTests.open( QIODevice::ReadOnly ) );
+  const QByteArray testSources = registryTests.readAll() + sessionTests.readAll() + runtimeTests.readAll() + dataHubTests.readAll() + treesTests.readAll();
 
   QSet<QString> algorithmIds;
   for ( const QJsonValue &value : contracts )

@@ -1,6 +1,6 @@
 /***************************************************************************
-    qgsaidatahubextracttool.cpp
-    ---------------------------
+    qgsaitreesdetecttool.cpp
+    ------------------------
     begin                : August 2026
     copyright            : (C) 2026 by Francesco Mazzi
     email                : francemazzi at gmail dot com
@@ -13,7 +13,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#include "qgsaidatahubextracttool.h"
+#include "qgsaitreesdetecttool.h"
 
 #include <algorithm>
 #include <cmath>
@@ -54,7 +54,7 @@ namespace
   {
     QNetworkReply *reply = body ? networkManager->post( request, QJsonDocument( *body ).toJson( QJsonDocument::Compact ) ) : networkManager->get( request );
     if ( !reply )
-      return { false, 0, {}, u"Unable to start the Strata DataHub request."_s };
+      return { false, 0, {}, u"Unable to start the Strata trees request."_s };
 
     QEventLoop loop;
     QTimer timer;
@@ -74,17 +74,17 @@ namespace
     reply->deleteLater();
 
     if ( timedOut )
-      return { false, httpStatus, {}, u"Strata DataHub request timed out."_s };
+      return { false, httpStatus, {}, u"Strata trees request timed out."_s };
     if ( networkError != QNetworkReply::NoError || httpStatus < 200 || httpStatus >= 300 )
     {
       const QString detail = responseBytes.isEmpty() ? networkErrorString : QString::fromUtf8( responseBytes.left( 500 ) );
-      return { false, httpStatus, {}, u"Strata DataHub request failed (HTTP %1): %2"_s.arg( httpStatus ).arg( detail ) };
+      return { false, httpStatus, {}, u"Strata trees request failed (HTTP %1): %2"_s.arg( httpStatus ).arg( detail ) };
     }
 
     QJsonParseError parseError;
     const QJsonDocument document = QJsonDocument::fromJson( responseBytes, &parseError );
     if ( parseError.error != QJsonParseError::NoError || !document.isObject() )
-      return { false, httpStatus, {}, u"Strata DataHub returned a non-JSON response."_s };
+      return { false, httpStatus, {}, u"Strata trees returned a non-JSON response."_s };
     return { true, httpStatus, document.object(), {} };
   }
 
@@ -94,30 +94,30 @@ namespace
     const QString downloadUrlString = artifact.value( u"downloadUrl"_s ).toString().trimmed();
     const QUrl downloadUrl( downloadUrlString, QUrl::StrictMode );
     if ( !downloadUrl.isValid() || downloadUrl.host().isEmpty() )
-      return QgsAiToolResult::error( u"DataHub job '%1' returned an invalid artifact downloadUrl."_s.arg( jobId ) );
+      return QgsAiToolResult::error( u"Trees job '%1' returned an invalid artifact downloadUrl."_s.arg( jobId ) );
     const QString scheme = downloadUrl.scheme().toLower();
     if ( scheme != "https"_L1 && !( scheme == "http"_L1 && QgsAiSettingsUtils::isLocalHttpHost( downloadUrl.host() ) ) )
-      return QgsAiToolResult::error( u"DataHub artifact downloadUrl must use HTTPS (localhost HTTP is allowed for development)."_s );
+      return QgsAiToolResult::error( u"Trees artifact downloadUrl must use HTTPS (localhost HTTP is allowed for development)."_s );
 
     const QString sha256 = artifact.value( u"sha256"_s ).toString().trimmed().toLower();
     static const QRegularExpression sha256Pattern( u"^[0-9a-f]{64}$"_s );
     if ( !sha256Pattern.match( sha256 ).hasMatch() )
-      return QgsAiToolResult::error( u"DataHub job '%1' returned an invalid artifact SHA-256."_s.arg( jobId ) );
+      return QgsAiToolResult::error( u"Trees job '%1' returned an invalid artifact SHA-256."_s.arg( jobId ) );
 
     const QJsonValue sizeValue = artifact.value( u"sizeBytes"_s );
     bool sizeOk = false;
     const double sizeBytes = sizeValue.isString() ? sizeValue.toString().toDouble( &sizeOk ) : sizeValue.toDouble( -1 );
     sizeOk = sizeValue.isDouble() || sizeOk;
     if ( !sizeOk || !std::isfinite( sizeBytes ) || sizeBytes < 0 || std::floor( sizeBytes ) != sizeBytes )
-      return QgsAiToolResult::error( u"DataHub job '%1' returned an invalid artifact sizeBytes."_s.arg( jobId ) );
+      return QgsAiToolResult::error( u"Trees job '%1' returned an invalid artifact sizeBytes."_s.arg( jobId ) );
 
     const QString format = artifact.value( u"format"_s ).toString().trimmed().toLower();
-    if ( format != "geojson"_L1 && format != "zip"_L1 )
-      return QgsAiToolResult::error( u"DataHub job '%1' returned unsupported artifact format '%2'."_s.arg( jobId, format ) );
+    if ( format != "geojson"_L1 )
+      return QgsAiToolResult::error( u"Trees job '%1' returned unsupported artifact format '%2'."_s.arg( jobId, format ) );
 
     const QString expiresAt = artifact.value( u"expiresAt"_s ).toString().trimmed();
     if ( !QDateTime::fromString( expiresAt, Qt::ISODate ).isValid() )
-      return QgsAiToolResult::error( u"DataHub job '%1' returned an invalid artifact expiresAt."_s.arg( jobId ) );
+      return QgsAiToolResult::error( u"Trees job '%1' returned an invalid artifact expiresAt."_s.arg( jobId ) );
 
     const QJsonObject provenance = job.value( u"provenance"_s ).toObject();
     const QStringList requiredProvenanceFields {
@@ -132,7 +132,7 @@ namespace
     for ( const QString &field : requiredProvenanceFields )
     {
       if ( provenance.value( field ).toString().trimmed().isEmpty() )
-        return QgsAiToolResult::error( u"DataHub job '%1' returned incomplete provenance: missing %2."_s.arg( jobId, field ) );
+        return QgsAiToolResult::error( u"Trees job '%1' returned incomplete provenance: missing %2."_s.arg( jobId, field ) );
     }
 
     QJsonObject verifiedArtifact;
@@ -157,68 +157,59 @@ namespace
         { u"passed"_s, true },
       }
     );
-    output.insert( u"nextStep"_s, u"Call download_file with artifact.downloadUrl and expected_sha256, then add_layer_from_file if the user wants the layer loaded."_s );
+    output.insert( u"nextStep"_s, u"Call download_file with artifact.downloadUrl and expected_sha256, then add_layer_from_file. Height and DBH are estimates (estimate=true)."_s );
     return QgsAiToolResult::ok( output );
   }
 } // namespace
 
-QgsAiDataHubExtractTool::QgsAiDataHubExtractTool( QgsAiModelRouter *router, int pollIntervalMs, int maxPollAttempts )
+QgsAiTreesDetectTool::QgsAiTreesDetectTool( QgsAiModelRouter *router, int pollIntervalMs, int maxPollAttempts )
   : mRouter( router )
   , mPollIntervalMs( std::max( 0, pollIntervalMs ) )
   , mMaxPollAttempts( std::max( 1, maxPollAttempts ) )
 {}
 
-QString QgsAiDataHubExtractTool::description() const
+QString QgsAiTreesDetectTool::description() const
 {
-  return u"Submits a DataHub extraction job and polls until an artifact is ready. Use format geojson for WFS bbox extracts, or zip for official HTTP cadastral datasets (Agenzia delle Entrate regional GetDataset.zip). Validates and returns download URL, SHA-256, size, format and expiry; it never downloads or loads the layer. Pass the result to download_file (including expected_sha256), then add_layer_from_file when appropriate."_s;
+  return u"Submits a Lombardy public-tree detection job (street rows and parks, private parcels excluded) and polls until a GeoJSON artifact is ready. Height and DBH are crown-allometry estimates, not field measurements. Validates download URL, SHA-256, size and expiry; it never downloads or loads the layer. Pass the result to download_file (including expected_sha256), then add_layer_from_file."_s;
 }
 
-QJsonObject QgsAiDataHubExtractTool::schema() const
+QJsonObject QgsAiTreesDetectTool::schema() const
 {
   QJsonObject properties;
-  properties.insert( u"endpointId"_s, prop( u"string"_s, u"DataHub WFS or HTTP zip endpoint identifier returned by catalog_search."_s ) );
-  properties.insert( u"catalogRecordId"_s, prop( u"string"_s, u"Optional DataHub catalog record identifier returned by catalog_search."_s ) );
-  properties.insert( u"typeName"_s, prop( u"string"_s, u"WFS feature type name, or the cadastral dataset file name for HTTP zip endpoints (e.g. LOMBARDIA.zip)."_s ) );
-
   QJsonObject coordinate;
   coordinate.insert( u"type"_s, u"number"_s );
-  QJsonObject bbox = propArray( coordinate, u"Extraction bounds as [minX, minY, maxX, maxY] in the supplied CRS."_s );
+  QJsonObject bbox = propArray( coordinate, u"Detection bounds as [minX, minY, maxX, maxY] in WGS84. Use the municipality or canvas extent."_s );
   bbox.insert( u"minItems"_s, 4 );
   bbox.insert( u"maxItems"_s, 4 );
   properties.insert( u"bbox"_s, bbox );
-  QJsonObject format = prop( u"string"_s, u"Artifact format. Use geojson for WFS extracts or zip for HTTP cadastral datasets."_s );
-  format.insert( u"enum"_s, QJsonArray { u"geojson"_s, u"zip"_s } );
+  QJsonObject region = prop( u"string"_s, u"Italian region. v1 supports only Lombardy."_s );
+  region.insert( u"enum"_s, QJsonArray { u"lombardia"_s } );
+  properties.insert( u"region"_s, region );
+  QJsonObject format = prop( u"string"_s, u"Artifact format. v1 returns GeoJSON points."_s );
+  format.insert( u"enum"_s, QJsonArray { u"geojson"_s } );
   properties.insert( u"format"_s, format );
 
-  return schemaObject( properties, QJsonArray { u"endpointId"_s, u"typeName"_s, u"bbox"_s, u"format"_s } );
+  return schemaObject( properties, QJsonArray { u"bbox"_s, u"region"_s, u"format"_s } );
 }
 
-bool QgsAiDataHubExtractTool::isAvailable() const
+bool QgsAiTreesDetectTool::isAvailable() const
 {
   return mRouter && QgsAiModelRouter::isUsablePlanEndpoint( mRouter->providerSettings( QgsAiModelRouter::Provider::Plan ).endpoint ) && !mRouter->planSessionToken().trimmed().isEmpty();
 }
 
-QString QgsAiDataHubExtractTool::availabilityReason() const
+QString QgsAiTreesDetectTool::availabilityReason() const
 {
   if ( !mRouter )
     return u"Strata Plan router is not configured."_s;
   if ( !QgsAiModelRouter::isUsablePlanEndpoint( mRouter->providerSettings( QgsAiModelRouter::Provider::Plan ).endpoint ) )
     return u"Strata Plan endpoint is not configured."_s;
-  return u"Sign in to Strata Plan to use DataHub extraction."_s;
+  return u"Sign in to Strata Plan to detect public trees."_s;
 }
 
-QgsAiToolResult QgsAiDataHubExtractTool::execute( const QJsonObject &args )
+QgsAiToolResult QgsAiTreesDetectTool::execute( const QJsonObject &args )
 {
   if ( !isAvailable() )
     return QgsAiToolResult::error( availabilityReason() );
-
-  const QString endpointId = args.value( u"endpointId"_s ).toString().trimmed();
-  if ( endpointId.isEmpty() )
-    return QgsAiToolResult::error( u"Argument 'endpointId' is required."_s );
-  const QString catalogRecordId = args.value( u"catalogRecordId"_s ).toString().trimmed();
-  const QString typeName = args.value( u"typeName"_s ).toString().trimmed();
-  if ( typeName.isEmpty() )
-    return QgsAiToolResult::error( u"Argument 'typeName' is required."_s );
 
   const QJsonArray bbox = args.value( u"bbox"_s ).toArray();
   if ( bbox.size() != 4 )
@@ -233,9 +224,13 @@ QgsAiToolResult QgsAiDataHubExtractTool::execute( const QJsonObject &args )
   if ( coordinates[0] >= coordinates[2] || coordinates[1] >= coordinates[3] )
     return QgsAiToolResult::error( u"bbox requires minX < maxX and minY < maxY."_s );
 
+  const QString region = args.value( u"region"_s ).toString().trimmed().toLower();
+  if ( region != "lombardia"_L1 )
+    return QgsAiToolResult::error( u"Argument 'region' must be 'lombardia' in v1."_s );
+
   const QString format = args.value( u"format"_s ).toString().trimmed().toLower();
-  if ( format != "geojson"_L1 && format != "zip"_L1 )
-    return QgsAiToolResult::error( u"Argument 'format' must be 'geojson' or 'zip'."_s );
+  if ( format != "geojson"_L1 )
+    return QgsAiToolResult::error( u"Argument 'format' must be 'geojson'."_s );
 
   QgsNetworkAccessManager *networkManager = QgsNetworkAccessManager::instance();
   if ( !networkManager )
@@ -255,32 +250,29 @@ QgsAiToolResult QgsAiDataHubExtractTool::execute( const QJsonObject &args )
   };
 
   QJsonObject submitBody;
-  submitBody.insert( u"endpointId"_s, endpointId );
-  if ( !catalogRecordId.isEmpty() )
-    submitBody.insert( u"catalogRecordId"_s, catalogRecordId );
-  submitBody.insert( u"typeName"_s, typeName );
   submitBody.insert( u"bbox"_s, bbox );
+  submitBody.insert( u"region"_s, region );
   submitBody.insert( u"format"_s, format );
   mRouter->appendManagedToolContext( submitBody );
 
-  const QNetworkRequest submitRequest = requestForPath( u"/v1/datahub/extract"_s );
+  const QNetworkRequest submitRequest = requestForPath( u"/v1/trees/detect"_s );
   const JsonResponse submit = sendJsonRequest( networkManager, submitRequest, &submitBody );
   if ( !submit.success )
     return QgsAiToolResult::error( submit.error );
   if ( submit.httpStatus != 202 )
-    return QgsAiToolResult::error( u"DataHub extraction submission returned HTTP %1; expected 202."_s.arg( submit.httpStatus ) );
+    return QgsAiToolResult::error( u"Trees detection submission returned HTTP %1; expected 202."_s.arg( submit.httpStatus ) );
 
   QString jobId = submit.body.value( u"jobId"_s ).toString().trimmed();
   if ( jobId.isEmpty() )
     jobId = submit.body.value( u"id"_s ).toString().trimmed();
   if ( jobId.isEmpty() )
-    return QgsAiToolResult::error( u"DataHub extraction response did not include jobId."_s );
+    return QgsAiToolResult::error( u"Trees detection response did not include jobId."_s );
 
   const QString encodedJobId = QString::fromUtf8( QUrl::toPercentEncoding( jobId ) );
   for ( int attempt = 0; attempt < mMaxPollAttempts; ++attempt )
   {
     if ( QCoreApplication::closingDown() )
-      return QgsAiToolResult::error( u"DataHub extraction polling was cancelled because the application is closing."_s );
+      return QgsAiToolResult::error( u"Trees detection polling was cancelled because the application is closing."_s );
     if ( attempt > 0 && mPollIntervalMs > 0 )
     {
       QEventLoop waitLoop;
@@ -288,7 +280,7 @@ QgsAiToolResult QgsAiDataHubExtractTool::execute( const QJsonObject &args )
       waitLoop.exec();
     }
 
-    const QNetworkRequest pollRequest = requestForPath( u"/v1/datahub/jobs/"_s + encodedJobId );
+    const QNetworkRequest pollRequest = requestForPath( u"/v1/trees/jobs/"_s + encodedJobId );
     const JsonResponse poll = sendJsonRequest( networkManager, pollRequest, nullptr );
     if ( !poll.success )
       return QgsAiToolResult::error( poll.error );
@@ -297,10 +289,10 @@ QgsAiToolResult QgsAiDataHubExtractTool::execute( const QJsonObject &args )
     if ( status == "completed"_L1 || status == "succeeded"_L1 )
       return verifiedArtifactResult( jobId, poll.body );
     if ( status == "failed"_L1 || status == "cancelled"_L1 || status == "expired"_L1 )
-      return QgsAiToolResult::error( u"DataHub extraction job '%1' ended with status '%2'."_s.arg( jobId, status ) );
+      return QgsAiToolResult::error( u"Trees detection job '%1' ended with status '%2'."_s.arg( jobId, status ) );
     if ( status != "queued"_L1 && status != "pending"_L1 && status != "running"_L1 && status != "processing"_L1 )
-      return QgsAiToolResult::error( u"DataHub extraction job '%1' returned unknown status '%2'."_s.arg( jobId, status ) );
+      return QgsAiToolResult::error( u"Trees detection job '%1' returned unknown status '%2'."_s.arg( jobId, status ) );
   }
 
-  return QgsAiToolResult::error( u"DataHub extraction job '%1' did not finish after %2 polling attempts."_s.arg( jobId ).arg( mMaxPollAttempts ) );
+  return QgsAiToolResult::error( u"Trees detection job '%1' did not finish after %2 polling attempts."_s.arg( jobId ).arg( mMaxPollAttempts ) );
 }

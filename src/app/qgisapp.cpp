@@ -109,6 +109,7 @@ using namespace Qt::StringLiterals;
 #include "ai/qgsaireviewpatchengine.h"
 #include "ai/tools/qgsaiattributetabletools.h"
 #include "ai/tools/qgsaidatahubextracttool.h"
+#include "ai/tools/qgsaitreesdetecttool.h"
 #include "ai/tools/qgsaidownloadfiletool.h"
 #include "ai/tools/qgsaiechotool.h"
 #include "ai/tools/qgsaieditingtools.h"
@@ -1482,6 +1483,7 @@ QgisApp::QgisApp(
   mAiToolRegistry->registerTool( std::make_unique<QgsAiInstallPythonPackageTool>( this ) );
   mAiToolRegistry->registerTool( std::make_unique<QgsAiDownloadFileTool>( mAiFileContextProvider.get(), this ) );
   mAiToolRegistry->registerTool( std::make_unique<QgsAiDataHubExtractTool>( mAiModelRouter.get() ) );
+  mAiToolRegistry->registerTool( std::make_unique<QgsAiTreesDetectTool>( mAiModelRouter.get() ) );
   mAiToolRegistry->registerTool( std::make_unique<QgsAiWebSearchTool>( mAiModelRouter.get() ) );
   mAiToolRegistry->registerTool( std::make_unique<QgsAiCatalogSearchTool>( mAiModelRouter.get() ) );
   mAiToolRegistry->registerTool( std::make_unique<QgsAiWebFetchTool>( mAiModelRouter.get() ) );

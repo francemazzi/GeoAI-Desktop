@@ -123,3 +123,4 @@ venv
 /symbology-style.db
 tests_ai/Dati/*.gpkg
 tests_ai/Dati/*.tif
+**/Censimento_comunale.gpkg

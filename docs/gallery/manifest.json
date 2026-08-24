@@ -1389,6 +1389,34 @@
     },
     {
       "type": "skill",
+      "slug": "public-trees",
+      "name": "Censimento alberi pubblici",
+      "description": "Usa questa skill per censire alberi pubblici in Lombardia (filari e parchi) tramite trees_detect. Non è un indice 3-30-300.",
+      "category": "urban-green",
+      "tags": [
+        "public-trees",
+        "urban-forestry",
+        "cadastre",
+        "lombardia",
+        "deepforest"
+      ],
+      "source": {
+        "kind": "paper",
+        "url": "https://doi.org/10.48044/jauf.2012.024",
+        "doi": "10.48044/jauf.2012.024",
+        "title": "Urban tree growth modeling",
+        "author": "E. Gregory McPherson and Paula J. Peper",
+        "year": 2012
+      },
+      "license": "CC-BY-4.0",
+      "attribution": "Allometria chioma v1 inquadrata su McPherson & Peper (2012); catasto da zip ufficiali Agenzia delle Entrate; detection DeepForest pretrained.",
+      "trustLevel": "CURATED",
+      "enabled": true,
+      "path": "skills/public-trees/SKILL.md",
+      "sha256": "893684a2b559bc30e98d065f1a0a45ef2d58b798525abf77950e926d0f48c72c"
+    },
+    {
+      "type": "skill",
       "slug": "region-lombardia",
       "name": "Regione: Lombardia",
       "description": "Livello regionale (Regione Lombardia) della gerarchia normativa Stato/Regione/Comune per architettura e urbanistica in Italia -- si applica in aggiunta a `country-italy`, che resta il riferimento per la normativa statale. Copre la LR 12/2005 (Legge per il governo del territorio) e il PGT tripartito (Documento di Piano, Piano dei Servizi, Piano delle Regole), la LR 31/2014 sul consumo di suolo, la LR 18/2019 sulla rigenerazione urbana, il Piano Casa lombardo (LR 13/2009 e proroghe), il PTR e il PPR (Piano Paesaggistico Regionale) con Rete Ecologica Regionale, il PTM della Città Metropolitana di Milano, la componente geologica idrogeologica e sismica obbligatoria del PGT (art. 57 LR 12/2005), la classificazione sismica dei comuni lombardi, il reticolo idrico e la polizia idraulica, il Regolamento Regionale 6/2017 sulla prestazione energetica e il portale CENED+2.0, e le fonti ufficiali regionali (BURL, geoportale SIT Lombardia, TAR Lombardia) per norme, delibere, sentenze e pareri aggiornati.",

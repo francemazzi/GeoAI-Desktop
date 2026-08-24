@@ -62,6 +62,7 @@ class TestQgsAiDataHubExtractTool : public QObject
     void cleanup();
     void validatesArgumentsWithoutNetwork();
     void pollsAndReturnsVerifiedArtifact();
+    void pollsAndReturnsVerifiedZipArtifact();
     void includesAgentContextWhenSetOnRouter();
     void rejectsMalformedArtifact();
     void stopsAfterBoundedPolls();
@@ -139,6 +140,34 @@ void TestQgsAiDataHubExtractTool::pollsAndReturnsVerifiedArtifact()
   QVERIFY( !submitted.contains( u"agent_mode"_s ) );
   QVERIFY( !submitted.contains( u"agentRunId"_s ) );
   QVERIFY( !submitted.contains( u"agentClientSessionId"_s ) );
+}
+
+void TestQgsAiDataHubExtractTool::pollsAndReturnsVerifiedZipArtifact()
+{
+  QgsAiTestLoopbackServer server;
+  server.responses
+    << QgsAiTestLoopbackServer::jsonResponse( 202, "Accepted", QByteArrayLiteral( R"({"id":"job/zip","status":"QUEUED","format":"zip","createdAt":"2026-08-22T10:00:00Z"})" ) )
+    << QgsAiTestLoopbackServer::jsonResponse(
+         200,
+         "OK",
+         QByteArrayLiteral(
+           R"({"status":"SUCCEEDED","artifact":{"downloadUrl":"http://127.0.0.1:9876/artifacts/job-zip.zip?signature=test","sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","sizeBytes":"2048","format":"ZIP","expiresAt":"2030-01-02T03:04:05Z"},"provenance":{"sourceId":"source-zip","endpointId":"endpoint-zip","sourceName":"AdE Catasto Lombardia","serviceUri":"https://example.test/GetDataset.php?dataset=LOMBARDIA.zip","license":"CC-BY-4.0","attribution":"Agenzia delle Entrate","trustLevel":"OFFICIAL"}})"
+         )
+       );
+  QVERIFY( server.listen( QHostAddress::LocalHost, 0 ) );
+
+  QgsAiModelRouter router;
+  QVERIFY( configurePlanForLoopback( router, server.serverPort() ) );
+  QgsAiDataHubExtractTool tool( &router, 0, 2 );
+  QJsonObject args = validArgs();
+  args.insert( u"format"_s, u"zip"_s );
+  args.insert( u"typeName"_s, u"LOMBARDIA.zip"_s );
+  const QgsAiToolResult result = tool.execute( args );
+
+  QVERIFY2( result.success, qPrintable( result.errorMessage ) );
+  QCOMPARE( result.output.toObject().value( u"artifact"_s ).toObject().value( u"format"_s ).toString(), u"zip"_s );
+  const QJsonObject submitted = QJsonDocument::fromJson( server.requestBodies.at( 0 ) ).object();
+  QCOMPARE( submitted.value( u"format"_s ).toString(), u"zip"_s );
 }
 
 void TestQgsAiDataHubExtractTool::includesAgentContextWhenSetOnRouter()
