@@ -174,12 +174,14 @@ jobs:
           if [ -n "${WINDOWS_SDK_PATH:-}" ]; then
             VCPKG_OPTS+=(-D "SDK_PATH=${WINDOWS_SDK_PATH}")
           else
+            echo "::warning::Windows SDK unavailable; rebuilding dependencies from vcpkg (this can take several hours)."
             VCPKG_OPTS+=(
                 -D WITH_VCPKG=ON
-                -D VCPKG_INSTALL_OPTIONS="--only-binarycaching"
-                -D NUGET_BINARY_SOURCE_MODE=read
+                -D VCPKG_INSTALL_OPTIONS="--x-buildtrees-root=C:/src"
+                -D NUGET_BINARY_SOURCE_MODE=readwrite
                 -D "NUGET_USERNAME=${GITHUB_ACTOR}"
                 -D NUGET_SOURCE="https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
+                -D NUGET_PUSH_SOURCE="https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
                 -D NUGET_TOKEN=${{ secrets.GITHUB_TOKEN }}
             )
           fi
@@ -208,7 +210,7 @@ jobs:
                 "${VCPKG_OPTS[@]}" || true
 
           if [ -z "${WINDOWS_SDK_PATH:-}" ]; then
-            cmake -D VCPKG_INSTALL_OPTIONS="--only-binarycaching" "${BUILD_DIR}" || true
+            cmake -D VCPKG_INSTALL_OPTIONS="--x-buildtrees-root=C:/src" "${BUILD_DIR}" || true
           fi
 
       - name: 🌋 Build
