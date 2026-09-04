@@ -357,7 +357,7 @@ namespace
       return text;
     }
     if ( json.isString() && json.toString().size() > MAX_CELL_CHARS )
-      return json.toString().left( MAX_CELL_CHARS ) + u"…"_s;
+      return QJsonValue( json.toString().left( MAX_CELL_CHARS ) + u"…"_s );
     return json;
   }
 
