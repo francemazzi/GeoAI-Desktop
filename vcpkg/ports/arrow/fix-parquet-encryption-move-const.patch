@@ -1,7 +1,8 @@
 diff --git a/python/pyarrow/_parquet_encryption.pyx b/python/pyarrow/_parquet_encryption.pyx
+index 1111111..2222222 100644
 --- a/python/pyarrow/_parquet_encryption.pyx
 +++ b/python/pyarrow/_parquet_encryption.pyx
-@@ -294,7 +294,10 @@ cdef class KmsConnectionConfig(_Weakrefable):
+@@ -297,7 +297,9 @@
      @staticmethod
      cdef wrap(const CKmsConnectionConfig& config):
          result = KmsConnectionConfig()
@@ -10,5 +11,3 @@ diff --git a/python/pyarrow/_parquet_encryption.pyx b/python/pyarrow/_parquet_en
 +        cdef CKmsConnectionConfig config_copy = config
 +        result.configuration = make_shared[CKmsConnectionConfig](move(config_copy))
          return result
- 
-     @property
