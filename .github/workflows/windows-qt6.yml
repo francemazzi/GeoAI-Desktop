@@ -58,7 +58,9 @@ jobs:
         uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 #v1
 
       - name: 📥 Download Windows SDK
+        id: download-sdk
         if: ${{ env.USE_WINDOWS_SDK == 'true' }}
+        continue-on-error: true
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v6.0.1
         with:
           name: ${{ env.WINDOWS_RELEASE_SDK_ARTIFACT_NAME }}
@@ -67,8 +69,15 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path: sdk-artifact
 
+      - name: ⚠️ Windows SDK cache miss
+        if: ${{ env.USE_WINDOWS_SDK == 'true' && steps.download-sdk.outcome != 'success' }}
+        shell: bash
+        run: |
+          echo "::warning::Cached Windows SDK artifact is missing or expired; rebuilding from vcpkg."
+          echo "This adds significant build time but keeps release tags buildable without manual SDK refresh."
+
       - name: 📦 Extract Windows SDK
-        if: ${{ env.USE_WINDOWS_SDK == 'true' }}
+        if: ${{ env.USE_WINDOWS_SDK == 'true' && steps.download-sdk.outcome == 'success' }}
         shell: bash
         run: |
           mkdir -p sdk-root
@@ -89,7 +98,7 @@ jobs:
           echo "WINDOWS_SDK_PATH=${SDK_DIR_ABS}" >> "${GITHUB_ENV}"
 
       - name: 🎡 Setup vcpkg
-        if: ${{ env.USE_WINDOWS_SDK != 'true' }}
+        if: ${{ env.USE_WINDOWS_SDK != 'true' || steps.download-sdk.outcome != 'success' }}
         uses: ./.github/actions/setup-vcpkg
 
       - name: 🦬 Setup flex/bison
@@ -247,13 +256,13 @@ jobs:
           .\scripts\ci\sign-windows-artifacts.ps1 -Mode package -PackageFiles $files -VerifyOnly
 
       - name: 📦 Create SDK
-        if: ${{ env.USE_WINDOWS_SDK != 'true' }}
+        if: ${{ env.USE_WINDOWS_SDK != 'true' || steps.download-sdk.outcome != 'success' }}
 #        if: github.event_name == 'workflow_dispatch' || github.event_name == 'release'
         run: |
           vcpkg.exe export --zip --output-dir=./sdk --x-install-root=./build/vcpkg_installed --x-manifest-root=vcpkg
 
       - name: 📤 Upload sdk
-        if: ${{ env.USE_WINDOWS_SDK != 'true' }}
+        if: ${{ env.USE_WINDOWS_SDK != 'true' || steps.download-sdk.outcome != 'success' }}
 #        if: github.event_name == 'workflow_dispatch' || github.event_name == 'release'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
 
