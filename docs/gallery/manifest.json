@@ -1391,13 +1391,12 @@
       "type": "skill",
       "slug": "public-trees",
       "name": "Censimento alberi pubblici",
-      "description": "Usa questa skill per censire alberi pubblici in Lombardia (filari e parchi) tramite trees_detect. Non è un indice 3-30-300.",
+      "description": "Usa questa skill per censire alberi pubblici in Italia (filari e parchi) tramite trees_detect. Non è un indice 3-30-300.",
       "category": "urban-green",
       "tags": [
         "public-trees",
         "urban-forestry",
         "cadastre",
-        "lombardia",
         "deepforest"
       ],
       "source": {
@@ -1409,11 +1408,11 @@
         "year": 2012
       },
       "license": "CC-BY-4.0",
-      "attribution": "Allometria chioma v1 inquadrata su McPherson & Peper (2012); catasto da zip ufficiali Agenzia delle Entrate; detection DeepForest pretrained.",
+      "attribution": "Allometria chioma v1 inquadrata su McPherson & Peper (2012); catasto da zip/WFS ufficiali Agenzia delle Entrate; detection DeepForest pretrained; ortofoto ufficiale o fallback Esri dichiarato.",
       "trustLevel": "CURATED",
       "enabled": true,
       "path": "skills/public-trees/SKILL.md",
-      "sha256": "893684a2b559bc30e98d065f1a0a45ef2d58b798525abf77950e926d0f48c72c"
+      "sha256": "ff13296d89458d5a3d57fb145424760b74b86cb390e53ffc736877256079606b"
     },
     {
       "type": "skill",

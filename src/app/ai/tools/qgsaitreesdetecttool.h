@@ -26,7 +26,7 @@ using namespace Qt::StringLiterals;
 class QgsAiModelRouter;
 
 /**
- * Submits a Lombardy public-tree detection job and waits for the GeoJSON
+ * Submits a public-tree detection job and waits for the GeoJSON
  * artifact. The artifact is not downloaded or added to the project.
  */
 class APP_EXPORT QgsAiTreesDetectTool : public QgsAiTool

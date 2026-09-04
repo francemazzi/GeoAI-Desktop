@@ -2547,6 +2547,9 @@ void TestQgsAiAgentSessionManager::unresolvedPlanToolsNormalizesNearMissNames()
   const QStringList requested { u"add_layer"_s, u"optional_user_input"_s, u"run_processing"_s, u"set_layer_style"_s, u"describe_layer"_s, u"totally_bogus_tool"_s };
   QCOMPARE( QgsAiAgentSessionManager::unresolvedPlanTools( requested, allowed ), QStringList { u"totally_bogus_tool"_s } );
 
+  const QStringList sqlAllowed { u"query_sql"_s, u"execute_sql"_s, u"export_layer_to_postgis"_s, u"list_database_connections"_s };
+  QVERIFY( QgsAiAgentSessionManager::unresolvedPlanTools( { u"sql"_s, u"postgis_sql"_s, u"import_into_postgis"_s, u"list_connections"_s }, sqlAllowed ).isEmpty() );
+
   // exact matches and empty requests resolve trivially
   QVERIFY( QgsAiAgentSessionManager::unresolvedPlanTools( { u"style_layer"_s, u"ask_user"_s }, allowed ).isEmpty() );
 

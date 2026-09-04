@@ -226,6 +226,9 @@ namespace
       u"web_search"_s,
       u"web_fetch"_s,
       u"catalog_search"_s,
+      u"list_database_connections"_s,
+      u"describe_database_schema"_s,
+      u"query_sql"_s,
     };
   }
 
@@ -743,6 +746,15 @@ QStringList QgsAiAgentSessionManager::unresolvedPlanTools( const QStringList &re
     { u"apply_symbology"_s, u"style_layer"_s },
     { u"set_style"_s, u"style_layer"_s },
     { u"zoom_to_layer"_s, u"set_canvas_extent"_s },
+    { u"list_connections"_s, u"list_database_connections"_s },
+    { u"list_database_connection"_s, u"list_database_connections"_s },
+    { u"describe_schema"_s, u"describe_database_schema"_s },
+    { u"sql"_s, u"query_sql"_s },
+    { u"query_postgis"_s, u"query_sql"_s },
+    { u"execute_postgis_sql"_s, u"execute_sql"_s },
+    { u"postgis_sql"_s, u"execute_sql"_s },
+    { u"export_to_postgis"_s, u"export_layer_to_postgis"_s },
+    { u"import_into_postgis"_s, u"export_layer_to_postgis"_s },
   };
 
   QStringList unresolved;
@@ -1958,6 +1970,27 @@ QString QgsAiAgentSessionManager::buildSystemPrompt( const QString &extraContext
   const bool canRunPython = allowedTools.contains( u"run_python"_s );
   const bool canInstallPythonPackage = allowedTools.contains( u"install_python_package"_s );
   const bool canReorderLayers = allowedTools.contains( u"reorder_layers"_s );
+  const bool canListDatabaseConnections = allowedTools.contains( u"list_database_connections"_s );
+  const bool canDescribeDatabaseSchema = allowedTools.contains( u"describe_database_schema"_s );
+  const bool canQuerySql = allowedTools.contains( u"query_sql"_s );
+  const bool canExecuteSql = allowedTools.contains( u"execute_sql"_s );
+  const bool canExportLayerToPostgis = allowedTools.contains( u"export_layer_to_postgis"_s );
+  QString postgisGuidance;
+  if ( canListDatabaseConnections || canDescribeDatabaseSchema || canQuerySql || canExecuteSql || canExportLayerToPostgis )
+  {
+    postgisGuidance += "- For PostGIS/PostgreSQL, use native database tools. Do not call run_processing_algorithm with native:postgisexecutesql, native:postgisexecuteandloadsql, native:importintopostgis, or qgis:executesql against a database.\n"_L1;
+    if ( canListDatabaseConnections )
+      postgisGuidance += "- If the connection name is unknown, call list_database_connections first. The name must match a connection saved in the QGIS Browser.\n"_L1;
+    if ( canDescribeDatabaseSchema )
+      postgisGuidance += "- Before writing SQL, call describe_database_schema so table and column names match the live database.\n"_L1;
+    if ( canQuerySql )
+      postgisGuidance += "- For SELECT/EXPLAIN/SHOW, use query_sql. Rows are returned in the tool result; do not claim success from an empty Processing result.\n"_L1;
+    if ( canExecuteSql )
+      postgisGuidance += "- For DDL/DML (CREATE/INSERT/UPDATE/DELETE/indexes), use execute_sql (approval required). There is no database rollback. Prefer new working tables; do not UPDATE/DELETE source tables unless the user asked. Use load_as_layer on SELECT to add a query layer to the map.\n"_L1;
+    if ( canExportLayerToPostgis )
+      postgisGuidance += "- To copy a project layer into PostGIS, use export_layer_to_postgis, not Processing.\n"_L1;
+    postgisGuidance += "- query_features only inspects layers already in the project, not PostGIS tables that are not loaded.\n"_L1;
+  }
   if ( !allowedTools.isEmpty() )
   {
     prompt += "\n== Available tools ==\n"_L1;
@@ -2067,6 +2100,7 @@ QString QgsAiAgentSessionManager::buildSystemPrompt( const QString &extraContext
       prompt += "- You may use read-only inspection tools when needed to ground the answer. Do not request any mutating tool.\n"_L1;
       prompt += "- For visual map questions, use capture_map_canvas only when the user asks you to inspect what is visible/rendered. OpenAI, OpenRouter, Codex, and Claude requests can receive the screenshot after consent.\n"_L1;
       prompt += "- To diagnose QGIS runtime errors/warnings (layer load, Processing, plugins): call read_message_log with levels [\"warning\",\"critical\"] and an optional tag filter.\n"_L1;
+      prompt += postgisGuidance;
     }
     if ( !extraContext.isEmpty() )
     {
@@ -2083,6 +2117,7 @@ QString QgsAiAgentSessionManager::buildSystemPrompt( const QString &extraContext
     prompt += "- If a requested mutation has no approved tool available, explain the blocked operation and ask the user to switch to Agent/Auto edit only if they want fully automatic execution.\n"_L1;
     if ( allowedTools.isEmpty() )
       prompt += "- No approved tools are available for this turn. Answer in plain text only.\n"_L1;
+    prompt += postgisGuidance;
     if ( !extraContext.isEmpty() )
     {
       prompt += '\n';
@@ -2117,6 +2152,7 @@ QString QgsAiAgentSessionManager::buildSystemPrompt( const QString &extraContext
   prompt += "- Use tools instead of writing code in chat for the user to copy.\n"_L1;
   prompt += "- For multi-step work, maintain an internal step plan and verify each step against the tool result before moving on. If the plan changes because a tool result contradicts an assumption, say so briefly and adapt.\n"_L1;
   prompt += "- To inspect files: read_file, search_files, list_files. To inspect project state: list_project_layers, get_active_canvas_extent.\n"_L1;
+  prompt += postgisGuidance;
   if ( canReorderLayers )
     prompt += "- To change root-level layer draw order, use reorder_layers only. Never remove/reinsert layer-tree nodes and never use run_python for layer-tree reordering.\n"_L1;
   prompt += "- To inspect what is visually rendered on the 2D map canvas, use capture_map_canvas only when the user asks you to look at the map, check what is visible, or debug a visual result. The screenshot is shared with OpenAI, OpenRouter, Codex, and Claude only after user consent.\n"_L1;
@@ -2138,7 +2174,7 @@ QString QgsAiAgentSessionManager::buildSystemPrompt( const QString &extraContext
       if ( canDataHubExtract )
         remoteSteps << u"datahub_extract when a catalog service must be materialized as a verified local artifact"_s;
       if ( canTreesDetect )
-        remoteSteps << u"trees_detect for Lombardy public street-row and park trees (not private parcels)"_s;
+        remoteSteps << u"trees_detect for Italian public street-row and park trees (not private parcels); report quality.imageryClass and that height/DBH are estimates"_s;
       if ( canDownloadFile )
         remoteSteps << u"download_file(url, dest_path) for trusted downloads"_s;
       if ( canAddLayerFromFile )

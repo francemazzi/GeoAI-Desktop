@@ -59,7 +59,7 @@
       "algorithm_id": "desktop.trees_detect_pipeline.v1",
       "unit_test": "validatesArgumentsWithoutNetwork",
       "integration_test": "pollsAndReturnsVerifiedArtifact",
-      "expected": "The desktop submits a Lombardy trees job, bounds polling, and accepts only verified GeoJSON artifact metadata."
+      "expected": "The desktop submits a trees job (region optional), bounds polling, and accepts only verified GeoJSON artifact metadata plus a quality report."
     }
   ]
 }

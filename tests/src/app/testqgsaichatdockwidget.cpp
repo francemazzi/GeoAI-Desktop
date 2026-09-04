@@ -189,6 +189,8 @@ class TestQgsAiChatDockWidget : public QObject
     void usesPaletteBasedCursorStyling();
     void doesNotDuplicateStreamedAssistantResponse();
     void rendersToolResultWithoutRawJson();
+    void rendersQuerySqlRowsAsMarkdownTable();
+    void rendersExportLayerToPostgisSummary();
     void collapsesTechnicalCodeBlocks();
     void transcriptMessagesFitNarrowDockWithoutHorizontalScroll();
     void acceptingPlanSwitchesToAgentAndSendsPlan();
@@ -540,6 +542,73 @@ void TestQgsAiChatDockWidget::rendersToolResultWithoutRawJson()
   QVERIFY( plain.contains( u"data/pomponesco.geojson"_s ) );
   QVERIFY( !plain.contains( u"{\"status\""_s ) );
   QVERIFY( !plain.contains( u"secret-query"_s ) );
+}
+
+void TestQgsAiChatDockWidget::rendersQuerySqlRowsAsMarkdownTable()
+{
+  QTemporaryDir tempDir;
+  QVERIFY( tempDir.isValid() );
+
+  QgsAiModelRouter router;
+  QgsAiFileContextProvider contextProvider( tempDir.path() );
+  QgsAiReviewPatchEngine reviewEngine;
+  QgsAiAgentSessionManager manager( nullptr, &contextProvider, &reviewEngine );
+  QgsAiChatDockWidget dock( &manager, &router, &reviewEngine );
+
+  QJsonObject output;
+  output.insert( u"status"_s, u"ok"_s );
+  output.insert( u"connection_name"_s, u"lab"_s );
+  output.insert( u"sql"_s, u"SELECT id, name FROM trees LIMIT 2"_s );
+  output.insert( u"columns"_s, QJsonArray { u"id"_s, u"name"_s } );
+  QJsonArray rows;
+  rows.append( QJsonObject { { u"id"_s, 1 }, { u"name"_s, u"oak"_s } } );
+  rows.append( QJsonObject { { u"id"_s, 2 }, { u"name"_s, u"pine"_s } } );
+  output.insert( u"rows"_s, rows );
+  output.insert( u"returned_count"_s, 2 );
+
+  QgsAiChatMessage toolMessage;
+  toolMessage.role = QgsAiChatRole::Tool;
+  toolMessage.content = QString::fromUtf8( QJsonDocument( output ).toJson( QJsonDocument::Compact ) );
+  toolMessage.metadata.insert( u"tool_name"_s, u"query_sql"_s );
+
+  manager.messageAdded( toolMessage );
+  const QString plain = transcriptText( dock );
+  QVERIFY( plain.contains( u"query_sql"_s ) );
+  QVERIFY( plain.contains( u"SELECT id, name FROM trees"_s ) );
+  QVERIFY( plain.contains( u"oak"_s ) );
+  QVERIFY( plain.contains( u"pine"_s ) );
+  QVERIFY( plain.contains( u"<table"_s ) || plain.contains( u"| id |"_s ) || plain.contains( u"| id | name |"_s ) );
+}
+
+void TestQgsAiChatDockWidget::rendersExportLayerToPostgisSummary()
+{
+  QTemporaryDir tempDir;
+  QVERIFY( tempDir.isValid() );
+
+  QgsAiModelRouter router;
+  QgsAiFileContextProvider contextProvider( tempDir.path() );
+  QgsAiReviewPatchEngine reviewEngine;
+  QgsAiAgentSessionManager manager( nullptr, &contextProvider, &reviewEngine );
+  QgsAiChatDockWidget dock( &manager, &router, &reviewEngine );
+
+  QJsonObject output;
+  output.insert( u"status"_s, u"ok"_s );
+  output.insert( u"schema"_s, u"public"_s );
+  output.insert( u"table"_s, u"trees"_s );
+  output.insert( u"feature_count"_s, 12 );
+  output.insert( u"overwrite"_s, true );
+  output.insert( u"spatial_index"_s, true );
+
+  QgsAiChatMessage toolMessage;
+  toolMessage.role = QgsAiChatRole::Tool;
+  toolMessage.content = QString::fromUtf8( QJsonDocument( output ).toJson( QJsonDocument::Compact ) );
+  toolMessage.metadata.insert( u"tool_name"_s, u"export_layer_to_postgis"_s );
+
+  manager.messageAdded( toolMessage );
+  const QString plain = transcriptText( dock );
+  QVERIFY( plain.contains( u"export_layer_to_postgis"_s ) );
+  QVERIFY( plain.contains( u"public.trees"_s ) );
+  QVERIFY( plain.contains( u"12"_s ) );
 }
 
 void TestQgsAiChatDockWidget::collapsesTechnicalCodeBlocks()

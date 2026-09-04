@@ -37,10 +37,17 @@ namespace
   QJsonObject validArgs()
   {
     return {
-      { u"bbox"_s, QJsonArray { 10.4, 44.9, 10.5, 45.0 } },
+      { u"bbox"_s, QJsonArray { 9.15, 45.44, 9.22, 45.50 } },
       { u"region"_s, u"lombardia"_s },
       { u"format"_s, u"geojson"_s },
     };
+  }
+
+  QByteArray succeededJobJson()
+  {
+    return QByteArrayLiteral(
+      R"({"status":"SUCCEEDED","artifact":{"downloadUrl":"http://127.0.0.1:9876/artifacts/job-trees.geojson?signature=test","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","sizeBytes":"1234","format":"GEOJSON","expiresAt":"2030-01-02T03:04:05Z"},"provenance":{"sourceId":"source-ade","endpointId":"endpoint-ade","sourceName":"AdE Catasto Lombardia","serviceUri":"https://example.test/GetDataset.php?dataset=LOMBARDIA.zip","license":"CC-BY-4.0","attribution":"Agenzia delle Entrate","trustLevel":"OFFICIAL"},"quality":{"precisionClass":"method_declared","confidenceKind":"placeholder","imageryClass":"synthetic","counts":{"detected":2,"privateExcluded":0,"closedCanopyExcluded":0,"belowThreshold":0,"kept":2}}})"
+    );
   }
 
   void clearPlanSettings()
@@ -59,6 +66,7 @@ class TestQgsAiTreesDetectTool : public QObject
     void cleanup();
     void validatesArgumentsWithoutNetwork();
     void pollsAndReturnsVerifiedArtifact();
+    void acceptsOmittedRegion();
     void includesAgentContextWhenSetOnRouter();
     void rejectsMalformedArtifact();
     void stopsAfterBoundedPolls();
@@ -83,10 +91,10 @@ void TestQgsAiTreesDetectTool::validatesArgumentsWithoutNetwork()
   QgsAiTreesDetectTool tool( &router, 0, 2 );
 
   QJsonObject args = validArgs();
-  args.insert( u"region"_s, u"toscana"_s );
-  const QgsAiToolResult outsideLombardy = tool.execute( args );
-  QVERIFY( !outsideLombardy.success );
-  QVERIFY( outsideLombardy.errorMessage.contains( u"lombardia"_s ) );
+  args.insert( u"region"_s, u"narnia"_s );
+  const QgsAiToolResult outsideItaly = tool.execute( args );
+  QVERIFY( !outsideItaly.success );
+  QVERIFY( outsideItaly.errorMessage.contains( u"region"_s ) );
 
   args = validArgs();
   args.insert( u"bbox"_s, QJsonArray { 10.5, 44.9, 10.4, 45.0 } );
@@ -102,13 +110,7 @@ void TestQgsAiTreesDetectTool::pollsAndReturnsVerifiedArtifact()
   server.responses
     << QgsAiTestLoopbackServer::jsonResponse( 202, "Accepted", QByteArrayLiteral( R"({"id":"job/trees","status":"QUEUED","format":"geojson","createdAt":"2026-08-22T16:00:00Z"})" ) )
     << QgsAiTestLoopbackServer::jsonResponse( 200, "OK", QByteArrayLiteral( R"({"status":"running"})" ) )
-    << QgsAiTestLoopbackServer::jsonResponse(
-         200,
-         "OK",
-         QByteArrayLiteral(
-           R"({"status":"SUCCEEDED","artifact":{"downloadUrl":"http://127.0.0.1:9876/artifacts/job-trees.geojson?signature=test","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","sizeBytes":"1234","format":"GEOJSON","expiresAt":"2030-01-02T03:04:05Z"},"provenance":{"sourceId":"source-ade","endpointId":"endpoint-ade","sourceName":"AdE Catasto Lombardia","serviceUri":"https://example.test/GetDataset.php?dataset=LOMBARDIA.zip","license":"CC-BY-4.0","attribution":"Agenzia delle Entrate","trustLevel":"OFFICIAL"}})"
-         )
-       );
+    << QgsAiTestLoopbackServer::jsonResponse( 200, "OK", succeededJobJson() );
   QVERIFY( server.listen( QHostAddress::LocalHost, 0 ) );
 
   QgsAiModelRouter router;
@@ -123,6 +125,8 @@ void TestQgsAiTreesDetectTool::pollsAndReturnsVerifiedArtifact()
   QVERIFY( output.value( u"artifactMetadataVerified"_s ).toBool() );
   QCOMPARE( output.value( u"provenance"_s ).toObject().value( u"license"_s ).toString(), u"CC-BY-4.0"_s );
   QCOMPARE( output.value( u"artifact"_s ).toObject().value( u"sha256"_s ).toString(), QString( 64, 'a' ) );
+  QCOMPARE( output.value( u"quality"_s ).toObject().value( u"imageryClass"_s ).toString(), u"synthetic"_s );
+  QVERIFY( output.value( u"quality_checks"_s ).toObject().value( u"quality_reported"_s ).toBool() );
   QCOMPARE( server.requestCount, 3 );
 
   QVERIFY( server.rawRequests.at( 0 ).startsWith( "POST /v1/trees/detect HTTP/1.1\r\n" ) );
@@ -135,18 +139,32 @@ void TestQgsAiTreesDetectTool::pollsAndReturnsVerifiedArtifact()
   QVERIFY( !submitted.contains( u"agent_mode"_s ) );
 }
 
+void TestQgsAiTreesDetectTool::acceptsOmittedRegion()
+{
+  QgsAiTestLoopbackServer server;
+  server.responses
+    << QgsAiTestLoopbackServer::jsonResponse( 202, "Accepted", QByteArrayLiteral( R"({"id":"job/infer","status":"QUEUED","format":"geojson","region":"lombardia","createdAt":"2026-08-22T16:00:00Z"})" ) )
+    << QgsAiTestLoopbackServer::jsonResponse( 200, "OK", succeededJobJson() );
+  QVERIFY( server.listen( QHostAddress::LocalHost, 0 ) );
+
+  QgsAiModelRouter router;
+  QVERIFY( configurePlanForLoopback( router, server.serverPort() ) );
+  QgsAiTreesDetectTool tool( &router, 0, 2 );
+  QJsonObject args = validArgs();
+  args.remove( u"region"_s );
+  const QgsAiToolResult result = tool.execute( args );
+  QVERIFY2( result.success, qPrintable( result.errorMessage ) );
+  const QJsonObject submitted = QJsonDocument::fromJson( server.requestBodies.at( 0 ) ).object();
+  QVERIFY( !submitted.contains( u"region"_s ) );
+  QCOMPARE( submitted.value( u"format"_s ).toString(), u"geojson"_s );
+}
+
 void TestQgsAiTreesDetectTool::includesAgentContextWhenSetOnRouter()
 {
   QgsAiTestLoopbackServer server;
   server.responses
     << QgsAiTestLoopbackServer::jsonResponse( 202, "Accepted", QByteArrayLiteral( R"({"id":"job/ctx","status":"QUEUED","format":"geojson","createdAt":"2026-08-22T16:00:00Z"})" ) )
-    << QgsAiTestLoopbackServer::jsonResponse(
-         200,
-         "OK",
-         QByteArrayLiteral(
-           R"({"status":"SUCCEEDED","artifact":{"downloadUrl":"http://127.0.0.1:9876/artifacts/job-ctx.geojson?signature=test","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","sizeBytes":"1234","format":"GEOJSON","expiresAt":"2030-01-02T03:04:05Z"},"provenance":{"sourceId":"source-ade","endpointId":"endpoint-ade","sourceName":"AdE Catasto Lombardia","serviceUri":"https://example.test/GetDataset.php?dataset=LOMBARDIA.zip","license":"CC-BY-4.0","attribution":"Agenzia delle Entrate","trustLevel":"OFFICIAL"}})"
-         )
-       );
+    << QgsAiTestLoopbackServer::jsonResponse( 200, "OK", succeededJobJson() );
   QVERIFY( server.listen( QHostAddress::LocalHost, 0 ) );
 
   QgsAiModelRouter router;

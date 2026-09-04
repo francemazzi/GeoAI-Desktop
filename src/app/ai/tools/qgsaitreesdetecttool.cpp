@@ -135,6 +135,14 @@ namespace
         return QgsAiToolResult::error( u"Trees job '%1' returned incomplete provenance: missing %2."_s.arg( jobId, field ) );
     }
 
+    const QJsonObject quality = job.value( u"quality"_s ).toObject();
+    const bool qualityReported = job.value( u"quality"_s ).isObject()
+                                 && quality.contains( u"counts"_s )
+                                 && quality.contains( u"imageryClass"_s )
+                                 && quality.contains( u"confidenceKind"_s );
+    if ( !qualityReported )
+      return QgsAiToolResult::error( u"Trees job '%1' returned no quality report."_s.arg( jobId ) );
+
     QJsonObject verifiedArtifact;
     verifiedArtifact.insert( u"downloadUrl"_s, downloadUrl.toString( QUrl::FullyEncoded ) );
     verifiedArtifact.insert( u"sha256"_s, sha256 );
@@ -147,6 +155,7 @@ namespace
     output.insert( u"status"_s, u"completed"_s );
     output.insert( u"artifact"_s, verifiedArtifact );
     output.insert( u"provenance"_s, provenance );
+    output.insert( u"quality"_s, quality );
     output.insert( u"artifactMetadataVerified"_s, true );
     output.insert(
       u"quality_checks"_s,
@@ -154,10 +163,14 @@ namespace
         { u"artifact_metadata_valid"_s, true },
         { u"sha256_present"_s, true },
         { u"provenance_complete"_s, true },
+        { u"quality_reported"_s, true },
         { u"passed"_s, true },
       }
     );
-    output.insert( u"nextStep"_s, u"Call download_file with artifact.downloadUrl and expected_sha256, then add_layer_from_file. Height and DBH are estimates (estimate=true)."_s );
+    output.insert(
+      u"nextStep"_s,
+      u"Call download_file with artifact.downloadUrl and expected_sha256, then add_layer_from_file. Report quality.imageryClass, quality.counts, and that height/DBH are estimates (estimate=true). Do not describe basemap_fallback as official AGEA orthophoto."_s
+    );
     return QgsAiToolResult::ok( output );
   }
 } // namespace
@@ -170,7 +183,7 @@ QgsAiTreesDetectTool::QgsAiTreesDetectTool( QgsAiModelRouter *router, int pollIn
 
 QString QgsAiTreesDetectTool::description() const
 {
-  return u"Submits a Lombardy public-tree detection job (street rows and parks, private parcels excluded) and polls until a GeoJSON artifact is ready. Height and DBH are crown-allometry estimates, not field measurements. Validates download URL, SHA-256, size and expiry; it never downloads or loads the layer. Pass the result to download_file (including expected_sha256), then add_layer_from_file."_s;
+  return u"Submits a public-tree detection job for an Italian bbox (street rows and parks, private parcels excluded) and polls until a GeoJSON artifact is ready. Region is optional and inferred from the bbox. Height and DBH are crown-allometry estimates, not field measurements. Validates download URL, SHA-256, size, expiry and the quality report; it never downloads or loads the layer. Pass the result to download_file (including expected_sha256), then add_layer_from_file. Always report quality.imageryClass and quality.counts to the user."_s;
 }
 
 QJsonObject QgsAiTreesDetectTool::schema() const
@@ -178,18 +191,23 @@ QJsonObject QgsAiTreesDetectTool::schema() const
   QJsonObject properties;
   QJsonObject coordinate;
   coordinate.insert( u"type"_s, u"number"_s );
-  QJsonObject bbox = propArray( coordinate, u"Detection bounds as [minX, minY, maxX, maxY] in WGS84. Use the municipality or canvas extent."_s );
+  QJsonObject bbox = propArray( coordinate, u"Detection bounds as [minX, minY, maxX, maxY] in WGS84. Use a municipal extent (max 150 km²)."_s );
   bbox.insert( u"minItems"_s, 4 );
   bbox.insert( u"maxItems"_s, 4 );
   properties.insert( u"bbox"_s, bbox );
-  QJsonObject region = prop( u"string"_s, u"Italian region. v1 supports only Lombardy."_s );
-  region.insert( u"enum"_s, QJsonArray { u"lombardia"_s } );
+  QJsonObject region = prop( u"string"_s, u"Italian region slug. Optional; inferred from the bbox centroid when omitted."_s );
+  region.insert( u"enum"_s, QJsonArray {
+    u"valle-aosta"_s, u"piemonte"_s, u"liguria"_s, u"lombardia"_s, u"trentino-alto-adige"_s,
+    u"veneto"_s, u"friuli-venezia-giulia"_s, u"emilia-romagna"_s, u"toscana"_s, u"umbria"_s,
+    u"marche"_s, u"lazio"_s, u"abruzzo"_s, u"molise"_s, u"campania"_s, u"puglia"_s,
+    u"basilicata"_s, u"calabria"_s, u"sicilia"_s, u"sardegna"_s
+  } );
   properties.insert( u"region"_s, region );
   QJsonObject format = prop( u"string"_s, u"Artifact format. v1 returns GeoJSON points."_s );
   format.insert( u"enum"_s, QJsonArray { u"geojson"_s } );
   properties.insert( u"format"_s, format );
 
-  return schemaObject( properties, QJsonArray { u"bbox"_s, u"region"_s, u"format"_s } );
+  return schemaObject( properties, QJsonArray { u"bbox"_s, u"format"_s } );
 }
 
 bool QgsAiTreesDetectTool::isAvailable() const
@@ -225,8 +243,14 @@ QgsAiToolResult QgsAiTreesDetectTool::execute( const QJsonObject &args )
     return QgsAiToolResult::error( u"bbox requires minX < maxX and minY < maxY."_s );
 
   const QString region = args.value( u"region"_s ).toString().trimmed().toLower();
-  if ( region != "lombardia"_L1 )
-    return QgsAiToolResult::error( u"Argument 'region' must be 'lombardia' in v1."_s );
+  static const QStringList allowedRegions {
+    u"valle-aosta"_s, u"piemonte"_s, u"liguria"_s, u"lombardia"_s, u"trentino-alto-adige"_s,
+    u"veneto"_s, u"friuli-venezia-giulia"_s, u"emilia-romagna"_s, u"toscana"_s, u"umbria"_s,
+    u"marche"_s, u"lazio"_s, u"abruzzo"_s, u"molise"_s, u"campania"_s, u"puglia"_s,
+    u"basilicata"_s, u"calabria"_s, u"sicilia"_s, u"sardegna"_s
+  };
+  if ( !region.isEmpty() && !allowedRegions.contains( region ) )
+    return QgsAiToolResult::error( u"Argument 'region' must be an Italian region slug (or omitted to infer from bbox)."_s );
 
   const QString format = args.value( u"format"_s ).toString().trimmed().toLower();
   if ( format != "geojson"_L1 )
@@ -251,7 +275,8 @@ QgsAiToolResult QgsAiTreesDetectTool::execute( const QJsonObject &args )
 
   QJsonObject submitBody;
   submitBody.insert( u"bbox"_s, bbox );
-  submitBody.insert( u"region"_s, region );
+  if ( !region.isEmpty() )
+    submitBody.insert( u"region"_s, region );
   submitBody.insert( u"format"_s, format );
   mRouter->appendManagedToolContext( submitBody );
 

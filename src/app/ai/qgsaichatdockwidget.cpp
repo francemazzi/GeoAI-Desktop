@@ -319,7 +319,52 @@ namespace
       return value.toBool() ? u"true"_s : u"false"_s;
     if ( value.isNull() || value.isUndefined() )
       return u"null"_s;
+    if ( value.isArray() )
+      return u"[%1]"_s.arg( value.toArray().size() );
     return QString::fromUtf8( QJsonDocument( value.toObject() ).toJson( QJsonDocument::Compact ) );
+  }
+
+  QString escapeMarkdownCell( const QString &text )
+  {
+    QString escaped = text;
+    escaped.replace( '|', u"\\|"_s );
+    escaped.replace( '\n', u" "_s );
+    return truncateForTranscript( escaped, 80 );
+  }
+
+  QString markdownTable( const QStringList &headers, const QList<QStringList> &rows, int maxRows = 12 )
+  {
+    if ( headers.isEmpty() )
+      return QString();
+    QString md;
+    md += u"\n|"_s;
+    for ( const QString &header : headers )
+      md += u" %1 |"_s.arg( escapeMarkdownCell( header ) );
+    md += u"\n|"_s;
+    for ( int i = 0; i < headers.size(); ++i )
+      md += u" --- |"_s;
+    md += '\n';
+    const int shown = std::min( maxRows, static_cast<int>( rows.size() ) );
+    for ( int r = 0; r < shown; ++r )
+    {
+      md += '|';
+      const QStringList &row = rows.at( r );
+      for ( int c = 0; c < headers.size(); ++c )
+        md += u" %1 |"_s.arg( c < row.size() ? escapeMarkdownCell( row.at( c ) ) : u""_s );
+      md += '\n';
+    }
+    if ( rows.size() > shown )
+      md += u"\n…%1 more rows\n"_s.arg( rows.size() - shown );
+    return md;
+  }
+
+  QStringList jsonObjectRow( const QJsonObject &object, const QStringList &headers )
+  {
+    QStringList row;
+    row.reserve( headers.size() );
+    for ( const QString &header : headers )
+      row.append( scalarForTranscript( object.value( header ) ) );
+    return row;
   }
 
   QString urlHostForTranscript( const QString &urlText )
@@ -2103,6 +2148,95 @@ QString QgsAiChatDockWidget::renderToolMessageMarkdown( const QgsAiChatMessage &
     md += markdownCodeBlock( tr( "stderr:" ), output.value( u"stderr"_s ).toString() );
     if ( output.contains( u"error"_s ) )
       md += u"\nError: `%1`\n"_s.arg( output.value( u"error"_s ).toString() );
+    return md.trimmed();
+  }
+
+  if ( toolName == "list_database_connections"_L1 )
+  {
+    md += u"\nSaved connections: `%1`\n"_s.arg( scalarForTranscript( output.value( u"count"_s ) ) );
+    const QJsonArray connections = output.value( u"connections"_s ).toArray();
+    QList<QStringList> rows;
+    for ( const QJsonValue &value : connections )
+    {
+      const QJsonObject entry = value.toObject();
+      rows.append( { entry.value( u"name"_s ).toString(), entry.value( u"database"_s ).toString(), entry.value( u"host"_s ).toString(), entry.value( u"port"_s ).toString() } );
+    }
+    md += markdownTable( { u"name"_s, u"database"_s, u"host"_s, u"port"_s }, rows );
+    if ( output.contains( u"note"_s ) )
+      md += u"\n%1\n"_s.arg( output.value( u"note"_s ).toString() );
+    return md.trimmed();
+  }
+
+  if ( toolName == "describe_database_schema"_L1 )
+  {
+    if ( output.contains( u"connection_name"_s ) )
+      md += u"\nConnection: `%1`\n"_s.arg( output.value( u"connection_name"_s ).toString() );
+    if ( output.contains( u"table"_s ) || output.contains( u"name"_s ) )
+      md += u"Table: `%1.%2`\n"_s.arg( output.value( u"schema"_s ).toString(), output.value( u"name"_s ).toString( output.value( u"table"_s ).toString() ) );
+    const QJsonArray fields = output.value( u"fields"_s ).toArray();
+    if ( !fields.isEmpty() )
+    {
+      QList<QStringList> rows;
+      for ( const QJsonValue &value : fields )
+      {
+        const QJsonObject field = value.toObject();
+        rows.append( { field.value( u"name"_s ).toString(), field.value( u"type"_s ).toString() } );
+      }
+      md += markdownTable( { u"column"_s, u"type"_s }, rows );
+    }
+    const QJsonArray tables = output.value( u"tables"_s ).toArray();
+    if ( !tables.isEmpty() )
+    {
+      QList<QStringList> rows;
+      for ( const QJsonValue &value : tables )
+      {
+        const QJsonObject table = value.toObject();
+        rows.append( { table.value( u"schema"_s ).toString(), table.value( u"name"_s ).toString(), scalarForTranscript( table.value( u"geometry_type"_s ) ), table.value( u"crs"_s ).toString() } );
+      }
+      md += markdownTable( { u"schema"_s, u"table"_s, u"geometry"_s, u"crs"_s }, rows );
+    }
+    if ( output.value( u"truncated"_s ).toBool() )
+      md += u"\nResult truncated.\n"_s;
+    return md.trimmed();
+  }
+
+  if ( toolName == "query_sql"_L1 || toolName == "execute_sql"_L1 )
+  {
+    md += markdownCodeBlock( tr( "SQL:" ), output.value( u"sql"_s ).toString(), u"sql"_s );
+    if ( output.contains( u"connection_name"_s ) )
+      md += u"\nConnection: `%1`\n"_s.arg( output.value( u"connection_name"_s ).toString() );
+    if ( output.contains( u"layer_id"_s ) )
+      md += u"Layer: `%1`\n"_s.arg( output.value( u"layer_name"_s ).toString( output.value( u"layer_id"_s ).toString() ) );
+    QStringList headers;
+    const QJsonArray columns = output.value( u"columns"_s ).toArray();
+    for ( const QJsonValue &column : columns )
+      headers.append( column.toString() );
+    const QJsonArray rowValues = output.value( u"rows"_s ).toArray();
+    if ( headers.isEmpty() && !rowValues.isEmpty() && rowValues.at( 0 ).isObject() )
+      headers = rowValues.at( 0 ).toObject().keys();
+    QList<QStringList> rows;
+    for ( const QJsonValue &value : rowValues )
+    {
+      if ( value.isObject() )
+        rows.append( jsonObjectRow( value.toObject(), headers ) );
+    }
+    md += markdownTable( headers, rows );
+    md += u"\nRows: `%1`\n"_s.arg( scalarForTranscript( output.value( u"returned_count"_s ) ) );
+    if ( output.value( u"truncated"_s ).toBool() )
+      md += u"Result truncated.\n"_s;
+    if ( output.contains( u"error"_s ) )
+      md += u"Error: `%1`\n"_s.arg( output.value( u"error"_s ).toString() );
+    return md.trimmed();
+  }
+
+  if ( toolName == "export_layer_to_postgis"_L1 )
+  {
+    md += u"\nTable: `%1.%2`\n"_s.arg( output.value( u"schema"_s ).toString(), output.value( u"table"_s ).toString() );
+    md += u"Features written: `%1`\n"_s.arg( scalarForTranscript( output.value( u"feature_count"_s ) ) );
+    md += u"Overwrite: `%1`\n"_s.arg( scalarForTranscript( output.value( u"overwrite"_s ) ) );
+    md += u"Spatial index: `%1`\n"_s.arg( scalarForTranscript( output.value( u"spatial_index"_s ) ) );
+    if ( output.contains( u"error"_s ) )
+      md += u"Error: `%1`\n"_s.arg( output.value( u"error"_s ).toString() );
     return md.trimmed();
   }
 

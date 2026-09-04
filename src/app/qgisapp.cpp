@@ -108,6 +108,7 @@ using namespace Qt::StringLiterals;
 #include "ai/qgsaimodelrouter.h"
 #include "ai/qgsaireviewpatchengine.h"
 #include "ai/tools/qgsaiattributetabletools.h"
+#include "ai/tools/qgsaidatabasetools.h"
 #include "ai/tools/qgsaidatahubextracttool.h"
 #include "ai/tools/qgsaitreesdetecttool.h"
 #include "ai/tools/qgsaidownloadfiletool.h"
@@ -1465,6 +1466,11 @@ QgisApp::QgisApp(
   mAiToolRegistry->registerTool( std::make_unique<QgsAiUpdateFeatureAttributesTool>( QgsProject::instance() ) );
   mAiToolRegistry->registerTool( std::make_unique<QgsAiCalculateFieldTool>( QgsProject::instance() ) );
   mAiToolRegistry->registerTool( std::make_unique<QgsAiQueryFeaturesTool>( QgsProject::instance() ) );
+  mAiToolRegistry->registerTool( std::make_unique<QgsAiListDatabaseConnectionsTool>() );
+  mAiToolRegistry->registerTool( std::make_unique<QgsAiDescribeDatabaseSchemaTool>() );
+  mAiToolRegistry->registerTool( std::make_unique<QgsAiDatabaseSqlTool>( QgsProject::instance(), true ) );
+  mAiToolRegistry->registerTool( std::make_unique<QgsAiDatabaseSqlTool>( QgsProject::instance(), false ) );
+  mAiToolRegistry->registerTool( std::make_unique<QgsAiExportLayerToPostgisTool>( QgsProject::instance() ) );
   mAiToolRegistry->registerTool( std::make_unique<QgsAiBatchUpdateAttributesTool>( QgsProject::instance() ) );
   mAiToolRegistry->registerTool( std::make_unique<QgsAiSelectFeaturesTool>( QgsProject::instance() ) );
   mAiToolRegistry->registerTool( std::make_unique<QgsAiIdentifyFeaturesAtTool>( QgsProject::instance() ) );

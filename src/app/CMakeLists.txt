@@ -346,6 +346,7 @@ if (ENABLE_AI_ASSISTANT)
     ai/qgsaivisualcontextutils.cpp
     ai/qgsaiworkspacetrust.cpp
     ai/tools/qgsaiattributetabletools.cpp
+    ai/tools/qgsaidatabasetools.cpp
     ai/tools/qgsaidatahubextracttool.cpp
     ai/tools/qgsaitreesdetecttool.cpp
     ai/tools/qgsaidownloadfiletool.cpp

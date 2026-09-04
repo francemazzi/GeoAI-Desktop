@@ -252,19 +252,46 @@ namespace
     const bool crsValid = layer && ( !layer->isSpatial() || layer->crs().isValid() );
     bool featureCountValid = true;
     bool geometryPresent = true;
+    bool treesSemanticsPassed = true;
+    QJsonObject checks;
     if ( QgsVectorLayer *vector = qobject_cast<QgsVectorLayer *>( layer ) )
     {
       featureCountValid = vector->featureCount() > 0;
       geometryPresent = !vector->isSpatial() || vector->geometryType() != Qgis::GeometryType::Unknown;
+      const int estimateIdx = vector->fields().indexOf( QStringLiteral( "estimate" ) );
+      const int contextIdx = vector->fields().indexOf( QStringLiteral( "context" ) );
+      if ( estimateIdx >= 0 || contextIdx >= 0 )
+      {
+        const bool estimateFieldsPresent = estimateIdx >= 0;
+        bool contextValuesValid = contextIdx < 0;
+        if ( contextIdx >= 0 )
+        {
+          contextValuesValid = true;
+          QgsFeatureIterator it = vector->getFeatures();
+          QgsFeature feature;
+          const QStringList allowed { u"street_row"_s, u"park"_s, u"public"_s };
+          while ( it.nextFeature( feature ) )
+          {
+            const QString context = feature.attribute( contextIdx ).toString().trimmed();
+            if ( !context.isEmpty() && !allowed.contains( context ) )
+            {
+              contextValuesValid = false;
+              break;
+            }
+          }
+        }
+        checks.insert( u"estimate_fields_present"_s, estimateFieldsPresent );
+        checks.insert( u"context_values_valid"_s, contextValuesValid );
+        treesSemanticsPassed = estimateFieldsPresent && contextValuesValid;
+      }
     }
 
-    QJsonObject checks;
     checks.insert( u"layer_in_project"_s, layerInProject );
     checks.insert( u"feature_count_valid"_s, featureCountValid );
     checks.insert( u"extent_valid"_s, extentValid );
     checks.insert( u"geometry_present"_s, geometryPresent );
     checks.insert( u"crs_valid"_s, crsValid );
-    checks.insert( u"passed"_s, layerInProject && featureCountValid && extentValid && geometryPresent && crsValid );
+    checks.insert( u"passed"_s, layerInProject && featureCountValid && extentValid && geometryPresent && crsValid && treesSemanticsPassed );
     return checks;
   }
 
