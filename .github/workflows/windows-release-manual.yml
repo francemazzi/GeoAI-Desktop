@@ -176,10 +176,10 @@ jobs:
           else
             VCPKG_OPTS+=(
                 -D WITH_VCPKG=ON
-                -D VCPKG_INSTALL_OPTIONS="--x-buildtrees-root=C:/src"
-                -D NUGET_BINARY_SOURCE_MODE=readwrite
+                -D VCPKG_INSTALL_OPTIONS="--only-binarycaching"
+                -D NUGET_BINARY_SOURCE_MODE=read
                 -D "NUGET_USERNAME=${GITHUB_ACTOR}"
-                -D NUGET_PUSH_SOURCE="https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
+                -D NUGET_SOURCE="https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
                 -D NUGET_TOKEN=${{ secrets.GITHUB_TOKEN }}
             )
           fi
@@ -205,7 +205,11 @@ jobs:
                 -D FLEX_EXECUTABLE="${SOURCE_DIR}/win_flex.exe" \
                 -D BISON_EXECUTABLE="${SOURCE_DIR}/win_bison.exe" \
                 -D WITH_QTWEBENGINE=OFF \
-                "${VCPKG_OPTS[@]}"
+                "${VCPKG_OPTS[@]}" || true
+
+          if [ -z "${WINDOWS_SDK_PATH:-}" ]; then
+            cmake -D VCPKG_INSTALL_OPTIONS="" "${BUILD_DIR}"
+          fi
 
       - name: 🌋 Build
         shell: bash
