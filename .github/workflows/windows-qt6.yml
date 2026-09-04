@@ -224,7 +224,7 @@ jobs:
                 "${VCPKG_OPTS[@]}" || true
 
           if [ -z "${WINDOWS_SDK_PATH:-}" ]; then
-            cmake -D VCPKG_INSTALL_OPTIONS="" "${BUILD_DIR}"
+            cmake -D VCPKG_INSTALL_OPTIONS="--only-binarycaching" "${BUILD_DIR}" || true
           fi
 
       - name: 🌋 Build
