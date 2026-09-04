@@ -258,8 +258,8 @@ namespace
     {
       featureCountValid = vector->featureCount() > 0;
       geometryPresent = !vector->isSpatial() || vector->geometryType() != Qgis::GeometryType::Unknown;
-      const int estimateIdx = vector->fields().indexOf( QStringLiteral( "estimate" ) );
-      const int contextIdx = vector->fields().indexOf( QStringLiteral( "context" ) );
+      const int estimateIdx = vector->fields().indexOf( "estimate"_L1 );
+      const int contextIdx = vector->fields().indexOf( "context"_L1 );
       if ( estimateIdx >= 0 || contextIdx >= 0 )
       {
         const bool estimateFieldsPresent = estimateIdx >= 0;
@@ -979,7 +979,8 @@ QgsAiToolResult QgsAiAddLayerFromServiceTool::execute( const QJsonObject &args )
       if ( provider == "wfs"_L1 )
       {
         return QgsAiToolResult::error(
-          u"WFS layer could not be loaded. Verify that the endpoint is reachable, the URI includes a valid typename, the server advertises that layer in GetCapabilities, and authentication is configured. Provider detail: %1"_s.arg( layer->error().summary() )
+          u"WFS layer could not be loaded. Verify that the endpoint is reachable, the URI includes a valid typename, the server advertises that layer in GetCapabilities, and authentication is configured. Provider detail: %1"_s
+            .arg( layer->error().summary() )
         );
       }
       return QgsAiToolResult::error( u"Service vector layer is invalid for provider '%1': %2"_s.arg( provider, layer->error().summary() ) );
@@ -989,9 +990,7 @@ QgsAiToolResult QgsAiAddLayerFromServiceTool::execute( const QJsonObject &args )
     const QString validationError = validateUsableVectorLayer( layer.get(), allowNonSpatialTable );
     if ( !validationError.isEmpty() )
     {
-      const QString guidance = provider == "wfs"_L1
-                                 ? u" Verify the WFS typename, filters, server capabilities, and response payload."_s
-                                 : QString();
+      const QString guidance = provider == "wfs"_L1 ? u" Verify the WFS typename, filters, server capabilities, and response payload."_s : QString();
       return QgsAiToolResult::error( u"Refusing to add unusable service vector layer '%1': %2%3 No project layer was added."_s.arg( name, validationError, guidance ) );
     }
     output.insert( u"feature_count"_s, static_cast<qint64>( layer->featureCount() ) );

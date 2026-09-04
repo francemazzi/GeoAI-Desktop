@@ -27,9 +27,9 @@
 #include "qgsfeaturesink.h"
 #include "qgsfields.h"
 #include "qgsgeometry.h"
+#include "qgsproject.h"
 #include "qgsprovidermetadata.h"
 #include "qgsproviderregistry.h"
-#include "qgsproject.h"
 #include "qgssettings.h"
 #include "qgsvectorlayer.h"
 #include "qgsvectorlayerexporter.h"
@@ -56,15 +56,10 @@ namespace
   constexpr int DEFAULT_SQL_LIMIT = 50;
   constexpr int MAX_SQL_LIMIT = 500;
 
-  const QSet<QString> GEOM_COLUMN_NAMES = {
-    u"geom"_s, u"geometry"_s, u"the_geom"_s, u"wkb_geometry"_s, u"shape"_s, u"geog"_s, u"geography"_s
-  };
+  const QSet<QString> GEOM_COLUMN_NAMES = { u"geom"_s, u"geometry"_s, u"the_geom"_s, u"wkb_geometry"_s, u"shape"_s, u"geog"_s, u"geography"_s };
 
-  const QSet<QString> WRITE_KEYWORDS = {
-    u"INSERT"_s, u"DELETE"_s, u"MERGE"_s, u"CREATE"_s, u"DROP"_s, u"ALTER"_s, u"GRANT"_s, u"REVOKE"_s,
-    u"TRUNCATE"_s, u"VACUUM"_s, u"CALL"_s, u"COPY"_s, u"LISTEN"_s, u"NOTIFY"_s, u"REFRESH"_s, u"REINDEX"_s,
-    u"CLUSTER"_s, u"LOAD"_s, u"DO"_s, u"LOCK"_s, u"COMMENT"_s, u"SECURITY"_s, u"EXECUTE"_s
-  };
+  const QSet<QString> WRITE_KEYWORDS = { u"INSERT"_s, u"DELETE"_s, u"MERGE"_s,   u"CREATE"_s,  u"DROP"_s,    u"ALTER"_s, u"GRANT"_s, u"REVOKE"_s, u"TRUNCATE"_s, u"VACUUM"_s,   u"CALL"_s,   u"COPY"_s,
+                                         u"LISTEN"_s, u"NOTIFY"_s, u"REFRESH"_s, u"REINDEX"_s, u"CLUSTER"_s, u"LOAD"_s,  u"DO"_s,    u"LOCK"_s,   u"COMMENT"_s,  u"SECURITY"_s, u"EXECUTE"_s };
 
   struct LayerRollbackEntry
   {
@@ -132,8 +127,8 @@ namespace
     if ( names.isEmpty() )
       return u"No saved PostgreSQL connections. Create one in the QGIS Browser (PostGIS > New Connection) and save it before using database tools."_s;
     if ( name.isEmpty() )
-      return u"Argument 'connection_name' is required. Saved names: %1"_s.arg( names.join( u", "_s ) );
-    return u"No saved PostgreSQL connection named '%1'. Saved names: %2"_s.arg( name, names.join( u", "_s ) );
+      return u"Argument 'connection_name' is required. Saved names: %1"_s.arg( names.join( ", "_L1 ) );
+    return u"No saved PostgreSQL connection named '%1'. Saved names: %2"_s.arg( name, names.join( ", "_L1 ) );
   }
 
   std::unique_ptr<QgsAbstractDatabaseProviderConnection> openPostgresConnection( const QString &name, QString &error )
@@ -159,9 +154,7 @@ namespace
 
     try
     {
-      return std::unique_ptr<QgsAbstractDatabaseProviderConnection>(
-        static_cast<QgsAbstractDatabaseProviderConnection *>( metadata->createConnection( name ) )
-      );
+      return std::unique_ptr<QgsAbstractDatabaseProviderConnection>( static_cast<QgsAbstractDatabaseProviderConnection *>( metadata->createConnection( name ) ) );
     }
     catch ( const QgsProviderConnectionException &ex )
     {
@@ -516,7 +509,7 @@ QgsAiSqlClassification classifyAiSql( const QString &sql )
   }
 
   QStringList working = tokens;
-  while ( !working.isEmpty() && working.constFirst() == u"("_s )
+  while ( !working.isEmpty() && working.constFirst() == "("_L1 )
     working.removeFirst();
   if ( working.isEmpty() )
   {
@@ -953,9 +946,7 @@ QgsAiToolResult QgsAiExportLayerToPostgisTool::execute( const QJsonObject &args 
   if ( lowercaseNames )
     options.insert( u"lowercaseFieldNames"_s, true );
 
-  auto exporter = std::make_unique<QgsVectorLayerExporter>(
-    uri.uri(), u"postgres"_s, layer->fields(), layer->wkbType(), layer->crs(), overwrite, options
-  );
+  auto exporter = std::make_unique<QgsVectorLayerExporter>( uri.uri(), u"postgres"_s, layer->fields(), layer->wkbType(), layer->crs(), overwrite, options );
   if ( exporter->errorCode() != Qgis::VectorExportResult::Success )
     return QgsAiToolResult::error( u"Error exporting to PostGIS: %1"_s.arg( exporter->errorMessage() ) );
 
@@ -1000,8 +991,7 @@ QgsAiToolResult QgsAiExportLayerToPostgisTool::execute( const QJsonObject &args 
     connection->vacuum( schema, table );
   }
   catch ( const QgsProviderConnectionException & )
-  {
-  }
+  {}
 
   QJsonObject diff;
   diff.insert( u"summary"_s, overwrite ? u"Exported a vector layer to PostGIS, overwriting the destination table. Database writes cannot be rolled back."_s : u"Exported a vector layer to a new PostGIS table. Database writes cannot be rolled back."_s );

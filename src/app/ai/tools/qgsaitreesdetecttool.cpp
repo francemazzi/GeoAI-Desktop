@@ -136,10 +136,7 @@ namespace
     }
 
     const QJsonObject quality = job.value( u"quality"_s ).toObject();
-    const bool qualityReported = job.value( u"quality"_s ).isObject()
-                                 && quality.contains( u"counts"_s )
-                                 && quality.contains( u"imageryClass"_s )
-                                 && quality.contains( u"confidenceKind"_s );
+    const bool qualityReported = job.value( u"quality"_s ).isObject() && quality.contains( u"counts"_s ) && quality.contains( u"imageryClass"_s ) && quality.contains( u"confidenceKind"_s );
     if ( !qualityReported )
       return QgsAiToolResult::error( u"Trees job '%1' returned no quality report."_s.arg( jobId ) );
 
@@ -167,10 +164,7 @@ namespace
         { u"passed"_s, true },
       }
     );
-    output.insert(
-      u"nextStep"_s,
-      u"Call download_file with artifact.downloadUrl and expected_sha256, then add_layer_from_file. Report quality.imageryClass, quality.counts, and that height/DBH are estimates (estimate=true). Do not describe basemap_fallback as official AGEA orthophoto."_s
-    );
+    output.insert( u"nextStep"_s, u"Call download_file with artifact.downloadUrl and expected_sha256, then add_layer_from_file. Report quality.imageryClass, quality.counts, and that height/DBH are estimates (estimate=true). Do not describe basemap_fallback as official AGEA orthophoto."_s );
     return QgsAiToolResult::ok( output );
   }
 } // namespace
@@ -196,12 +190,31 @@ QJsonObject QgsAiTreesDetectTool::schema() const
   bbox.insert( u"maxItems"_s, 4 );
   properties.insert( u"bbox"_s, bbox );
   QJsonObject region = prop( u"string"_s, u"Italian region slug. Optional; inferred from the bbox centroid when omitted."_s );
-  region.insert( u"enum"_s, QJsonArray {
-    u"valle-aosta"_s, u"piemonte"_s, u"liguria"_s, u"lombardia"_s, u"trentino-alto-adige"_s,
-    u"veneto"_s, u"friuli-venezia-giulia"_s, u"emilia-romagna"_s, u"toscana"_s, u"umbria"_s,
-    u"marche"_s, u"lazio"_s, u"abruzzo"_s, u"molise"_s, u"campania"_s, u"puglia"_s,
-    u"basilicata"_s, u"calabria"_s, u"sicilia"_s, u"sardegna"_s
-  } );
+  region.insert(
+    u"enum"_s,
+    QJsonArray {
+      u"valle-aosta"_s,
+      u"piemonte"_s,
+      u"liguria"_s,
+      u"lombardia"_s,
+      u"trentino-alto-adige"_s,
+      u"veneto"_s,
+      u"friuli-venezia-giulia"_s,
+      u"emilia-romagna"_s,
+      u"toscana"_s,
+      u"umbria"_s,
+      u"marche"_s,
+      u"lazio"_s,
+      u"abruzzo"_s,
+      u"molise"_s,
+      u"campania"_s,
+      u"puglia"_s,
+      u"basilicata"_s,
+      u"calabria"_s,
+      u"sicilia"_s,
+      u"sardegna"_s
+    }
+  );
   properties.insert( u"region"_s, region );
   QJsonObject format = prop( u"string"_s, u"Artifact format. v1 returns GeoJSON points."_s );
   format.insert( u"enum"_s, QJsonArray { u"geojson"_s } );
@@ -244,10 +257,26 @@ QgsAiToolResult QgsAiTreesDetectTool::execute( const QJsonObject &args )
 
   const QString region = args.value( u"region"_s ).toString().trimmed().toLower();
   static const QStringList allowedRegions {
-    u"valle-aosta"_s, u"piemonte"_s, u"liguria"_s, u"lombardia"_s, u"trentino-alto-adige"_s,
-    u"veneto"_s, u"friuli-venezia-giulia"_s, u"emilia-romagna"_s, u"toscana"_s, u"umbria"_s,
-    u"marche"_s, u"lazio"_s, u"abruzzo"_s, u"molise"_s, u"campania"_s, u"puglia"_s,
-    u"basilicata"_s, u"calabria"_s, u"sicilia"_s, u"sardegna"_s
+    u"valle-aosta"_s,
+    u"piemonte"_s,
+    u"liguria"_s,
+    u"lombardia"_s,
+    u"trentino-alto-adige"_s,
+    u"veneto"_s,
+    u"friuli-venezia-giulia"_s,
+    u"emilia-romagna"_s,
+    u"toscana"_s,
+    u"umbria"_s,
+    u"marche"_s,
+    u"lazio"_s,
+    u"abruzzo"_s,
+    u"molise"_s,
+    u"campania"_s,
+    u"puglia"_s,
+    u"basilicata"_s,
+    u"calabria"_s,
+    u"sicilia"_s,
+    u"sardegna"_s
   };
   if ( !region.isEmpty() && !allowedRegions.contains( region ) )
     return QgsAiToolResult::error( u"Argument 'region' must be an Italian region slug (or omitted to infer from bbox)."_s );

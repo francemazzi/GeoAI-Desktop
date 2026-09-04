@@ -4,6 +4,11 @@
   begin                : September 2026
 ***************************************************************************/
 
+#include "qgsconfig.h"
+
+#include <cstdlib>
+#include <memory>
+
 #include "ai/qgsaiagentsessionmanager.h"
 #include "ai/qgsaifilecontextprovider.h"
 #include "ai/qgsaimodelrouter.h"
@@ -12,7 +17,6 @@
 #include "ai/tools/qgsaitoolregistry.h"
 #include "qgsabstractproviderconnection.h"
 #include "qgsapplication.h"
-#include "qgsconfig.h"
 #include "qgsexception.h"
 #include "qgsfeature.h"
 #include "qgsgeometry.h"
@@ -23,9 +27,6 @@
 #include "qgstest.h"
 #include "qgsvectordataprovider.h"
 #include "qgsvectorlayer.h"
-
-#include <cstdlib>
-#include <memory>
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -143,7 +144,7 @@ void TestQgsAiDatabaseTools::listConnectionsOmitsPassword()
     const QJsonObject entry = value.toObject();
     QVERIFY( !entry.contains( u"password"_s ) );
     QVERIFY( !entry.contains( u"uri"_s ) );
-    if ( entry.value( u"name"_s ).toString() != u"lab"_s )
+    if ( entry.value( u"name"_s ).toString() != "lab"_L1 )
       continue;
     found = true;
     QCOMPARE( entry.value( u"database"_s ).toString(), u"gis"_s );
@@ -292,8 +293,7 @@ void TestQgsAiDatabaseTools::queryExecuteAndExportAgainstPostgres()
       md->deleteConnection( u"ai_pg_test"_s );
     }
     catch ( const QgsProviderConnectionException & )
-    {
-    }
+    {}
   } );
 
   QgsAiDatabaseSqlTool query( nullptr, true );

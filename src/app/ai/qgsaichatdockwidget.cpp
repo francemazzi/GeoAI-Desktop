@@ -327,8 +327,8 @@ namespace
   QString escapeMarkdownCell( const QString &text )
   {
     QString escaped = text;
-    escaped.replace( '|', u"\\|"_s );
-    escaped.replace( '\n', u" "_s );
+    escaped.replace( '|', "\\|"_L1 );
+    escaped.replace( '\n', " "_L1 );
     return truncateForTranscript( escaped, 80 );
   }
 
@@ -337,12 +337,12 @@ namespace
     if ( headers.isEmpty() )
       return QString();
     QString md;
-    md += u"\n|"_s;
+    md += "\n|"_L1;
     for ( const QString &header : headers )
       md += u" %1 |"_s.arg( escapeMarkdownCell( header ) );
-    md += u"\n|"_s;
+    md += "\n|"_L1;
     for ( int i = 0; i < headers.size(); ++i )
-      md += u" --- |"_s;
+      md += " --- |"_L1;
     md += '\n';
     const int shown = std::min( maxRows, static_cast<int>( rows.size() ) );
     for ( int r = 0; r < shown; ++r )
@@ -2196,7 +2196,7 @@ QString QgsAiChatDockWidget::renderToolMessageMarkdown( const QgsAiChatMessage &
       md += markdownTable( { u"schema"_s, u"table"_s, u"geometry"_s, u"crs"_s }, rows );
     }
     if ( output.value( u"truncated"_s ).toBool() )
-      md += u"\nResult truncated.\n"_s;
+      md += "\nResult truncated.\n"_L1;
     return md.trimmed();
   }
 
@@ -2223,7 +2223,7 @@ QString QgsAiChatDockWidget::renderToolMessageMarkdown( const QgsAiChatMessage &
     md += markdownTable( headers, rows );
     md += u"\nRows: `%1`\n"_s.arg( scalarForTranscript( output.value( u"returned_count"_s ) ) );
     if ( output.value( u"truncated"_s ).toBool() )
-      md += u"Result truncated.\n"_s;
+      md += "Result truncated.\n"_L1;
     if ( output.contains( u"error"_s ) )
       md += u"Error: `%1`\n"_s.arg( output.value( u"error"_s ).toString() );
     return md.trimmed();

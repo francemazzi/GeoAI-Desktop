@@ -1978,7 +1978,8 @@ QString QgsAiAgentSessionManager::buildSystemPrompt( const QString &extraContext
   QString postgisGuidance;
   if ( canListDatabaseConnections || canDescribeDatabaseSchema || canQuerySql || canExecuteSql || canExportLayerToPostgis )
   {
-    postgisGuidance += "- For PostGIS/PostgreSQL, use native database tools. Do not call run_processing_algorithm with native:postgisexecutesql, native:postgisexecuteandloadsql, native:importintopostgis, or qgis:executesql against a database.\n"_L1;
+    postgisGuidance
+      += "- For PostGIS/PostgreSQL, use native database tools. Do not call run_processing_algorithm with native:postgisexecutesql, native:postgisexecuteandloadsql, native:importintopostgis, or qgis:executesql against a database.\n"_L1;
     if ( canListDatabaseConnections )
       postgisGuidance += "- If the connection name is unknown, call list_database_connections first. The name must match a connection saved in the QGIS Browser.\n"_L1;
     if ( canDescribeDatabaseSchema )
@@ -1986,7 +1987,8 @@ QString QgsAiAgentSessionManager::buildSystemPrompt( const QString &extraContext
     if ( canQuerySql )
       postgisGuidance += "- For SELECT/EXPLAIN/SHOW, use query_sql. Rows are returned in the tool result; do not claim success from an empty Processing result.\n"_L1;
     if ( canExecuteSql )
-      postgisGuidance += "- For DDL/DML (CREATE/INSERT/UPDATE/DELETE/indexes), use execute_sql (approval required). There is no database rollback. Prefer new working tables; do not UPDATE/DELETE source tables unless the user asked. Use load_as_layer on SELECT to add a query layer to the map.\n"_L1;
+      postgisGuidance
+        += "- For DDL/DML (CREATE/INSERT/UPDATE/DELETE/indexes), use execute_sql (approval required). There is no database rollback. Prefer new working tables; do not UPDATE/DELETE source tables unless the user asked. Use load_as_layer on SELECT to add a query layer to the map.\n"_L1;
     if ( canExportLayerToPostgis )
       postgisGuidance += "- To copy a project layer into PostGIS, use export_layer_to_postgis, not Processing.\n"_L1;
     postgisGuidance += "- query_features only inspects layers already in the project, not PostGIS tables that are not loaded.\n"_L1;
