@@ -13,7 +13,7 @@ on:
       sdk_run_id:
         description: Existing workflow run id containing qgis-sdk-x64-windows; leave empty to rebuild vcpkg
         required: false
-        default: '26423962164'
+        default: ''
       sdk_artifact_name:
         description: SDK artifact name to download
         required: false
@@ -58,7 +58,9 @@ jobs:
         uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
 
       - name: 📥 Download Windows SDK
+        id: download-sdk
         if: ${{ inputs.sdk_run_id != '' }}
+        continue-on-error: true
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v6.0.1
         with:
           name: ${{ inputs.sdk_artifact_name }}
@@ -68,7 +70,7 @@ jobs:
           path: sdk-artifact
 
       - name: 📦 Extract Windows SDK
-        if: ${{ inputs.sdk_run_id != '' }}
+        if: ${{ inputs.sdk_run_id != '' && steps.download-sdk.outcome == 'success' }}
         shell: bash
         run: |
           mkdir -p sdk-root
@@ -89,7 +91,7 @@ jobs:
           echo "WINDOWS_SDK_PATH=${SDK_DIR_ABS}" >> "${GITHUB_ENV}"
 
       - name: 🎡 Setup vcpkg
-        if: ${{ inputs.sdk_run_id == '' }}
+        if: ${{ inputs.sdk_run_id == '' || steps.download-sdk.outcome != 'success' }}
         uses: ./.github/actions/setup-vcpkg
 
       - name: 🦬 Setup flex/bison
