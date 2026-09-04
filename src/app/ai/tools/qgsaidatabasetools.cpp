@@ -50,7 +50,7 @@ using namespace Qt::StringLiterals;
 
 namespace
 {
-  constexpr int MAX_QUERY_RESULT_BYTES = 48000;
+  constexpr int MAX_DB_TOOL_RESULT_BYTES = 48000;
   constexpr int MAX_CELL_CHARS = 240;
   constexpr int MAX_WKT_CHARS = 400;
   constexpr int DEFAULT_SQL_LIMIT = 50;
@@ -407,7 +407,7 @@ namespace
 
   bool outputExceedsCap( const QJsonObject &output )
   {
-    return QJsonDocument( output ).toJson( QJsonDocument::Compact ).size() > MAX_QUERY_RESULT_BYTES;
+    return QJsonDocument( output ).toJson( QJsonDocument::Compact ).size() > MAX_DB_TOOL_RESULT_BYTES;
   }
 
   QJsonObject sqlResultJson( QgsAbstractDatabaseProviderConnection::QueryResult &result, const QStringList &columns, int offset, int limit, bool includeGeometry )
@@ -440,7 +440,7 @@ namespace
       candidate.append( row );
       QJsonObject probe;
       probe.insert( u"rows"_s, candidate );
-      if ( QJsonDocument( probe ).toJson( QJsonDocument::Compact ).size() > MAX_QUERY_RESULT_BYTES )
+      if ( QJsonDocument( probe ).toJson( QJsonDocument::Compact ).size() > MAX_DB_TOOL_RESULT_BYTES )
       {
         truncated = true;
         break;
