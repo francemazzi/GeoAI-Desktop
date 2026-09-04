@@ -11,13 +11,13 @@ on:
         description: Git ref/tag to build
         required: true
       sdk_run_id:
-        description: Existing workflow run id containing qgis-sdk-x64-windows; leave empty to rebuild vcpkg
+        description: Existing workflow run id containing strata-sdk-x64-windows; leave empty to rebuild vcpkg
         required: false
-        default: ''
+        default: '29234806065'
       sdk_artifact_name:
         description: SDK artifact name to download
         required: false
-        default: qgis-sdk-x64-windows
+        default: strata-sdk-x64-windows
 
 concurrency:
   group: windows-release-manual-${{ inputs.release_tag }}
