@@ -171,6 +171,7 @@ jobs:
                 -D CMAKE_OSX_DEPLOYMENT_TARGET=${{ matrix.deployment-target }} \
                 -D CMAKE_OSX_ARCHITECTURES=${{ matrix.osx-architecture }} \
                 -D ENABLE_UNITY_BUILDS=ON \
+                -D ENABLE_TESTS=${{ env.IS_STRATA_RELEASE == 'true' && 'OFF' || 'ON' }} \
                 -D MACOS_CODE_SIGN_IDENTITY="${{ secrets.MACOS_DEVELOPER_ID }}" \
                 -D "NUGET_USERNAME=${GITHUB_ACTOR}" \
                 -D NUGET_SOURCE="https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json" \
