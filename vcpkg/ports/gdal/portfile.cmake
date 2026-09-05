@@ -14,6 +14,28 @@ vcpkg_from_github(
 # `vcpkg clean` stumbles over one subdir
 file(REMOVE_RECURSE "${SOURCE_PATH}/autotest")
 
+# SWIG 4.5.0 (2026-08-21) dropped PyInt_* compatibility macros. Strata 1.4.2
+# never rebuilt GDAL (NuGet cache). When the cache misses, Homebrew SWIG 4.5
+# regenerates wrappers that still call PyInt_* from GDAL 3.12 typemaps.
+# Rewrite those calls to the Python 3 C API in both .i sources and any
+# pre-generated wrap files so the standalone Python extension compile succeeds.
+file(GLOB_RECURSE _gdal_pyint_files
+    "${SOURCE_PATH}/swig/include/python/*.i"
+    "${SOURCE_PATH}/swig/python/*.cpp"
+    "${SOURCE_PATH}/swig/python/*.cxx"
+    "${SOURCE_PATH}/swig/python/extensions/*wrap.cpp"
+)
+foreach(_gdal_pyint_file IN LISTS _gdal_pyint_files)
+    file(READ "${_gdal_pyint_file}" _gdal_pyint_contents)
+    string(REPLACE "PyInt_FromLong" "PyLong_FromLong" _gdal_pyint_contents "${_gdal_pyint_contents}")
+    string(REPLACE "PyInt_AsLong" "PyLong_AsLong" _gdal_pyint_contents "${_gdal_pyint_contents}")
+    string(REPLACE "PyInt_Check" "PyLong_Check" _gdal_pyint_contents "${_gdal_pyint_contents}")
+    file(WRITE "${_gdal_pyint_file}" "${_gdal_pyint_contents}")
+endforeach()
+unset(_gdal_pyint_files)
+unset(_gdal_pyint_file)
+unset(_gdal_pyint_contents)
+
 # Avoid abseil, no matter if vcpkg or system
 vcpkg_replace_string("${SOURCE_PATH}/ogr/ogrsf_frmts/flatgeobuf/flatbuffers/base.h" [[__has_include("absl/strings/string_view.h")]] "(0)")
 
