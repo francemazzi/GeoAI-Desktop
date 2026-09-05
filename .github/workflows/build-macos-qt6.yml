@@ -78,11 +78,6 @@ jobs:
           echo $(brew --prefix bison)/bin >> $GITHUB_PATH
           echo $(brew --prefix flex)/bin >> $GITHUB_PATH
           echo $(brew --prefix libtool)/bin >> $GITHUB_PATH
-          # Homebrew SWIG jumped to 4.5.0 on 2026-08-21 (two days after 1.4.2).
-          # 4.5 dropped PyInt_* macros that GDAL 3.12 still emits. Prefer 4.4.1
-          # so a cache-miss rebuild matches the last green macOS release.
-          python3 -m pip install --user 'swig==4.4.1'
-          echo "$(python3 -m site --user-base)/bin" >> $GITHUB_PATH
 
       - name: Symlink gfortran (macOS)
         if: matrix.os == 'macos-15'
