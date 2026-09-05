@@ -608,10 +608,8 @@ void TestQgsAiAgentSessionManager::toolCallLimitPausesAndContinues()
 
   QgsAiTestLoopbackServer server;
   server.responses
-    << QgsAiTestLoopbackServer::
-         jsonResponse( 200, "OK", QByteArrayLiteral( "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":null,\"tool_calls\":[{\"id\":\"call_1\",\"type\":\"function\",\"function\":{\"name\":\"echo\",\"arguments\":\"{\\\"text\\\":\\\"first\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}" ) )
-    << QgsAiTestLoopbackServer::
-         jsonResponse( 200, "OK", QByteArrayLiteral( "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":null,\"tool_calls\":[{\"id\":\"call_2\",\"type\":\"function\",\"function\":{\"name\":\"echo\",\"arguments\":\"{\\\"text\\\":\\\"second\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}" ) )
+    << QgsAiTestLoopbackServer::jsonResponse( 200, "OK", QByteArrayLiteral( "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":null,\"tool_calls\":[{\"id\":\"call_1\",\"type\":\"function\",\"function\":{\"name\":\"echo\",\"arguments\":\"{\\\"text\\\":\\\"first\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}" ) )
+    << QgsAiTestLoopbackServer::jsonResponse( 200, "OK", QByteArrayLiteral( "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":null,\"tool_calls\":[{\"id\":\"call_2\",\"type\":\"function\",\"function\":{\"name\":\"echo\",\"arguments\":\"{\\\"text\\\":\\\"second\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}" ) )
     << QgsAiTestLoopbackServer::jsonResponse( 200, "OK", QByteArrayLiteral( "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"Done\"},\"finish_reason\":\"stop\"}]}" ) );
   QVERIFY( server.listen( QHostAddress::LocalHost, 0 ) );
 
@@ -816,8 +814,7 @@ void TestQgsAiAgentSessionManager::nonRetryableToolFailureStopsTurn()
   } );
 
   QgsAiTestLoopbackServer server;
-  server.responses << QgsAiTestLoopbackServer::
-      jsonResponse( 200, "OK", QByteArrayLiteral( "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":null,\"tool_calls\":[{\"id\":\"call_install\",\"type\":\"function\",\"function\":{\"name\":\"install_python_package\",\"arguments\":\"{}\"}}]},\"finish_reason\":\"tool_calls\"}]}" ) );
+  server.responses << QgsAiTestLoopbackServer::jsonResponse( 200, "OK", QByteArrayLiteral( "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":null,\"tool_calls\":[{\"id\":\"call_install\",\"type\":\"function\",\"function\":{\"name\":\"install_python_package\",\"arguments\":\"{}\"}}]},\"finish_reason\":\"tool_calls\"}]}" ) );
   QVERIFY( server.listen( QHostAddress::LocalHost, 0 ) );
 
   settings.setValue( u"ai/provider/openrouter/apiKey"_s, u"sk-or-loopback-test"_s );
@@ -865,8 +862,7 @@ void TestQgsAiAgentSessionManager::runPythonSoftFailureMarksToolResultError()
 
   QgsAiTestLoopbackServer server;
   server.responses
-    << QgsAiTestLoopbackServer::
-         jsonResponse( 200, "OK", QByteArrayLiteral( "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":null,\"tool_calls\":[{\"id\":\"call_py\",\"type\":\"function\",\"function\":{\"name\":\"run_python\",\"arguments\":\"{\\\"code\\\":\\\"raise ValueError('boom')\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}" ) )
+    << QgsAiTestLoopbackServer::jsonResponse( 200, "OK", QByteArrayLiteral( "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":null,\"tool_calls\":[{\"id\":\"call_py\",\"type\":\"function\",\"function\":{\"name\":\"run_python\",\"arguments\":\"{\\\"code\\\":\\\"raise ValueError('boom')\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}" ) )
     << QgsAiTestLoopbackServer::jsonResponse( 200, "OK", QByteArrayLiteral( "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"Python failed; stopping.\"},\"finish_reason\":\"stop\"}]}" ) );
   QVERIFY( server.listen( QHostAddress::LocalHost, 0 ) );
 
@@ -987,8 +983,7 @@ void TestQgsAiAgentSessionManager::emptyAssistantAfterToolErrorTriggersRecovery(
 
   QgsAiTestLoopbackServer server;
   server.responses
-    << QgsAiTestLoopbackServer::
-         jsonResponse( 200, "OK", QByteArrayLiteral( "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":null,\"tool_calls\":[{\"id\":\"call_err\",\"type\":\"function\",\"function\":{\"name\":\"echo\",\"arguments\":\"{\\\"text\\\":\\\"x\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}" ) )
+    << QgsAiTestLoopbackServer::jsonResponse( 200, "OK", QByteArrayLiteral( "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":null,\"tool_calls\":[{\"id\":\"call_err\",\"type\":\"function\",\"function\":{\"name\":\"echo\",\"arguments\":\"{\\\"text\\\":\\\"x\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}" ) )
     << QgsAiTestLoopbackServer::jsonResponse( 200, "OK", QByteArrayLiteral( "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"\"},\"finish_reason\":\"stop\"}]}" ) )
     << QgsAiTestLoopbackServer::jsonResponse( 200, "OK", QByteArrayLiteral( "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"Recovered after tool failure.\"},\"finish_reason\":\"stop\"}]}" ) );
   QVERIFY( server.listen( QHostAddress::LocalHost, 0 ) );
@@ -2315,8 +2310,7 @@ void TestQgsAiAgentSessionManager::sessionUsageSignalAccumulatesAndResets()
 
   // Loopback OpenRouter returning a response WITH usage accounting.
   QgsAiTestLoopbackServer server;
-  server.responses << QgsAiTestLoopbackServer::
-      jsonResponse( 200, "OK", QByteArrayLiteral( "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"OK\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":11,\"completion_tokens\":4,\"total_tokens\":15,\"cost\":0.0003}}" ) );
+  server.responses << QgsAiTestLoopbackServer::jsonResponse( 200, "OK", QByteArrayLiteral( "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"OK\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":11,\"completion_tokens\":4,\"total_tokens\":15,\"cost\":0.0003}}" ) );
   QVERIFY( server.listen( QHostAddress::LocalHost, 0 ) );
 
   settings.setValue( u"ai/provider/openrouter/apiKey"_s, u"sk-or-loopback-test"_s );

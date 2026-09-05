@@ -211,8 +211,7 @@ void TestQgsAiCloudIndexClient::syncContextBatchesLargePayloads()
 
   QgsAiTestLoopbackServer server;
   server.responses
-    << QgsAiTestLoopbackServer::
-         jsonResponse( 200, "OK", QByteArrayLiteral( R"({"id":"ws_batch","fingerprint":"fp","name":"Batch","role":"owner","createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"})" ) )
+    << QgsAiTestLoopbackServer::jsonResponse( 200, "OK", QByteArrayLiteral( R"({"id":"ws_batch","fingerprint":"fp","name":"Batch","role":"owner","createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"})" ) )
     << QgsAiTestLoopbackServer::jsonResponse( 200, "OK", QByteArrayLiteral( R"({"upserted":0,"queued":128})" ) )
     << QgsAiTestLoopbackServer::jsonResponse( 200, "OK", QByteArrayLiteral( R"({"upserted":0,"queued":1})" ) );
   QVERIFY( server.listen( QHostAddress::LocalHost, 0 ) );
