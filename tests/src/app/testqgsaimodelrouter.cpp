@@ -1976,7 +1976,8 @@ void TestQgsAiModelRouter::openRouterNonStreamingToolCalls()
   const auto cleanup = qScopeGuard( []() { removeOpenRouterTestSettings(); } );
 
   QgsAiTestLoopbackServer server;
-  server.responses << QgsAiTestLoopbackServer::jsonResponse( 200, "OK", QByteArrayLiteral( "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":null,\"tool_calls\":[{\"id\":\"call_1\",\"type\":\"function\",\"function\":{\"name\":\"echo\",\"arguments\":\"{\\\"text\\\":\\\"hi\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}" ) );
+  server.responses << QgsAiTestLoopbackServer::
+      jsonResponse( 200, "OK", QByteArrayLiteral( "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":null,\"tool_calls\":[{\"id\":\"call_1\",\"type\":\"function\",\"function\":{\"name\":\"echo\",\"arguments\":\"{\\\"text\\\":\\\"hi\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}" ) );
   QVERIFY( server.listen( QHostAddress::LocalHost, 0 ) );
 
   QgsAiModelRouter router;
@@ -2093,7 +2094,8 @@ void TestQgsAiModelRouter::retryHonorsRetryAfterHeader()
 
   QgsAiTestLoopbackServer server;
   server.responses
-    << QgsAiTestLoopbackServer::jsonResponse( 429, "Too Many Requests", QByteArrayLiteral( "{\"error\":{\"code\":429,\"message\":\"slow down\"}}" ), { { QByteArrayLiteral( "Retry-After" ), QByteArrayLiteral( "1" ) } } )
+    << QgsAiTestLoopbackServer::
+         jsonResponse( 429, "Too Many Requests", QByteArrayLiteral( "{\"error\":{\"code\":429,\"message\":\"slow down\"}}" ), { { QByteArrayLiteral( "Retry-After" ), QByteArrayLiteral( "1" ) } } )
     << QgsAiTestLoopbackServer::jsonResponse( 200, "OK", QByteArrayLiteral( "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"OK\"},\"finish_reason\":\"stop\"}]}" ) );
   QVERIFY( server.listen( QHostAddress::LocalHost, 0 ) );
 
@@ -2167,7 +2169,8 @@ void TestQgsAiModelRouter::http403ModerationIncludesReasons()
   const auto cleanup = qScopeGuard( []() { removeOpenRouterTestSettings(); } );
 
   QgsAiTestLoopbackServer server;
-  server.responses << QgsAiTestLoopbackServer::jsonResponse( 403, "Forbidden", QByteArrayLiteral( "{\"error\":{\"code\":403,\"message\":\"Forbidden\",\"metadata\":{\"reasons\":[\"unsafe content\"],\"flagged_input\":\"redacted text\",\"provider_name\":\"X\",\"model_slug\":\"y\"}}}" ) );
+  server.responses << QgsAiTestLoopbackServer::
+      jsonResponse( 403, "Forbidden", QByteArrayLiteral( "{\"error\":{\"code\":403,\"message\":\"Forbidden\",\"metadata\":{\"reasons\":[\"unsafe content\"],\"flagged_input\":\"redacted text\",\"provider_name\":\"X\",\"model_slug\":\"y\"}}}" ) );
   QVERIFY( server.listen( QHostAddress::LocalHost, 0 ) );
 
   QgsAiModelRouter router;
@@ -2251,7 +2254,8 @@ void TestQgsAiModelRouter::openRouterUsageParsedFromNonStreamingBody()
   const auto cleanup = qScopeGuard( []() { removeOpenRouterTestSettings(); } );
 
   QgsAiTestLoopbackServer server;
-  server.responses << QgsAiTestLoopbackServer::jsonResponse( 200, "OK", QByteArrayLiteral( "{\"model\":\"served/model\",\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"OK\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":7,\"completion_tokens\":3,\"total_tokens\":10,\"cost\":0.0005}}" ) );
+  server.responses << QgsAiTestLoopbackServer::
+      jsonResponse( 200, "OK", QByteArrayLiteral( "{\"model\":\"served/model\",\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"OK\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":7,\"completion_tokens\":3,\"total_tokens\":10,\"cost\":0.0005}}" ) );
   QVERIFY( server.listen( QHostAddress::LocalHost, 0 ) );
 
   QgsAiModelRouter router;

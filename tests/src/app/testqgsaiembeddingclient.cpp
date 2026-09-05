@@ -154,7 +154,8 @@ void TestQgsAiEmbeddingClient::retryAfterHonoredForEmbeddings429()
 {
   QgsAiTestLoopbackServer server;
   server.responses
-    << QgsAiTestLoopbackServer::jsonResponse( 429, "Too Many Requests", QByteArrayLiteral( "{\"error\":{\"code\":429,\"message\":\"slow down\"}}" ), { { QByteArrayLiteral( "Retry-After" ), QByteArrayLiteral( "1" ) } } )
+    << QgsAiTestLoopbackServer::
+         jsonResponse( 429, "Too Many Requests", QByteArrayLiteral( "{\"error\":{\"code\":429,\"message\":\"slow down\"}}" ), { { QByteArrayLiteral( "Retry-After" ), QByteArrayLiteral( "1" ) } } )
     << QgsAiTestLoopbackServer::jsonResponse( 200, "OK", QByteArrayLiteral( "{\"data\":[{\"embedding\":[0.1,0.2],\"index\":0}]}" ) );
   QVERIFY( server.listen( QHostAddress::LocalHost, 0 ) );
 
